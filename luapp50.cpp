@@ -1,0 +1,601 @@
+#include "luapp50.h"
+
+extern "C" {
+#include "..\lua50\lua.h"
+#include "..\lua50\lauxlib.h"
+#include "..\lua50\lualib.h"
+}
+
+#include <cstdlib>
+#include <type_traits>
+#include <sstream>
+
+namespace lua50 {
+	// make sure all the constants match
+	// i do define them new to avoid having to include the c lua files and having all their funcs/defines in global namespace
+	static_assert(State::MINSTACK == LUA_MINSTACK);
+	static_assert(LType::Nil == static_cast<LType>(LUA_TNIL));
+	static_assert(LType::Number == static_cast<LType>(LUA_TNUMBER));
+	static_assert(LType::Boolean == static_cast<LType>(LUA_TBOOLEAN));
+	static_assert(LType::String == static_cast<LType>(LUA_TSTRING));
+	static_assert(LType::Table == static_cast<LType>(LUA_TTABLE));
+	static_assert(LType::Function == static_cast<LType>(LUA_TFUNCTION));
+	static_assert(LType::Userdata == static_cast<LType>(LUA_TUSERDATA));
+	static_assert(LType::Thread == static_cast<LType>(LUA_TTHREAD));
+	static_assert(LType::LightUserdata == static_cast<LType>(LUA_TLIGHTUSERDATA));
+	static_assert(std::is_same<Number, lua_Number>::value);
+	static_assert(std::is_same<CFunction, lua_CFunction>::value);
+	static_assert(State::GLOBALSINDEX == LUA_GLOBALSINDEX);
+	static_assert(State::MULTIRET == LUA_MULTRET);
+	static_assert(ErrorCode::Success == static_cast<ErrorCode>(0));
+	static_assert(ErrorCode::Runtime == static_cast<ErrorCode>(LUA_ERRRUN));
+	static_assert(ErrorCode::Memory == static_cast<ErrorCode>(LUA_ERRMEM));
+	static_assert(ErrorCode::ErrorHandler == static_cast<ErrorCode>(LUA_ERRERR));
+	static_assert(ErrorCode::Syntax == static_cast<ErrorCode>(LUA_ERRSYNTAX));
+	static_assert(ErrorCode::File == static_cast<ErrorCode>(LUA_ERRFILE));
+	static_assert(State::Upvalueindex(1) == lua_upvalueindex(1));
+	static_assert(State::Upvalueindex(500) == lua_upvalueindex(500));
+	static_assert(State::REGISTRYINDEX == LUA_REGISTRYINDEX);
+	static_assert(DebugInfo::SHORTSRC_SIZE == LUA_IDSIZE);
+
+
+	void ClearDebug(lua_Debug& d) {
+		d.event = 0;
+		d.name = nullptr;
+		d.namewhat = nullptr;
+		d.what = nullptr;
+		d.source = nullptr;
+		d.currentline = 0;
+		d.nups = 0;
+		d.linedefined = 0;
+		d.short_src[0] = '\0';
+	}
+	void CopyDebugInfo(const lua_Debug& src, DebugInfo& trg) {
+		trg.Event = src.event;
+		trg.Name = src.name;
+		trg.NameWhat = src.namewhat;
+		trg.What = src.what;
+		trg.Source = src.source;
+		trg.CurrentLine = src.currentline;
+		trg.NumUpvalues = src.nups;
+		trg.LineDefined = src.linedefined;
+		memcpy(trg.ShortSrc, src.short_src, DebugInfo::SHORTSRC_SIZE);
+		trg.ShortSrc[DebugInfo::SHORTSRC_SIZE - 1] = '\0';
+	}
+
+	State::State(lua_State* L)
+	{
+		static_assert(Reference::REFNIL == LUA_REFNIL);
+		static_assert(Reference::NOREF == LUA_NOREF);
+		this->L = L;
+	}
+
+	State State::Create(bool io, bool debug)
+	{
+		lua_State* L = lua_open();
+		luaopen_base(L);
+		luaopen_string(L);
+		luaopen_table(L);
+		luaopen_math(L);
+		if (io)
+			luaopen_io(L);
+		if (debug)
+			luaopen_debug(L);
+		lua_settop(L, 0);
+		return { L };
+	}
+
+	void State::Close()
+	{
+		lua_close(L);
+		L = nullptr;
+	}
+
+	int State::GetTop()
+	{
+		return lua_gettop(L);
+	}
+	void State::SetTop(int index)
+	{
+		lua_settop(L, index);
+	}
+	void State::PushValue(int index)
+	{
+		lua_pushvalue(L, index);
+	}
+	void State::Remove(int index)
+	{
+		lua_remove(L, index);
+	}
+	void State::Insert(int index)
+	{
+		lua_insert(L, index);
+	}
+	void State::Replace(int index)
+	{
+		lua_replace(L, index);
+	}
+	void State::Pop(int num)
+	{
+		lua_pop(L, num);
+	}
+	LType State::Type(int index)
+	{
+		return static_cast<LType>(lua_type(L, index));
+	}
+	bool State::IsNil(int index)
+	{
+		return lua_isnil(L, index);
+	}
+	bool State::IsBoolean(int index)
+	{
+		return lua_isboolean(L, index);
+	}
+	bool State::IsNumber(int index)
+	{
+		return lua_isnumber(L, index);
+	}
+	bool State::IsString(int index)
+	{
+		return lua_isstring(L, index);
+	}
+	bool State::IsTable(int index)
+	{
+		return lua_istable(L, index);
+	}
+	bool State::IsFunction(int index)
+	{
+		return lua_isfunction(L, index);
+	}
+	bool State::IsCFunction(int index)
+	{
+		return lua_iscfunction(L, index);
+	}
+	bool State::IsUserdata(int index)
+	{
+		return lua_isuserdata(L, index);
+	}
+	bool State::IsLightUserdata(int index)
+	{
+		return lua_islightuserdata(L, index);
+	}
+	const char* State::TypeName(LType t)
+	{
+		return lua_typename(L, static_cast<int>(t));
+	}
+	bool State::Equal(int i1, int i2)
+	{
+		return lua_equal(L, i1, i2);
+	}
+	bool State::RawEqual(int i1, int i2)
+	{
+		return lua_rawequal(L, i1, i2);
+	}
+	bool State::LessThan(int i1, int i2)
+	{
+		return lua_lessthan(L, i1, i2);
+	}
+	bool State::ToBoolean(int index)
+	{
+		return lua_toboolean(L, index);
+	}
+	Number State::ToNumber(int index)
+	{
+		return lua_tonumber(L, index);
+	}
+	Integer State::ToInteger(int index)
+	{
+		return static_cast<Integer>(lua_tonumber(L, index));
+	}
+	const char* State::ToString(int index)
+	{
+		return lua_tostring(L, index);
+	}
+	size_t State::StringLength(int index)
+	{
+		return lua_strlen(L, index);
+	}
+	CFunction State::ToCFunction(int index)
+	{
+		return lua_tocfunction(L, index);
+	}
+	State State::ToThread(int index)
+	{
+		return { lua_tothread(L, index) };
+	}
+	const void* State::ToPointer(int index)
+	{
+		return lua_topointer(L, index);
+	}
+	void* State::ToUserdata(int index)
+	{
+		return lua_touserdata(L, index);
+	}
+	void State::Push(bool b)
+	{
+		lua_pushboolean(L, b);
+	}
+	void State::Push(Number n)
+	{
+		lua_pushnumber(L, n);
+	}
+	void State::Push(Integer i)
+	{
+		lua_pushnumber(L, static_cast<Number>(i));
+	}
+	void State::Push(const char* s)
+	{
+		lua_pushstring(L, s);
+	}
+	void State::Push(const char* s, size_t l)
+	{
+		lua_pushlstring(L, s, l);
+	}
+	void State::Push()
+	{
+		lua_pushnil(L);
+	}
+	void State::Push(CFunction f, int nups)
+	{
+		lua_pushcclosure(L, f, nups);
+	}
+	void State::PushLightUserdata(void* ud)
+	{
+		lua_pushlightuserdata(L, ud);
+	}
+	const char* State::PushVFString(const char* s, va_list argp)
+	{
+		return lua_pushvfstring(L, s, argp);
+	}
+	const char* State::PushFString(const char* s, ...)
+	{
+		va_list args;
+		va_start(args, s);
+		const char* r = PushVFString(s, args);
+		va_end(args);
+		return r;
+	}
+	void State::Concat(int num)
+	{
+		lua_concat(L, num);
+	}
+	bool State::GetMetatable(int index)
+	{
+		return lua_getmetatable(L, index);
+	}
+	bool State::SetMetatable(int index)
+	{
+		return lua_setmetatable(L, index);
+	}
+	void* State::NewUserdata(size_t s)
+	{
+		return lua_newuserdata(L, s);
+	}
+	void State::NewTable()
+	{
+		lua_newtable(L);
+	}
+	void State::GetTable(int index)
+	{
+		lua_gettable(L, index);
+	}
+	void State::GetTableRaw(int index)
+	{
+		lua_rawget(L, index);
+	}
+	void State::GetTableRawI(int index, int n)
+	{
+		lua_rawgeti(L, index, n);
+	}
+	void State::SetTable(int index)
+	{
+		lua_settable(L, index);
+	}
+	void State::SetTableRaw(int index)
+	{
+		lua_rawset(L, index);
+	}
+	void State::SetTableRawI(int index, int n)
+	{
+		lua_rawseti(L, index, n);
+	}
+	bool State::Next(int index)
+	{
+		return lua_next(L, index);
+	}
+	void State::Call(int nargs, int nresults)
+	{
+		lua_call(L, nargs, nresults);
+	}
+	ErrorCode State::PCall(int nargs, int nresults, int errfunc)
+	{
+		return static_cast<ErrorCode>(lua_pcall(L, nargs, nresults, errfunc));
+	}
+	void State::TCall(int nargs, int nresults)
+	{
+		Push<DefaultErrorDecorator>();
+		Insert(1);
+		ErrorCode c = PCall(nargs, nresults, 1);
+		if (c != ErrorCode::Success) {
+			std::string msg = ErrorCodeFormat(c);
+			msg += ToString(-1);
+			Pop(1); // error msg
+			Remove(1); // DefaultErrorDecorator
+			throw LuaException{ msg };
+		}
+		Remove(1); // DefaultErrorDecorator
+	}
+	int State::DefaultErrorDecorator(State L)
+	{
+		int lvl = 1;
+		lua_Debug ar;
+		std::ostringstream trace{};
+		trace << L.ToString(-1);
+		L.Pop(1);
+		trace << "\r\nStacktrace:\r\n";
+		while (lua_getstack(L.L, lvl, &ar)) {
+			if (lua_getinfo(L.L, "nSl", &ar)) {
+				trace << ar.what << " ";
+				trace << ar.namewhat << " ";
+				trace << (ar.name ? ar.name : "null") << " (defined in:";
+				trace << ar.short_src << ":";
+				trace << ar.currentline << ")\r\n";
+			}
+			lvl++;
+		}
+		L.Push(trace.str().c_str());
+		return 1;
+	}
+	const char* State::ErrorCodeFormat(ErrorCode c)
+	{
+		switch (c)
+		{
+		case lua50::ErrorCode::Success:
+			return "Lua_Success: ";
+		case lua50::ErrorCode::Runtime:
+			return "Lua_RuntimeError: ";
+		case lua50::ErrorCode::File:
+			return "Lua_FileError: ";
+		case lua50::ErrorCode::Syntax:
+			return "Lua_SyntaxError: ";
+		case lua50::ErrorCode::Memory:
+			return "Lua_MemoryError: ";
+		case lua50::ErrorCode::ErrorHandler:
+			return "Lua_HandlerError: ";
+		default:
+			return "Lua_UnknownErrorCode: ";
+		}
+	}
+	void State::ProtectedAPI(APIProtector* p)
+	{
+		if (!CheckStack(3))
+			throw LuaException("ProtectedAPI: Stack Overflow!");
+		Push<ProtectedAPIExecutor>();
+		PushLightUserdata(p);
+		TCall(1, 0);
+	}
+	int State::ProtectedAPIExecutor(State L)
+	{
+		APIProtector* p = static_cast<APIProtector*>(L.ToUserdata(-1));
+		p->Work(L);
+		return 0;
+	}
+	void State::RegisterFunc(const char* name, CFunction f, int index)
+	{
+		Push(name);
+		Push(f);
+		SetTableRaw(index);
+	}
+	void State::Error()
+	{
+		lua_error(L);
+	}
+	State State::NewThread()
+	{
+		return { lua_newthread(L) };
+	}
+	ErrorCode State::Resume(int narg)
+	{
+		return static_cast<ErrorCode>(lua_resume(L, narg));
+	}
+	int State::Yield(int nret)
+	{
+		return lua_yield(L, nret);
+	}
+	void State::XMove(State to, int num)
+	{
+		lua_xmove(L, to.L, num);
+	}
+	bool State::Debug_GetStack(int level, DebugInfo& Info, DebugInfoOptions opt, bool pushFunc)
+	{
+		lua_Debug d;
+		ClearDebug(d);
+		if (!lua_getstack(L, level, &d))
+			return false;
+		if (!lua_getinfo(L, Debug_GetOptionString(opt, pushFunc, false), &d))
+			throw std::exception("somehow the debug option string got messed up");
+		CopyDebugInfo(d, Info);
+		return true;
+	}
+	bool State::Debug_GetInfoForFunc(DebugInfo& Info, DebugInfoOptions opt)
+	{
+		lua_Debug d;
+		ClearDebug(d);
+		if (!lua_getinfo(L, Debug_GetOptionString(opt, false, true), &d))
+			throw std::exception("somehow the debug option string got messed up");
+		CopyDebugInfo(d, Info);
+		return true;
+	}
+	void State::ArgError(int arg, const char* msg)
+	{
+		luaL_argerror(L, arg, msg);
+	}
+	void State::ArgCheck(bool b, int arg, const char* msg)
+	{
+		if (!b)
+			ArgError(arg, msg);
+	}
+	bool State::CallMeta(int obj, const char* ev)
+	{
+		return luaL_callmeta(L, obj, ev);
+	}
+	bool State::CallMeta(int obj, MetaEvent ev)
+	{
+		return CallMeta(obj, GetMetaEventName(ev));
+	}
+	void State::CheckAny(int idx)
+	{
+		luaL_checkany(L, idx);
+	}
+	Integer State::CheckInt(int idx)
+	{
+		return luaL_checkint(L, idx);
+	}
+	const char* State::CheckString(int idx)
+	{
+		return luaL_checkstring(L, idx);
+	}
+	const char* State::CheckString(int idx, size_t* len)
+	{
+		return luaL_checklstring(L, idx, len);
+	}
+	std::string State::CheckStdString(int idx)
+	{
+		size_t l;
+		const char* s = luaL_checklstring(L, idx, &l);
+		return { s, l };
+	}
+	std::string State::OptStdString(int idx, const std::string& def)
+	{
+		size_t l;
+		const char* s = OptString(idx, def.c_str(), &l);
+		return { s, l };
+	}
+	ErrorCode State::DoString(const std::string& code, const char* name)
+	{
+		return DoString(code.c_str(), code.length(), name);
+	}
+	Number State::CheckNumber(int idx)
+	{
+		return luaL_checknumber(L, idx);
+	}
+	void State::CheckStack(int extra, const char* msg)
+	{
+		luaL_checkstack(L, extra, msg);
+	}
+	void State::CheckType(int idx, LType t)
+	{
+		luaL_checktype(L, idx, static_cast<int>(t));
+	}
+	void* State::CheckUserdata(int idx, const char* name)
+	{
+		return luaL_checkudata(L, idx, name);
+	}
+	ErrorCode State::DoFile(const char* filename)
+	{
+		return static_cast<ErrorCode>(lua_dofile(L, filename));
+	}
+	ErrorCode State::DoString(const char* code)
+	{
+		return static_cast<ErrorCode>(lua_dostring(L, code));
+	}
+	ErrorCode State::DoString(const char* code, size_t l, const char* name)
+	{
+		return static_cast<ErrorCode>(lua_dobuffer(L, code, l, name));
+	}
+	ErrorCode State::LoadBuffer(const char* code, size_t len, const char* name)
+	{
+		return static_cast<ErrorCode>(luaL_loadbuffer(L, code, len, name));
+	}
+	ErrorCode State::LoadFile(const char* filename)
+	{
+		return static_cast<ErrorCode>(luaL_loadfile(L, filename));
+	}
+	void State::Error(const char* fmt, ...)
+	{
+		va_list args;
+		va_start(args, fmt);
+		const char* r = PushVFString(fmt, args);
+		va_end(args);
+		Error();
+	}
+	void State::TypeError(int idx, LType t)
+	{
+		luaL_typerror(L, idx, TypeName(t));
+	}
+	bool State::GetMetaField(int obj, const char* ev)
+	{
+		return luaL_getmetafield(L, obj, ev);
+	}
+	void State::Where(int lvl)
+	{
+		luaL_where(L, lvl);
+	}
+	bool State::GetMetaField(int obj, MetaEvent ev)
+	{
+		return GetMetaField(obj, GetMetaEventName(ev));
+	}
+	void State::GetMetaTable(const char* name)
+	{
+		luaL_getmetatable(L, name);
+	}
+	bool State::NewMetaTable(const char* name)
+	{
+		return luaL_newmetatable(L, name);
+	}
+	Integer State::OptInteger(int idx, Integer def)
+	{
+		return luaL_optint(L, idx, def);
+	}
+	const char* State::OptString(int idx, const char* def)
+	{
+		return luaL_optstring(L, idx, def);
+	}
+	const char* State::OptString(int idx, const char* def, size_t* l)
+	{
+		return luaL_optlstring(L, idx, def, l);
+	}
+	Number State::OptNumber(int idx, Number def)
+	{
+		return luaL_optnumber(L, idx, def);
+	}
+	Reference State::Ref(int t)
+	{
+		return { luaL_ref(L, t) };
+	}
+	void State::UnRef(Reference r, int t)
+	{
+		luaL_unref(L, t, r.r);
+	}
+	void State::Push(Reference r, int t)
+	{
+		GetTableRawI(t, r.r);
+	}
+	void State::Push(const std::string& s)
+	{
+		lua_pushlstring(L, s.c_str(), s.size());
+	}
+	std::string State::ToStdString(int idx)
+	{
+		const char* s = lua_tostring(L, idx);
+		size_t l = lua_strlen(L, idx);
+		return { s, l };
+	}
+	bool State::CheckStack(int extra)
+	{
+		return lua_checkstack(L, extra);
+	}
+	bool State::IsValidIndex(int i)
+	{
+		return 1 <= std::abs(i) && std::abs(i) <= GetTop();
+	}
+	LuaException::LuaException(const std::string& what) : std::runtime_error(what)
+	{
+	}
+	LuaException::LuaException(const char* what) : std::runtime_error(what)
+	{
+	}
+	LuaException::LuaException(const LuaException& other) noexcept : std::runtime_error(other)
+	{
+	}
+};
