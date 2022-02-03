@@ -37,8 +37,29 @@ namespace lua50 {
 	static_assert(State::Upvalueindex(500) == lua_upvalueindex(500));
 	static_assert(State::REGISTRYINDEX == LUA_REGISTRYINDEX);
 	static_assert(DebugInfo::SHORTSRC_SIZE == LUA_IDSIZE);
+	static_assert(HookEvent::None == static_cast<HookEvent>(0));
+	static_assert(HookEvent::Call == static_cast<HookEvent>(LUA_MASKCALL));
+	static_assert(HookEvent::Return == static_cast<HookEvent>(LUA_MASKRET));
+	static_assert(HookEvent::Line == static_cast<HookEvent>(LUA_MASKLINE));
+	static_assert(HookEvent::Count == static_cast<HookEvent>(LUA_MASKCOUNT));
 
 
+	HookEvent LuaHookToEvent(int ev) {
+		switch (ev) {
+		case LUA_HOOKCALL:
+			return HookEvent::Call;
+		case LUA_HOOKRET:
+			return HookEvent::Return;
+		case LUA_HOOKTAILRET:
+			return HookEvent::TailReturn;
+		case LUA_HOOKLINE:
+			return HookEvent::Line;
+		case LUA_HOOKCOUNT:
+			return HookEvent::Count;
+		default:
+			return HookEvent::None;
+		}
+	}
 	void ClearDebug(lua_Debug& d) {
 		d.event = 0;
 		d.name = nullptr;
@@ -51,7 +72,7 @@ namespace lua50 {
 		d.short_src[0] = '\0';
 	}
 	void CopyDebugInfo(const lua_Debug& src, DebugInfo& trg) {
-		trg.Event = src.event;
+		trg.Event = LuaHookToEvent(src.event);
 		trg.Name = src.name;
 		trg.NameWhat = src.namewhat;
 		trg.What = src.what;
@@ -325,24 +346,101 @@ namespace lua50 {
 		}
 		Remove(1); // DefaultErrorDecorator
 	}
-	int State::DefaultErrorDecorator(State L)
+	std::string State::int2Str(int i) {
+		//return std::format("{0:X}", i);
+		return std::to_string(i);
+	}
+	std::string State::ToDebugString(int index)
 	{
-		int lvl = 1;
+		LType t = Type(index);
+		switch (t)
+		{
+		case lua50::LType::Nil:
+			return "nil";
+		case lua50::LType::Boolean:
+			return ToBoolean(index) ? "true" : "false";
+		case lua50::LType::LightUserdata:
+			return "<LightUserdata " + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
+		case lua50::LType::Number:
+			return std::to_string(ToNumber(index));
+		case lua50::LType::String:
+			return "\"" + ToStdString(index) + "\"";
+		case lua50::LType::Table:
+			return "<table " + int2Str(reinterpret_cast<int>(lua_topointer(L, index))) + ">";
+		case lua50::LType::Function:
+			{
+				PushValue(index);
+				DebugInfo d = Debug_GetInfoForFunc(DebugInfoOptions::Name | DebugInfoOptions::Source | DebugInfoOptions::Line);
+				std::ostringstream name{};
+				name << "<function ";
+				name << d.What << " ";
+				name << d.NameWhat << " ";
+				name << (d.Name ? d.Name : "null") << " (defined in:";
+				name << d.ShortSrc << ":";
+				name << d.CurrentLine << ")>";
+				return name.str();
+			}
+		case lua50::LType::Userdata:
+			{
+				std::string ud = "";
+				if (GetMetaField(-1, "TypeName")) {
+					ud = ToString(-1);
+					Pop(1);
+				}
+				return "<Userdata " + ud + + " " + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
+			}
+		case lua50::LType::Thread:
+			return "<thread " + int2Str(reinterpret_cast<int>(lua_topointer(L, index))) + ">";
+		default:
+			return "<unknown>";
+		}
+	}
+	std::string State::GenerateStackTrace(int levelStart, int levelEnd, bool upvalues, bool locals)
+	{
+		int lvl = levelStart;
 		lua_Debug ar;
 		std::ostringstream trace{};
-		trace << L.ToString(-1);
-		L.Pop(1);
-		trace << "\r\nStacktrace:\r\n";
-		while (lua_getstack(L.L, lvl, &ar)) {
-			if (lua_getinfo(L.L, "nSl", &ar)) {
+		while (levelEnd != lvl && lua_getstack(L, lvl, &ar)) {
+			if (lua_getinfo(L, "nSl", &ar)) {
+				trace << "\t";
 				trace << ar.what << " ";
 				trace << ar.namewhat << " ";
 				trace << (ar.name ? ar.name : "null") << " (defined in:";
 				trace << ar.short_src << ":";
-				trace << ar.currentline << ")\r\n";
+				trace << ar.currentline << ")";
+				if (locals) {
+					const char* localname;
+					int lnum = 1;
+					while (localname = lua_getlocal(L, &ar, lnum)) {
+						trace << "\r\n\t\tlocal " << localname << " = " << ToDebugString(-1);
+						Pop(1);
+						lnum++;
+					}
+				}
+				if (upvalues) {
+					lua_getinfo(L, "f", &ar);
+					const char* upname;
+					int unum = 1;
+					while (upname = lua_getupvalue(L, -1, unum)) {
+						trace << "\r\n\t\tupvalue " << upname << " = " << ToDebugString(-1);
+						Pop(1);
+						unum++;
+					}
+					Pop(1);
+				}
+				trace << "\r\n";
 			}
 			lvl++;
 		}
+		return trace.str();
+	}
+	int State::DefaultErrorDecorator(State L)
+	{
+		std::ostringstream trace{};
+		trace << L.ToString(-1);
+		L.Pop(1);
+		trace << "\r\nStacktrace:\r\n";
+		trace << L.GenerateStackTrace(1, -1, true, true);
 		L.Push(trace.str().c_str());
 		return 1;
 	}
@@ -417,14 +515,69 @@ namespace lua50 {
 		CopyDebugInfo(d, Info);
 		return true;
 	}
-	bool State::Debug_GetInfoForFunc(DebugInfo& Info, DebugInfoOptions opt)
+	DebugInfo State::Debug_GetInfoForFunc(DebugInfoOptions opt)
 	{
 		lua_Debug d;
 		ClearDebug(d);
+		DebugInfo r{};
 		if (!lua_getinfo(L, Debug_GetOptionString(opt, false, true), &d))
-			throw std::exception("somehow the debug option string got messed up");
-		CopyDebugInfo(d, Info);
-		return true;
+			throw std::runtime_error("somehow the debug option string got messed up");
+		CopyDebugInfo(d, r);
+		return r;
+	}
+	const char* State::Debug_GetLocal(int level, int localnum)
+	{
+		lua_Debug ar;
+		if (!lua_getstack(L, level, &ar))
+			return nullptr;
+		return lua_getlocal(L, &ar, localnum);
+	}
+	const char* State::Debug_SetLocal(int level, int localnum)
+	{
+		lua_Debug ar;
+		if (!lua_getstack(L, level, &ar))
+			return nullptr;
+		return lua_setlocal(L, &ar, localnum);
+	}
+	const char* State::Debug_GetUpvalue(int index, int upnum)
+	{
+		return lua_getupvalue(L, index, upnum);
+	}
+	const char* State::Debug_SetUpvalue(int index, int upnum)
+	{
+		return lua_setupvalue(L, index, upnum);
+	}
+	void State::Debug_SetHook(CHook hook, HookEvent mask, int count)
+	{
+		lua_sethook(L, hook, static_cast<int>(mask), count);
+	}
+	void State::Debug_UnSetHook()
+	{
+		lua_sethook(L, nullptr, 0, 0);
+	}
+	HookEvent State::Debug_GetEventFromAR(ActivationRecord ar)
+	{
+		return LuaHookToEvent(ar.ar->event);
+	}
+	DebugInfo State::Debug_GetInfoFromAR(ActivationRecord ar, DebugInfoOptions opt, bool pushFunc)
+	{
+		DebugInfo r{};
+		if (!lua_getinfo(L, Debug_GetOptionString(opt, pushFunc, false), ar.ar))
+			throw std::runtime_error("ActivationRecord no longer valid");
+		CopyDebugInfo(*ar.ar, r);
+		return r;
+	}
+	CHook State::Debug_GetHook()
+	{
+		return lua_gethook(L);
+	}
+	HookEvent State::Debug_GetHookMask()
+	{
+		return static_cast<HookEvent>(lua_gethookmask(L));
+	}
+	int State::Debug_GetHookCount()
+	{
+		return lua_gethookcount(L);
 	}
 	void State::ArgError(int arg, const char* msg)
 	{
@@ -535,7 +688,7 @@ namespace lua50 {
 	{
 		return GetMetaField(obj, GetMetaEventName(ev));
 	}
-	void State::GetMetaTable(const char* name)
+	void State::GetMetaTableFromRegistry(const char* name)
 	{
 		luaL_getmetatable(L, name);
 	}
@@ -597,5 +750,9 @@ namespace lua50 {
 	}
 	LuaException::LuaException(const LuaException& other) noexcept : std::runtime_error(other)
 	{
+	}
+	ActivationRecord::ActivationRecord(lua_Debug* ar)
+	{
+		this->ar = ar;
 	}
 };

@@ -10,6 +10,7 @@
 
 // create a lua::State from this to interact with it
 struct lua_State;
+struct lua_Debug;
 
 
 namespace lua50 {
@@ -61,10 +62,19 @@ namespace lua50 {
 		Line = 4,
 		Upvalues = 8,
 	};
+	enum class HookEvent : int {
+		None = 0,
+		Call = 1,
+		Return = 2,
+		Line = 4,
+		Count = 8,
+		// cannot specifically requested via hook, just a different event than Return
+		TailReturn = 16,
+	};
 	struct DebugInfo {
 		static constexpr size_t SHORTSRC_SIZE = 60;
 
-		int Event = 0;
+		HookEvent Event = HookEvent::None;
 		const char* Name = nullptr;
 		const char* NameWhat = nullptr;
 		const char* What = nullptr;
@@ -85,6 +95,18 @@ namespace lua50 {
 	constexpr DebugInfoOptions operator^(DebugInfoOptions a, DebugInfoOptions b) {
 		using under = std::underlying_type<DebugInfoOptions>::type;
 		return static_cast<DebugInfoOptions>(static_cast<under>(a) ^ static_cast<under>(b));
+	}
+	constexpr HookEvent operator|(HookEvent a, HookEvent b) {
+		using under = std::underlying_type<HookEvent>::type;
+		return static_cast<HookEvent>(static_cast<under>(a) | static_cast<under>(b));
+	}
+	constexpr HookEvent operator&(HookEvent a, HookEvent b) {
+		using under = std::underlying_type<HookEvent>::type;
+		return static_cast<HookEvent>(static_cast<under>(a) & static_cast<under>(b));
+	}
+	constexpr HookEvent operator^(HookEvent a, HookEvent b) {
+		using under = std::underlying_type<HookEvent>::type;
+		return static_cast<HookEvent>(static_cast<under>(a) ^ static_cast<under>(b));
 	}
 
 	class State;
@@ -112,7 +134,7 @@ namespace lua50 {
 				L.Error("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
 			}
 			catch (...) {
-				L.Error("unnown excetion cathed in %s", __FUNCSIG__);
+				L.Error("unnown excetion catched in %s", __FUNCSIG__);
 			}
 		}
 		else {
@@ -146,6 +168,12 @@ namespace lua50 {
 	concept EquatableCpp = std::is_same_v<CppFunction, decltype(&T::Equals)> || std::is_same_v<CFunction, decltype(&T::Equals)>;
 	template<class T>
 	concept EquatableOp = std::equality_comparable<T>;
+	template<class T>
+	concept LessThanCpp = std::is_same_v<CppFunction, decltype(&T::LessThan)> || std::is_same_v<CFunction, decltype(&T::LessThan)>;
+	template<class T>
+	concept LessThanOp = requires (T a, T b) {
+		{a < b} -> std::same_as<bool>;
+	};
 
 	// only a int, so pass by value is preferred
 	class Reference {
@@ -185,6 +213,14 @@ namespace lua50 {
 			std::invoke(Invoke, L);
 		}
 	};
+
+	class ActivationRecord {
+		friend class State;
+		lua_Debug* ar;
+		ActivationRecord(lua_Debug* ar);
+	};
+	using CppHook = void(*) (State L, ActivationRecord ar);
+	using CHook = void(*)(lua_State* L, lua_Debug* ar);
 
 	// contains only a pointer, so pass-by-value is prefered
 	// you need to close this state manually
@@ -286,11 +322,19 @@ namespace lua50 {
 		ErrorCode PCall(int nargs, int nresults, int errfunc = 0);
 		// throws errors as LuaException C++ exception
 		void TCall(int nargs, int nresults);
+		std::string ToDebugString(int index);
+		std::string GenerateStackTrace(int levelStart = 0, int levelEnd = -1, bool upvalues = false, bool locals = false);
 		// attaches stacktrace to TOS string, intended for use with pcall
 		static int DefaultErrorDecorator(State L);
 		static const char* ErrorCodeFormat(ErrorCode c);
 		// allows to use the lua api without running into lua errors that end up in panic. throws errors as LuaException C++ exception
 		void ProtectedAPI(APIProtector* p);
+		template<class T>
+		requires std::invocable<T, State>
+		void ProtectedAPI(T callable) {
+			APIProtectorInvoke<T> p{ callable };
+			ProtectedAPI(&p);
+		}
 	private:
 		static int ProtectedAPIExecutor(State L);
 
@@ -460,8 +504,45 @@ namespace lua50 {
 		}
 	public:
 		bool Debug_GetStack(int level, DebugInfo& Info, DebugInfoOptions opt, bool pushFunc);
-		bool Debug_GetInfoForFunc(DebugInfo& Info, DebugInfoOptions opt);
-		// debug
+		DebugInfo Debug_GetInfoForFunc(DebugInfoOptions opt);
+		const char* Debug_GetLocal(int level, int localnum);
+		const char* Debug_SetLocal(int level, int localnum);
+		const char* Debug_GetUpvalue(int index, int upnum);
+		const char* Debug_SetUpvalue(int index, int upnum);
+	private:
+		void Debug_SetHook(CHook hook, HookEvent mask, int count);
+		template<CppHook F>
+		static void CppToCHook(lua_State* l, lua_Debug* ar) {
+			if constexpr (CatchExceptions) {
+				State L{ l };
+				try {
+					return F(L, ActivationRecord{ ar });
+				}
+				catch (std::exception& e) {
+					L.Error("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
+				}
+				catch (...) {
+					L.Error("unnown excetion catched in %s", __FUNCSIG__);
+				}
+			}
+			else {
+				State L{ l };
+				return F(L, ActivationRecord{ ar });
+			}
+		}
+	public:
+		template<CppHook F>
+		void Debug_SetHook(HookEvent mask, int count) {
+			Debug_SetHook(&CppToCHook<F>, mask, count);
+		}
+		void Debug_UnSetHook();
+		HookEvent Debug_GetEventFromAR(ActivationRecord ar);
+		DebugInfo Debug_GetInfoFromAR(ActivationRecord ar, DebugInfoOptions opt, bool pushFunc = false);
+		CHook Debug_GetHook();
+		HookEvent Debug_GetHookMask();
+		int Debug_GetHookCount();
+
+
 
 		// auxlib (luaL_)
 		constexpr const char* GetMetaEventName(MetaEvent f) {
@@ -531,7 +612,7 @@ namespace lua50 {
 
 		bool GetMetaField(int obj, const char* ev);
 		bool GetMetaField(int obj, MetaEvent ev);
-		void GetMetaTable(const char* name);
+		void GetMetaTableFromRegistry(const char* name);
 		bool NewMetaTable(const char* name);
 
 		Integer OptInteger(int idx, Integer def);
@@ -561,6 +642,7 @@ namespace lua50 {
 			return 0;
 		}
 		template<class T>
+		requires EquatableOp<T>
 		static int UserData_EqualsOperator(State L) {
 			if (L.GetTop() < 2) {
 				L.Push(false);
@@ -570,6 +652,22 @@ namespace lua50 {
 			T* o = L.OptionalUserData<T>(2);
 			if (t && o) {
 				L.Push(*t == *o);
+				return 1;
+			}
+			L.Push(false);
+			return 1;
+		}
+		template<class T>
+		requires LessThanOp<T>
+		static int UserData_LessThanOperator(State L) {
+			if (L.GetTop() < 2) {
+				L.Push(false);
+				return 1;
+			}
+			T* t = L.OptionalUserData<T>(1);
+			T* o = L.OptionalUserData<T>(2);
+			if (t && o) {
+				L.Push(*t < *o);
 				return 1;
 			}
 			L.Push(false);
@@ -605,6 +703,15 @@ namespace lua50 {
 					RegisterFunc<T::Equals>(GetMetaEventName(MetaEvent::Equals), -3);
 				else if constexpr (EquatableOp<T>)
 					RegisterFunc(GetMetaEventName(MetaEvent::Equals), &CppToCFunction<UserData_EqualsOperator<T>>, -3);
+
+				if constexpr (LessThanCpp<T>)
+					RegisterFunc<T::LessThan>(GetMetaEventName(MetaEvent::LessThan), -3);
+				else if constexpr (LessThanOp<T>)
+					RegisterFunc<UserData_LessThanOperator<T>>(GetMetaEventName(MetaEvent::LessThan), -3);
+
+				Push("TypeName");
+				Push(typename_details::type_name<T>());
+				SetTableRaw(-3);
 			}
 		}
 		template<class T>
@@ -621,8 +728,11 @@ namespace lua50 {
 		* 
 		* if T is not trivially destructable, generates a finalizer (__gc) that calls its destructor.
 		* 
-		* if T has a static CFunction or CppFunction Equals, defines a comparator (__eq) with it.
-		* else if T has a operator overload for ==, defines a comparator (__eq) with that (checks type, then equality).
+		* if T has a static CFunction or CppFunction Equals, defines a == comparator (__eq) with it.
+		* else if T has a operator overload for ==, defines a = comparator (__eq) with that (checks type, then operator).
+		* 
+		* if T has a static CFunction or CppFunction LessThan, defines a < comparator (__lt) with it.
+		* else if T has a operator overload for <, defines a < comparator (__lt) with that (checks type, then operator).
 		* 
 		*/
 		template<class T, class ... Args>
@@ -633,16 +743,14 @@ namespace lua50 {
 			return t;
 		}
 	private:
-		static std::string int2Str(int i) {
-			//return std::format("{0:X}", i);
-			return std::to_string(i);
-		}
+		static std::string int2Str(int i);
 	public:
 		template<class T>
 		std::string AnalyzeUserDataType() {
 			GetUserDataMetatable<T>();
 			std::string re{ "analyzing type: " };
 			re += typename_details::type_name<T>();
+
 
 			Push(GetMetaEventName(MetaEvent::Index));
 			GetTableRaw(-2);
@@ -673,6 +781,14 @@ namespace lua50 {
 			GetTableRaw(-2);
 			if (IsFunction(-1)) {
 				re += "\ncomparator equals ";
+				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+			}
+			Pop(1);
+
+			Push(GetMetaEventName(MetaEvent::LessThan));
+			GetTableRaw(-2);
+			if (IsFunction(-1)) {
+				re += "\ncomparator lessthan ";
 				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
 			}
 			Pop(1);
