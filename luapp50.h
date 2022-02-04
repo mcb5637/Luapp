@@ -174,6 +174,46 @@ namespace lua50 {
 	concept LessThanOp = requires (T a, T b) {
 		{a < b} -> std::same_as<bool>;
 	};
+	template<class T>
+	concept AddCpp = std::is_same_v<CppFunction, decltype(&T::Add)> || std::is_same_v<CFunction, decltype(&T::Add)>;
+	template<class T>
+	concept AddOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+		{a + b} -> std::same_as<T>;
+	};
+	template<class T>
+	concept SubtractCpp = std::is_same_v<CppFunction, decltype(&T::Substract)> || std::is_same_v<CFunction, decltype(&T::Substract)>;
+	template<class T>
+	concept SubtractOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+		{a - b} -> std::same_as<T>;
+	};
+	template<class T>
+	concept MultiplyCpp = std::is_same_v<CppFunction, decltype(&T::Multiply)> || std::is_same_v<CFunction, decltype(&T::Multiply)>;
+	template<class T>
+	concept MultiplyOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+		{a * b} -> std::same_as<T>;
+	};
+	template<class T>
+	concept DivideCpp = std::is_same_v<CppFunction, decltype(&T::Divide)> || std::is_same_v<CFunction, decltype(&T::Divide)>;
+	template<class T>
+	concept DivideOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+		{a / b} -> std::same_as<T>;
+	};
+	template<class T>
+	concept PowCpp = std::is_same_v<CppFunction, decltype(&T::Pow)> || std::is_same_v<CFunction, decltype(&T::Pow)>;
+	template<class T>
+	concept UnaryMinusCpp = std::is_same_v<CppFunction, decltype(&T::UnaryMinus)> || std::is_same_v<CFunction, decltype(&T::UnaryMinus)>;
+	template<class T>
+	concept UnaryMinusOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
+		{-a} -> std::same_as<T>;
+	};
+	template<class T>
+	concept ConcatCpp = std::is_same_v<CppFunction, decltype(&T::Concat)> || std::is_same_v<CFunction, decltype(&T::Concat)>;
+	template<class T>
+	concept NewIndexCpp = std::is_same_v<CppFunction, decltype(&T::NewIndex)> || std::is_same_v<CFunction, decltype(&T::NewIndex)>;
+	template<class T>
+	concept CallCpp = std::is_same_v<CppFunction, decltype(&T::Call)> || std::is_same_v<CFunction, decltype(&T::Call)>;
+	template<class T>
+	concept IndexCpp = std::is_same_v<CppFunction, decltype(&T::Index)> || std::is_same_v<CFunction, decltype(&T::Index)>;
 
 	// only a int, so pass by value is preferred
 	class Reference {
@@ -605,6 +645,7 @@ namespace lua50 {
 		ErrorCode DoString(const char* code, size_t l, const char* name);
 		ErrorCode LoadBuffer(const char* code, size_t len, const char* name);
 		ErrorCode LoadFile(const char* filename);
+		void DoStringT(const char* code, size_t len = 0, const char* name = nullptr);
 
 		[[noreturn]] void Error(const char* fmt, ...);
 		[[noreturn]] void TypeError(int idx, LType t);
@@ -635,6 +676,9 @@ namespace lua50 {
 		ErrorCode DoString(const std::string& code, const char* name);
 
 	private:
+		constexpr static const char* MethodsName = "Methods";
+		constexpr static const char* TypeNameName = "TypeName";
+
 		template<class T>
 		static int UserData_Finalizer(State L)
 		{
@@ -673,6 +717,65 @@ namespace lua50 {
 			L.Push(false);
 			return 1;
 		}
+		template<class T>
+		requires AddOp<T>
+		static int UserData_AddOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			T* o = L.GetUserData<T>(2);
+			L.NewUserData<T>(std::move(*t + *o));
+			return 1;
+		}
+		template<class T>
+		requires SubtractOp<T>
+		static int UserData_SubtractOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			T* o = L.GetUserData<T>(2);
+			L.NewUserData<T>(std::move(*t - *o));
+			return 1;
+		}
+		template<class T>
+		requires MultiplyOp<T>
+		static int UserData_MultiplyOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			T* o = L.GetUserData<T>(2);
+			L.NewUserData<T>(std::move(*t * *o));
+			return 1;
+		}
+		template<class T>
+		requires DivideOp<T>
+		static int UserData_DivideOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			T* o = L.GetUserData<T>(2);
+			L.NewUserData<T>(std::move(*t / *o));
+			return 1;
+		}
+		template<class T>
+		requires UnaryMinusOp<T>
+		static int UserData_UnaryMinusOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			L.NewUserData<T>(std::move(-(*t)));
+			return 1;
+		}
+		template<class T>
+		requires IndexCpp<T>
+		static int UserData_IndexOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			if constexpr (HasLuaMethods<T>) {
+				if (L.GetMetaField(1, MethodsName)) {
+					L.PushValue(2);
+					L.GetTableRaw(-2);
+					if (!L.IsNil(-1))
+						return 1;
+					L.Pop(2); // nil and metatable
+				}
+			}
+			if constexpr (std::is_same_v<CppFunction, decltype(&T::Index)>) {
+				return T::Index(L);
+			}
+			else {
+				return T::Index(L.L);
+			}
+		}
 
 	public:
 		template<class T>
@@ -689,7 +792,16 @@ namespace lua50 {
 		template<class T>
 		void GetUserDataMetatable() {
 			if (NewMetaTable(typename_details::type_name<T>())) {
-				if constexpr (HasLuaMethods<T>) {
+				if constexpr (IndexCpp<T>) {
+					RegisterFunc<UserData_IndexOperator<T>>(GetMetaEventName(MetaEvent::Index), -3);
+					if constexpr (HasLuaMethods<T>) {
+						Push(MethodsName);
+						NewTable();
+						RegisterFuncs(T::LuaMethods, -3);
+						SetTableRaw(-3);
+					}
+				}
+				else if constexpr (HasLuaMethods<T>) {
 					Push(GetMetaEventName(MetaEvent::Index));
 					NewTable();
 					RegisterFuncs(T::LuaMethods, -3);
@@ -709,7 +821,44 @@ namespace lua50 {
 				else if constexpr (LessThanOp<T>)
 					RegisterFunc<UserData_LessThanOperator<T>>(GetMetaEventName(MetaEvent::LessThan), -3);
 
-				Push("TypeName");
+				if constexpr (AddCpp<T>)
+					RegisterFunc<T::Add>(GetMetaEventName(MetaEvent::Add), -3);
+				else if constexpr (AddOp<T>)
+					RegisterFunc<UserData_AddOperator<T>>(GetMetaEventName(MetaEvent::Add), -3);
+
+				if constexpr (SubtractCpp<T>)
+					RegisterFunc<T::Substract>(GetMetaEventName(MetaEvent::Subtract), -3);
+				else if constexpr (AddOp<T>)
+					RegisterFunc<UserData_SubtractOperator<T>>(GetMetaEventName(MetaEvent::Subtract), -3);
+
+				if constexpr (MultiplyCpp<T>)
+					RegisterFunc<T::Multiply>(GetMetaEventName(MetaEvent::Multiply), -3);
+				else if constexpr (MultiplyOp<T>)
+					RegisterFunc<UserData_MultiplyOperator<T>>(GetMetaEventName(MetaEvent::Multiply), -3);
+
+				if constexpr (DivideCpp<T>)
+					RegisterFunc<T::Divide>(GetMetaEventName(MetaEvent::Divide), -3);
+				else if constexpr (DivideOp<T>)
+					RegisterFunc<UserData_DivideOperator<T>>(GetMetaEventName(MetaEvent::Divide), -3);
+
+				if constexpr (PowCpp<T>)
+					RegisterFunc<T::Pow>(GetMetaEventName(MetaEvent::Pow), -3);
+
+				if constexpr (UnaryMinusCpp<T>)
+					RegisterFunc<T::UnaryMinus>(GetMetaEventName(MetaEvent::UnaryMinus), -3);
+				else if constexpr (UnaryMinusOp<T>)
+					RegisterFunc<UserData_UnaryMinusOperator<T>>(GetMetaEventName(MetaEvent::UnaryMinus), -3);
+
+				if constexpr (ConcatCpp<T>)
+					RegisterFunc<T::Concat>(GetMetaEventName(MetaEvent::Concat), -3);
+
+				if constexpr (NewIndexCpp<T>)
+					RegisterFunc<T::NewIndex>(GetMetaEventName(MetaEvent::NewIndex), -3);
+
+				if constexpr (CallCpp<T>)
+					RegisterFunc<T::Call>(GetMetaEventName(MetaEvent::Call), -3);
+
+				Push(TypeNameName);
 				Push(typename_details::type_name<T>());
 				SetTableRaw(-3);
 			}
@@ -728,12 +877,56 @@ namespace lua50 {
 		* 
 		* if T is not trivially destructable, generates a finalizer (__gc) that calls its destructor.
 		* 
-		* if T has a static CFunction or CppFunction Equals, defines a == comparator (__eq) with it.
-		* else if T has a operator overload for ==, defines a = comparator (__eq) with that (checks type, then operator).
+		* metatable operator definition:
+		* - by CFunction or CppFunction: you provide an implementation as a static class member (used, if both provided).
+		* - or automatically by C++ operator overloads (this requires a nothrow move constructor for operators).
 		* 
-		* if T has a static CFunction or CppFunction LessThan, defines a < comparator (__lt) with it.
-		* else if T has a operator overload for <, defines a < comparator (__lt) with that (checks type, then operator).
+		* == comparator (also ~= comparator) (__eq):
+		* - Equals static member.
+		* - == operator overload (or <==> overload) (checks type, then operator).
 		* 
+		* < comparator (also >, <=, >= comparator) (__lt and __le):
+		* - LessThan static member.
+		* - < operator overload (or <==> overload) (checks type, then operator).
+		* 
+		* + operator (__add):
+		* - Add static member.
+		* - + operator overload (only works for both operands of type T).
+		* 
+		* - operator (__sub):
+		* - Substract static member.
+		* - - operator overload (only works for both operands of type T).
+		* 
+		* * operator (__mul):
+		* - Multiply static member.
+		* - * operator overload (only works for both operands of type T).
+		* 
+		* / operator (__div):
+		* - Divide static member.
+		* - / operator overload (only works for both operands of type T).
+		* 
+		* ^ operator (__pow):
+		* - Pow static member.
+		* (no operator in c++).
+		* 
+		* unary - operator (__unm):
+		* - UnaryMinus static member.
+		* - (unary) - operator overload.
+		* 
+		* .. operator (__concat):
+		* - Concat static member.
+		* (no operator in c++).
+		* 
+		* [x]=1 operator (__newindex):
+		* - NewIndex static member.
+		* 
+		* (...) operator (__call)
+		* - Call static member.
+		* 
+		* =[x] operator (__index):
+		* - Index static member.
+		* 
+		* if T has both LuaMethods and Index defined, first Index is searched, and if nothing is found, Index is called.
 		*/
 		template<class T, class ... Args>
 		T* NewUserData(Args&& ... args) {
@@ -767,6 +960,26 @@ namespace lua50 {
 					Pop(1);
 				}
 			}
+			else if (IsFunction(-1)) {
+				Push(MethodsName);
+				GetTableRaw(-3);
+				if (IsTable(-1)) {
+					re += "\nmethod list:";
+					Push();
+					while (Next(-2)) {
+						if (Type(-2) == LType::String) {
+							re += "\n\t";
+							re += ToString(-2);
+							re += " ";
+							re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+						}
+						Pop(1);
+					}
+				}
+				Pop(1);
+				re += "\nindex ";
+				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+			}
 			Pop(1);
 
 			Push(GetMetaEventName(MetaEvent::Finalizer));
@@ -789,6 +1002,78 @@ namespace lua50 {
 			GetTableRaw(-2);
 			if (IsFunction(-1)) {
 				re += "\ncomparator lessthan ";
+				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+			}
+			Pop(1);
+
+			Push(GetMetaEventName(MetaEvent::Add));
+			GetTableRaw(-2);
+			if (IsFunction(-1)) {
+				re += "\nadd ";
+				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+			}
+			Pop(1);
+
+			Push(GetMetaEventName(MetaEvent::Subtract));
+			GetTableRaw(-2);
+			if (IsFunction(-1)) {
+				re += "\nsub ";
+				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+			}
+			Pop(1);
+
+			Push(GetMetaEventName(MetaEvent::Multiply));
+			GetTableRaw(-2);
+			if (IsFunction(-1)) {
+				re += "\nmul ";
+				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+			}
+			Pop(1);
+
+			Push(GetMetaEventName(MetaEvent::Divide));
+			GetTableRaw(-2);
+			if (IsFunction(-1)) {
+				re += "\ndiv ";
+				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+			}
+			Pop(1);
+
+			Push(GetMetaEventName(MetaEvent::Pow));
+			GetTableRaw(-2);
+			if (IsFunction(-1)) {
+				re += "\npow ";
+				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+			}
+			Pop(1);
+
+			Push(GetMetaEventName(MetaEvent::UnaryMinus));
+			GetTableRaw(-2);
+			if (IsFunction(-1)) {
+				re += "\nunm ";
+				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+			}
+			Pop(1);
+
+			Push(GetMetaEventName(MetaEvent::Concat));
+			GetTableRaw(-2);
+			if (IsFunction(-1)) {
+				re += "\nconcat ";
+				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+			}
+			Pop(1);
+
+			Push(GetMetaEventName(MetaEvent::NewIndex));
+			GetTableRaw(-2);
+			if (IsFunction(-1)) {
+				re += "\nnewindex ";
+				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
+			}
+			Pop(1);
+
+			Push(GetMetaEventName(MetaEvent::Call));
+			GetTableRaw(-2);
+			if (IsFunction(-1)) {
+				re += "\ncall ";
 				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
 			}
 			Pop(1);

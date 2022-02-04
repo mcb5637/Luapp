@@ -383,7 +383,7 @@ namespace lua50 {
 		case lua50::LType::Userdata:
 			{
 				std::string ud = "";
-				if (GetMetaField(-1, "TypeName")) {
+				if (GetMetaField(-1, TypeNameName)) {
 					ud = ToString(-1);
 					Pop(1);
 				}
@@ -663,6 +663,21 @@ namespace lua50 {
 	ErrorCode State::LoadFile(const char* filename)
 	{
 		return static_cast<ErrorCode>(luaL_loadfile(L, filename));
+	}
+	void State::DoStringT(const char* code, size_t len, const char* name)
+	{
+		if (!name)
+			name = code;
+		if (len == 0)
+			len = strlen(code);
+		ErrorCode e = static_cast<ErrorCode>(luaL_loadbuffer(L, code, len, name));
+		if (e != ErrorCode::Success) {
+			std::string msg = ErrorCodeFormat(e);
+			msg += ToString(-1);
+			Pop(1); // error msg
+			throw LuaException{ msg };
+		}
+		TCall(0, MULTIRET);
 	}
 	void State::Error(const char* fmt, ...)
 	{
