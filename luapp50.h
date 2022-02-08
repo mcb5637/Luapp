@@ -417,9 +417,9 @@ namespace lua50 {
 		[[noreturn]] void Error();
 
 		State NewThread();
-		ErrorCode Resume(int narg);
+		ErrorCode ResumeThread(int narg);
 		// warning: this func cannot return (you cannot yield through lua/c boundaries in lua 5.0)
-		int Yield(int nret);
+		int YieldThread(int nret);
 		// moves from this to to, warning do only move between coroutines of the same state, g cgets confused otherwise.
 		void XMove(State to, int num);
 

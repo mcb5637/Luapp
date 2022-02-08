@@ -1,3 +1,5 @@
+#include "../pch.h"
+
 #include "luapp50.h"
 
 extern "C" {
@@ -492,11 +494,11 @@ namespace lua50 {
 	{
 		return { lua_newthread(L) };
 	}
-	ErrorCode State::Resume(int narg)
+	ErrorCode State::ResumeThread(int narg)
 	{
 		return static_cast<ErrorCode>(lua_resume(L, narg));
 	}
-	int State::Yield(int nret)
+	int State::YieldThread(int nret)
 	{
 		return lua_yield(L, nret);
 	}
