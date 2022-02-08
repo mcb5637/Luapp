@@ -606,10 +606,6 @@ namespace lua50 {
 	{
 		return luaL_checkint(L, idx);
 	}
-	const char* State::CheckString(int idx)
-	{
-		return luaL_checkstring(L, idx);
-	}
 	const char* State::CheckString(int idx, size_t* len)
 	{
 		return luaL_checklstring(L, idx, len);
@@ -693,6 +689,11 @@ namespace lua50 {
 	{
 		luaL_typerror(L, idx, TypeName(t));
 	}
+	void State::Assert(bool a, const char* msg)
+	{
+		if (!a)
+			Error(msg);
+	}
 	bool State::GetMetaField(int obj, const char* ev)
 	{
 		return luaL_getmetafield(L, obj, ev);
@@ -728,6 +729,12 @@ namespace lua50 {
 	Number State::OptNumber(int idx, Number def)
 	{
 		return luaL_optnumber(L, idx, def);
+	}
+	bool State::OptBool(int idx, bool def)
+	{
+		if (lua_isnoneornil(L, idx))
+			return def;
+		return ToBoolean(idx);
 	}
 	Reference State::Ref(int t)
 	{

@@ -631,7 +631,6 @@ namespace lua50 {
 
 		void CheckAny(int idx);
 		Integer CheckInt(int idx);
-		const char* CheckString(int idx);
 		const char* CheckString(int idx, size_t* len = nullptr);
 		Number CheckNumber(int idx);
 		// checkoption
@@ -649,6 +648,7 @@ namespace lua50 {
 
 		[[noreturn]] void Error(const char* fmt, ...);
 		[[noreturn]] void TypeError(int idx, LType t);
+		void Assert(bool a, const char* msg);
 		void Where(int lvl);
 
 		bool GetMetaField(int obj, const char* ev);
@@ -660,6 +660,7 @@ namespace lua50 {
 		const char* OptString(int idx, const char* def);
 		const char* OptString(int idx, const char* def, size_t* l);
 		Number OptNumber(int idx, Number def);
+		bool OptBool(int idx, bool def);
 
 		Reference Ref(int t = REGISTRYINDEX);
 		void UnRef(Reference r, int t = REGISTRYINDEX);
