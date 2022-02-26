@@ -29,6 +29,7 @@ namespace lua50 {
 		Function,
 		Userdata,
 		Thread,
+		None = -1,
 	};
 	enum class ErrorCode : int {
 		Success,
@@ -126,16 +127,25 @@ namespace lua50 {
 	template<CppFunction F>
 	int CppToCFunction(lua_State* l) {
 		if constexpr (CatchExceptions) {
-			State L{ l };
-			try {
-				return F(L);
+			bool err = false;
+			State L{ l }; // trivial, no destructor to call, so its save
+			int ret = 0;
+			{ // make sure all c++ objects gets their destructor called
+				try {
+					ret = F(L);
+				}
+				catch (std::exception& e) {
+					L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
+					err = true;
+				}
+				catch (...) {
+					L.PushFString("unnown excetion catched in %s", __FUNCSIG__);
+					err = true;
+				}
 			}
-			catch (std::exception& e) {
-				L.Error("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
-			}
-			catch (...) {
-				L.Error("unnown excetion catched in %s", __FUNCSIG__);
-			}
+			if (err)
+				L.Error();
+			return ret;
 		}
 		else {
 			State L{ l };
@@ -214,6 +224,15 @@ namespace lua50 {
 	concept CallCpp = std::is_same_v<CppFunction, decltype(&T::Call)> || std::is_same_v<CFunction, decltype(&T::Call)>;
 	template<class T>
 	concept IndexCpp = std::is_same_v<CppFunction, decltype(&T::Index)> || std::is_same_v<CFunction, decltype(&T::Index)>;
+
+	template<class T>
+	concept Pushable = std::is_same_v<const char*, T> || (!std::is_pointer_v<T> && requires (State s, T t) {
+		{ s.Push(t) };
+	});
+	template<class T>
+	concept Checkable = std::is_pointer_v<T> && requires (State s, T t) {
+		{ s.Check(1, t) };
+	};
 
 	// only a int, so pass by value is preferred
 	class Reference {
@@ -302,6 +321,7 @@ namespace lua50 {
 		bool Equal(int i1, int i2);
 		bool RawEqual(int i1, int i2);
 		bool LessThan(int i1, int i2);
+		bool IsNoneOrNil(int idx);
 
 		bool ToBoolean(int index);
 		Number ToNumber(int index);
@@ -360,7 +380,7 @@ namespace lua50 {
 		constexpr static int MULTIRET = -1;
 		void Call(int nargs, int nresults);
 		ErrorCode PCall(int nargs, int nresults, int errfunc = 0);
-		// throws errors as LuaException C++ exception
+		// throws errors as lua::LuaException C++ exception
 		void TCall(int nargs, int nresults);
 		std::string ToDebugString(int index);
 		std::string GenerateStackTrace(int levelStart = 0, int levelEnd = -1, bool upvalues = false, bool locals = false);
@@ -554,20 +574,27 @@ namespace lua50 {
 		template<CppHook F>
 		static void CppToCHook(lua_State* l, lua_Debug* ar) {
 			if constexpr (CatchExceptions) {
-				State L{ l };
-				try {
-					return F(L, ActivationRecord{ ar });
+				bool err = false;
+				State L{ l }; // trivial, no destructor to call, so its save
+				{ // make sure all c++ objects gets their destructor called
+					try {
+						F(L, ActivationRecord{ ar });
+					}
+					catch (std::exception& e) {
+						L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
+						err = true;
+					}
+					catch (...) {
+						L.PushFString("unnown excetion catched in %s", __FUNCSIG__);
+						err = true;
+					}
 				}
-				catch (std::exception& e) {
-					L.Error("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
-				}
-				catch (...) {
-					L.Error("unnown excetion catched in %s", __FUNCSIG__);
-				}
+				if (err)
+					L.Error();
 			}
 			else {
 				State L{ l };
-				return F(L, ActivationRecord{ ar });
+				F(L, ActivationRecord{ ar });
 			}
 		}
 	public:
@@ -637,6 +664,7 @@ namespace lua50 {
 		// luaerror on fail
 		void CheckStack(int extra, const char* msg);
 		void CheckType(int idx, LType t);
+		// does return null on invalid
 		void* CheckUserdata(int idx, const char* name);
 
 		ErrorCode DoFile(const char* filename);
@@ -646,8 +674,10 @@ namespace lua50 {
 		ErrorCode LoadFile(const char* filename);
 		void DoStringT(const char* code, size_t len = 0, const char* name = nullptr);
 
+		// always uses lua error handling
 		[[noreturn]] void Error(const char* fmt, ...);
 		[[noreturn]] void TypeError(int idx, LType t);
+		[[noreturn]] void TypeError(int idx, const char* t);
 		void Assert(bool a, const char* msg);
 		void Where(int lvl);
 
@@ -657,8 +687,7 @@ namespace lua50 {
 		bool NewMetaTable(const char* name);
 
 		Integer OptInteger(int idx, Integer def);
-		const char* OptString(int idx, const char* def);
-		const char* OptString(int idx, const char* def, size_t* l);
+		const char* OptString(int idx, const char* def, size_t* l = nullptr);
 		Number OptNumber(int idx, Number def);
 		bool OptBool(int idx, bool def);
 
@@ -675,6 +704,62 @@ namespace lua50 {
 		std::string CheckStdString(int idx);
 		std::string OptStdString(int idx, const std::string& def);
 		ErrorCode DoString(const std::string& code, const char* name);
+
+		// %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char
+		std::string LuaFormat(const char* s, ...);
+		// %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char
+		std::string LuaVFormat(const char* s, va_list args);
+		// %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char
+		[[noreturn]] void ThrowLuaFormatted(const char* s, ...);
+
+		void Check(int idx, Integer* i);
+		void Check(int idx, std::string* s);
+		void Check(int idx, Number* n);
+
+	private:
+		template<Pushable V, Pushable... T>
+		void PushAllR(V v, T... t) {
+			Push(v);
+			if constexpr (sizeof...(t) > 0) {
+				PushAllR(t...);
+			}
+		}
+		template<Checkable V, Checkable ... T>
+		void CheckAllR(int i, V v, T... t) {
+			Check(i, v);
+			if constexpr (sizeof...(t) > 0) {
+				CheckAllR(i + 1, t...);
+			}
+		}
+
+	public:
+		template<Pushable ... T>
+		void PushAll(T... t) {
+			if constexpr (sizeof...(t) > 0) {
+				PushAllR(t...);
+			}
+		}
+		template<Checkable ... T>
+		void CheckAll(T... t) {
+			if constexpr (sizeof...(t) > 0) {
+				CheckAllR(-static_cast<int>(sizeof...(t)), t...);
+			}
+		}
+		template<Pushable ... T>
+		void TCallA(int nres, T ... t) {
+			PushAll(t...);
+			TCall(sizeof...(t), nres);
+		}
+		template<class R, Pushable... T>
+		requires Checkable<R*>
+		R TCallAR(T ... t) {
+			PushAll(t...);
+			TCall(sizeof...(t), 1);
+			R r{};
+			Check(-1, &r);
+			Pop(1);
+			return r;
+		}
 
 	private:
 		constexpr static const char* MethodsName = "Methods";

@@ -16,6 +16,7 @@ namespace lua50 {
 	// make sure all the constants match
 	// i do define them new to avoid having to include the c lua files and having all their funcs/defines in global namespace
 	static_assert(State::MINSTACK == LUA_MINSTACK);
+	static_assert(LType::None == static_cast<LType>(LUA_TNONE));
 	static_assert(LType::Nil == static_cast<LType>(LUA_TNIL));
 	static_assert(LType::Number == static_cast<LType>(LUA_TNUMBER));
 	static_assert(LType::Boolean == static_cast<LType>(LUA_TBOOLEAN));
@@ -197,6 +198,10 @@ namespace lua50 {
 	bool State::LessThan(int i1, int i2)
 	{
 		return lua_lessthan(L, i1, i2);
+	}
+	bool State::IsNoneOrNil(int idx)
+	{
+		return lua_isnoneornil(L, idx);
 	}
 	bool State::ToBoolean(int index)
 	{
@@ -513,7 +518,7 @@ namespace lua50 {
 		if (!lua_getstack(L, level, &d))
 			return false;
 		if (!lua_getinfo(L, Debug_GetOptionString(opt, pushFunc, false), &d))
-			throw std::exception("somehow the debug option string got messed up");
+			throw std::runtime_error("somehow the debug option string got messed up");
 		CopyDebugInfo(d, Info);
 		return true;
 	}
@@ -583,7 +588,22 @@ namespace lua50 {
 	}
 	void State::ArgError(int arg, const char* msg)
 	{
-		luaL_argerror(L, arg, msg);
+		if constexpr (CatchExceptions) {
+			lua_Debug ar;
+			lua_getstack(L, 0, &ar);
+			lua_getinfo(L, "n", &ar);
+			if (strcmp(ar.namewhat, "method") == 0) {
+				arg--;  /* do not count `self' */
+				if (arg == 0)  /* error is in the self argument itself? */
+					ThrowLuaFormatted("calling `%s' on bad self (%s)", ar.name, msg);
+			}
+			if (ar.name == NULL)
+				ar.name = "?";
+			ThrowLuaFormatted("bad argument #%d to `%s' (%s)", arg, ar.name, msg);
+		}
+		else {
+			luaL_argerror(L, arg, msg);
+		}
 	}
 	void State::ArgCheck(bool b, int arg, const char* msg)
 	{
@@ -600,20 +620,31 @@ namespace lua50 {
 	}
 	void State::CheckAny(int idx)
 	{
-		luaL_checkany(L, idx);
+		if (Type(idx) == LType::None)
+			ArgError(idx, "value expected");
 	}
 	Integer State::CheckInt(int idx)
 	{
-		return luaL_checkint(L, idx);
+		return static_cast<Integer>(CheckNumber(idx));
 	}
 	const char* State::CheckString(int idx, size_t* len)
 	{
-		return luaL_checklstring(L, idx, len);
+		if constexpr (CatchExceptions) {
+			const char* s = ToString(idx);
+			if (!s)
+				TypeError(idx, LType::String);
+			if (len)
+				*len = StringLength(idx);
+			return s;
+		}
+		else {
+			return luaL_checklstring(L, idx, len);
+		}
 	}
 	std::string State::CheckStdString(int idx)
 	{
 		size_t l;
-		const char* s = luaL_checklstring(L, idx, &l);
+		const char* s = CheckString(idx, &l);
 		return { s, l };
 	}
 	std::string State::OptStdString(int idx, const std::string& def)
@@ -626,17 +657,67 @@ namespace lua50 {
 	{
 		return DoString(code.c_str(), code.length(), name);
 	}
+	std::string State::LuaVFormat(const char* s, va_list args)
+	{
+		const char* r = PushVFString(s, args);
+		std::string sr = ToStdString(-1);
+		Pop(1);
+		return sr;
+	}
+	std::string State::LuaFormat(const char* s, ...)
+	{
+		va_list args;
+		va_start(args, s);
+		std::string sr = LuaVFormat(s, args);
+		va_end(args);
+		return sr;
+	}
+	void State::ThrowLuaFormatted(const char* s, ...)
+	{
+		va_list args;
+		va_start(args, s);
+		std::string sr = LuaVFormat(s, args);
+		va_end(args);
+		throw LuaException{ sr };
+	}
+	void State::Check(int idx, Integer* i)
+	{
+		*i = CheckInt(idx);
+	}
+	void State::Check(int idx, std::string* s)
+	{
+		*s = CheckStdString(idx);
+	}
+	void State::Check(int idx, Number* n)
+	{
+		*n = CheckNumber(idx);
+	}
 	Number State::CheckNumber(int idx)
 	{
-		return luaL_checknumber(L, idx);
+		if constexpr (CatchExceptions) {
+			Number n = ToNumber(idx);
+			if (n == 0 && !IsNumber(idx))
+				TypeError(idx, LType::Number);
+			return n;
+		}
+		else {
+			return luaL_checknumber(L, idx);
+		}
 	}
 	void State::CheckStack(int extra, const char* msg)
 	{
-		luaL_checkstack(L, extra, msg);
+		if constexpr (CatchExceptions) {
+			if (!CheckStack(extra))
+				ThrowLuaFormatted("stack overflow (%s)", msg);
+		}
+		else {
+			luaL_checkstack(L, extra, msg);
+		}
 	}
 	void State::CheckType(int idx, LType t)
 	{
-		luaL_checktype(L, idx, static_cast<int>(t));
+		if (Type(idx) != t)
+			TypeError(idx, t);
 	}
 	void* State::CheckUserdata(int idx, const char* name)
 	{
@@ -687,12 +768,28 @@ namespace lua50 {
 	}
 	void State::TypeError(int idx, LType t)
 	{
-		luaL_typerror(L, idx, TypeName(t));
+		TypeError(idx, TypeName(t));
+	}
+	void State::TypeError(int idx, const char* t)
+	{
+		if constexpr (CatchExceptions) {
+			std::string s = LuaFormat("%s expected, got %s", t, TypeName(Type(idx)));
+			ArgError(idx, s.c_str());
+		}
+		else {
+			luaL_typerror(L, idx, t);
+		}
 	}
 	void State::Assert(bool a, const char* msg)
 	{
-		if (!a)
-			Error(msg);
+		if constexpr (CatchExceptions) {
+			if (!a)
+				throw LuaException{ msg };
+		}
+		else {
+			if (!a)
+				Error(msg);
+		}
 	}
 	bool State::GetMetaField(int obj, const char* ev)
 	{
@@ -716,25 +813,34 @@ namespace lua50 {
 	}
 	Integer State::OptInteger(int idx, Integer def)
 	{
-		return luaL_optint(L, idx, def);
-	}
-	const char* State::OptString(int idx, const char* def)
-	{
-		return luaL_optstring(L, idx, def);
+		if (IsNoneOrNil(idx))
+			return def;
+		else
+			return CheckInt(idx);
 	}
 	const char* State::OptString(int idx, const char* def, size_t* l)
 	{
-		return luaL_optlstring(L, idx, def, l);
+		if (IsNoneOrNil(idx)) {
+			if (l)
+				*l = (def ? strlen(def) : 0);
+			return def;
+		}
+		else
+			return CheckString(idx, l);
 	}
 	Number State::OptNumber(int idx, Number def)
 	{
-		return luaL_optnumber(L, idx, def);
+		if (IsNoneOrNil(idx))
+			return def;
+		else
+			return CheckNumber(idx);
 	}
 	bool State::OptBool(int idx, bool def)
 	{
-		if (lua_isnoneornil(L, idx))
+		if (IsNoneOrNil(idx))
 			return def;
-		return ToBoolean(idx);
+		else
+			return ToBoolean(idx);
 	}
 	Reference State::Ref(int t)
 	{
