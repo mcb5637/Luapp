@@ -94,6 +94,11 @@ namespace lua50 {
 		this->L = L;
 	}
 
+	lua_State* State::GetState()
+	{
+		return L;
+	}
+
 	State State::Create(bool io, bool debug)
 	{
 		lua_State* L = lua_open();

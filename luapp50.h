@@ -290,6 +290,8 @@ namespace lua50 {
 	public:
 		State(lua_State* L);
 
+		lua_State* GetState();
+
 		static State Create(bool io = true, bool debug = false);
 		void Close();
 
