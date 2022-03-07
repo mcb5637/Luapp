@@ -157,6 +157,11 @@ namespace lua50 {
 		const char* Name;
 		CFunction Func;
 
+		constexpr FuncReference(const char* name, CFunction f) {
+			Name = name;
+			Func = f;
+		}
+
 		template<CppFunction F>
 		constexpr static FuncReference GetRef(const char* name) {
 			return { name, &CppToCFunction<F> };
