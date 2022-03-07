@@ -709,6 +709,10 @@ namespace lua50 {
 			return luaL_checknumber(L, idx);
 		}
 	}
+	float State::CheckFloat(int idx)
+	{
+		return static_cast<float>(CheckNumber(idx));
+	}
 	void State::CheckStack(int extra, const char* msg)
 	{
 		if constexpr (CatchExceptions) {
@@ -847,6 +851,10 @@ namespace lua50 {
 		else
 			return ToBoolean(idx);
 	}
+	float State::OptFloat(int idx, float def)
+	{
+		return static_cast<float>(OptNumber(idx, def));
+	}
 	Reference State::Ref(int t)
 	{
 		return { luaL_ref(L, t) };
@@ -876,6 +884,14 @@ namespace lua50 {
 	bool State::IsValidIndex(int i)
 	{
 		return 1 <= std::abs(i) && std::abs(i) <= GetTop();
+	}
+	int State::ToAbsoluteIndex(int i)
+	{
+		if (i > 0)
+			return i;
+		if (i <= REGISTRYINDEX)
+			return i;
+		return GetTop() + i + 1;
 	}
 	LuaException::LuaException(const std::string& what) : std::runtime_error(what)
 	{

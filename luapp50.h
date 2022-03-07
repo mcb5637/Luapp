@@ -299,6 +299,7 @@ namespace lua50 {
 		bool CheckStack(int extra);
 		constexpr static int MINSTACK = 20;
 		bool IsValidIndex(int i);
+		int ToAbsoluteIndex(int i);
 
 		void SetTop(int index);
 		void PushValue(int index);
@@ -662,6 +663,7 @@ namespace lua50 {
 		Integer CheckInt(int idx);
 		const char* CheckString(int idx, size_t* len = nullptr);
 		Number CheckNumber(int idx);
+		float CheckFloat(int idx);
 		// checkoption
 		// luaerror on fail
 		void CheckStack(int extra, const char* msg);
@@ -692,6 +694,7 @@ namespace lua50 {
 		const char* OptString(int idx, const char* def, size_t* l = nullptr);
 		Number OptNumber(int idx, Number def);
 		bool OptBool(int idx, bool def);
+		float OptFloat(int idx, float def);
 
 		Reference Ref(int t = REGISTRYINDEX);
 		void UnRef(Reference r, int t = REGISTRYINDEX);
