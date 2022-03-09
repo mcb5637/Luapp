@@ -2,11 +2,13 @@
 
 #include "luapp50.h"
 
+#define LUA_API __declspec(dllimport)
 extern "C" {
 #include "..\lua50\lua.h"
 #include "..\lua50\lauxlib.h"
 #include "..\lua50\lualib.h"
 }
+#undef LUA_API
 
 #include <cstdlib>
 #include <type_traits>
