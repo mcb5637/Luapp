@@ -715,6 +715,11 @@ namespace lua50 {
 	{
 		return static_cast<float>(CheckNumber(idx));
 	}
+	bool State::CheckBool(int idx)
+	{
+		CheckType(idx, LType::Boolean);
+		return ToBoolean(idx);
+	}
 	void State::CheckStack(int extra, const char* msg)
 	{
 		if constexpr (CatchExceptions) {

@@ -669,6 +669,7 @@ namespace lua50 {
 		const char* CheckString(int idx, size_t* len = nullptr);
 		Number CheckNumber(int idx);
 		float CheckFloat(int idx);
+		bool CheckBool(int idx);
 		// checkoption
 		// luaerror on fail
 		void CheckStack(int extra, const char* msg);
