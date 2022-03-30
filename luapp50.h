@@ -229,6 +229,10 @@ namespace lua50 {
 	concept CallCpp = std::is_same_v<CppFunction, decltype(&T::Call)> || std::is_same_v<CFunction, decltype(&T::Call)>;
 	template<class T>
 	concept IndexCpp = std::is_same_v<CppFunction, decltype(&T::Index)> || std::is_same_v<CFunction, decltype(&T::Index)>;
+	template<class T>
+	concept BaseDefined = requires {
+		typename T::BaseClass;
+	};
 
 	template<class T>
 	concept Pushable = std::is_same_v<const char*, T> || (!std::is_pointer_v<T> && requires (State s, T t) {
@@ -775,11 +779,30 @@ namespace lua50 {
 	private:
 		constexpr static const char* MethodsName = "Methods";
 		constexpr static const char* TypeNameName = "TypeName";
+		constexpr static const char* BaseTypeNameName = "BaseTypeName";
+
+		template<class T, class Base>
+		requires std::derived_from<T, Base>
+		struct UserDataBaseHolder {
+			Base* const BaseObj;
+			T ActualObj;
+
+			template<class ... Args>
+			UserDataBaseHolder(Args&& ... args) : ActualObj(std::forward<Args>(args)...), BaseObj(static_cast<Base*>(&ActualObj)) {
+			}
+		};
 
 		template<class T>
 		static int UserData_Finalizer(State L)
 		{
-			L.GetUserData<T>(1)->~T();
+			if constexpr (BaseDefined<T>) {
+				L.GetUserData<T>(1); // just use the checks here to validate the argument
+				UserDataBaseHolder<T, T::BaseClass>* u = static_cast<UserDataBaseHolder<T, T::BaseClass>*>(L.ToUserdata(1));
+				u->~UserDataBaseHolder<T, T::BaseClass>();
+			}
+			else {
+				L.GetUserData<T>(1)->~T();
+			}
 			return 0;
 		}
 		template<class T>
@@ -877,13 +900,38 @@ namespace lua50 {
 	public:
 		template<class T>
 		T* OptionalUserData(int i) {
-			return static_cast<T*>(CheckUserdata(i, typename_details::type_name<T>()));
+			if constexpr (BaseDefined<T>) {
+				if (!GetMetatable(i))
+					return nullptr;
+				Push(BaseTypeNameName);
+				GetTableRaw(-2);
+				if (Type(-1) != LType::String) {
+					Pop(2);
+					return nullptr;
+				}
+				const char* n = ToString(-1);
+				if (strcmp(n, typename_details::type_name<T::BaseClass>())) {
+					Pop(2);
+					return nullptr;
+				}
+				Pop(2);
+				// do not acces ActualObj here, this might be of a different type alltogether
+				UserDataBaseHolder<T, T::BaseClass>* u = static_cast<UserDataBaseHolder<T, T::BaseClass>*>(ToUserdata(i));
+				return dynamic_cast<T*>(u->BaseObj);
+			}
+			else {
+				return static_cast<T*>(CheckUserdata(i, typename_details::type_name<T>()));
+			}
 		}
 		template<class T>
 		T* GetUserData(int i) {
 			T* t = OptionalUserData<T>(i);
-			if (t == nullptr)
-				Error("no %s at argument %d", typename_details::type_name<T>(), i);
+			if (t == nullptr) {
+				if constexpr (CatchExceptions)
+					ThrowLuaFormatted("no %s at argument %d", typename_details::type_name<T>(), i);
+				else
+					Error("no %s at argument %d", typename_details::type_name<T>(), i);
+			}
 			return t;
 		}
 		template<class T>
@@ -958,6 +1006,14 @@ namespace lua50 {
 				Push(TypeNameName);
 				Push(typename_details::type_name<T>());
 				SetTableRaw(-3);
+				Push(BaseTypeNameName);
+				if constexpr (BaseDefined<T>) {
+					static_assert(std::derived_from<T, T::BaseClass>);
+					Push(typename_details::type_name<T::BaseClass>());
+				}
+				else
+					Push(typename_details::type_name<T>());
+				SetTableRaw(-3);
 			}
 		}
 		template<class T>
@@ -965,72 +1021,87 @@ namespace lua50 {
 			GetUserDataMetatable<T>();
 			Pop(1);
 		}
+
 		/* converts a c++ class to a lua userdata. creates a new full userdata and calls the constructor of T, forwarding all arguments.
 		* a class (metatable) for a userdata type is only generated once, and then reused for all userdata of the same type.
-		* 
-		* 
+		*
+		*
 		* lua class generation:
 		* if T::LuaMethods is iterable over LuaReference, registers them all as userdata methods (__index).
-		* 
+		*
 		* if T is not trivially destructable, generates a finalizer (__gc) that calls its destructor.
-		* 
+		*
 		* metatable operator definition:
 		* - by CFunction or CppFunction: you provide an implementation as a static class member (used, if both provided).
 		* - or automatically by C++ operator overloads (this requires a nothrow move constructor for operators).
-		* 
+		*
 		* == comparator (also ~= comparator) (__eq):
 		* - Equals static member.
 		* - == operator overload (or <==> overload) (checks type, then operator).
-		* 
+		*
 		* < comparator (also >, <=, >= comparator) (__lt and __le):
 		* - LessThan static member.
 		* - < operator overload (or <==> overload) (checks type, then operator).
-		* 
+		*
 		* + operator (__add):
 		* - Add static member.
 		* - + operator overload (only works for both operands of type T).
-		* 
+		*
 		* - operator (__sub):
 		* - Substract static member.
 		* - - operator overload (only works for both operands of type T).
-		* 
+		*
 		* * operator (__mul):
 		* - Multiply static member.
 		* - * operator overload (only works for both operands of type T).
-		* 
+		*
 		* / operator (__div):
 		* - Divide static member.
 		* - / operator overload (only works for both operands of type T).
-		* 
+		*
 		* ^ operator (__pow):
 		* - Pow static member.
 		* (no operator in c++).
-		* 
+		*
 		* unary - operator (__unm):
 		* - UnaryMinus static member.
 		* - (unary) - operator overload.
-		* 
+		*
 		* .. operator (__concat):
 		* - Concat static member.
 		* (no operator in c++).
-		* 
+		*
 		* [x]=1 operator (__newindex):
 		* - NewIndex static member.
-		* 
+		*
 		* (...) operator (__call)
 		* - Call static member.
-		* 
+		*
 		* =[x] operator (__index):
 		* - Index static member.
+		*
+		* if T has both LuaMethods and Index defined, first LuaMethods is searched, and if nothing is found, Index is called.
 		* 
-		* if T has both LuaMethods and Index defined, first Index is searched, and if nothing is found, Index is called.
+		* to handle inheritance, define T::BaseClass as T in the base class and do not change the typedef in the derived classes.
+		* a call to GetUserData<T::BaseClass> on an userdata of type T will then return a correctly cast pointer to T::BaseClass.
+		* all variables for class generation get used via normal overload resolution, meaning the most derived class wins.
+		* make sure you include all methods from base classes in LuaMethods, or they will get lost.
+		* as far as luapp is concerned a class may only have one base class (defined via T::BaseClass) but other inheritances that are not visible to luapp are allowed.
 		*/
 		template<class T, class ... Args>
 		T* NewUserData(Args&& ... args) {
-			T* t = new (NewUserdata(sizeof(T))) T(std::forward<Args>(args)...);
-			GetUserDataMetatable<T>();
-			SetMetatable(-2);
-			return t;
+			if constexpr (BaseDefined<T>) {
+				UserDataBaseHolder<T, T::BaseClass>* t = new (NewUserdata(sizeof(UserDataBaseHolder<T, T::BaseClass>))) UserDataBaseHolder<T, T::BaseClass>(std::forward<Args>(args)...);
+				GetUserDataMetatable<T>();
+				SetMetatable(-2);
+				return &t->ActualObj;
+			}
+			else {
+				T* t = new (NewUserdata(sizeof(T))) T(std::forward<Args>(args)...);
+				GetUserDataMetatable<T>();
+				SetMetatable(-2);
+				return t;
+			}
 		}
 	private:
 		static std::string int2Str(int i);
