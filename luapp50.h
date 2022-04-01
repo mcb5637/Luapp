@@ -916,7 +916,11 @@ namespace lua50 {
 				}
 				Pop(2);
 				// do not acces ActualObj here, this might be of a different type alltogether
-				UserDataBaseHolder<T, T::BaseClass>* u = static_cast<UserDataBaseHolder<T, T::BaseClass>*>(ToUserdata(i));
+				using base = T::BaseClass;
+				struct Holder {
+					base* const BaseObj;
+				};
+				Holder* u = static_cast<Holder*>(ToUserdata(i));
 				return dynamic_cast<T*>(u->BaseObj);
 			}
 			else {
