@@ -30,6 +30,7 @@ namespace lua50 {
 	static_assert(LType::LightUserdata == static_cast<LType>(LUA_TLIGHTUSERDATA));
 	static_assert(std::is_same<Number, lua_Number>::value);
 	static_assert(std::is_same<CFunction, lua_CFunction>::value);
+	static_assert(std::is_same<CHook, lua_Hook>::value);
 	static_assert(State::GLOBALSINDEX == LUA_GLOBALSINDEX);
 	static_assert(State::MULTIRET == LUA_MULTRET);
 	static_assert(ErrorCode::Success == static_cast<ErrorCode>(0));
@@ -96,14 +97,9 @@ namespace lua50 {
 		this->L = L;
 	}
 
-	lua_State* State::GetState()
+	lua50::State::State(bool io, bool debug)
 	{
-		return L;
-	}
-
-	State State::Create(bool io, bool debug)
-	{
-		lua_State* L = lua_open();
+		L = lua_open();
 		luaopen_base(L);
 		luaopen_string(L);
 		luaopen_table(L);
@@ -113,7 +109,16 @@ namespace lua50 {
 		if (debug)
 			luaopen_debug(L);
 		lua_settop(L, 0);
-		return { L };
+	}
+
+	lua_State* State::GetState()
+	{
+		return L;
+	}
+
+	State State::Create(bool io, bool debug)
+	{
+		return State(io, debug);
 	}
 
 	void State::Close()
@@ -194,17 +199,45 @@ namespace lua50 {
 	{
 		return lua_typename(L, static_cast<int>(t));
 	}
+	int equal_protected(lua_State* L)
+	{
+		bool r = lua_equal(L, 1, 2);
+		*static_cast<bool*>(lua_touserdata(L, 3)) = r;
+		return 0;
+	}
 	bool State::Equal(int i1, int i2)
 	{
-		return lua_equal(L, i1, i2);
+		bool ret = false;
+		i1 = ToAbsoluteIndex(i1);
+		i2 = ToAbsoluteIndex(i2);
+		lua_pushcfunction(L, &equal_protected);
+		lua_pushvalue(L, i1);
+		lua_pushvalue(L, i2);
+		lua_pushlightuserdata(L, &ret);
+		TCall(3, 0);
+		return ret;
 	}
 	bool State::RawEqual(int i1, int i2)
 	{
 		return lua_rawequal(L, i1, i2);
 	}
+	int lessthan_protected(lua_State* L)
+	{
+		bool r = lua_lessthan(L, 1, 2);
+		*static_cast<bool*>(lua_touserdata(L, 3)) = r;
+		return 0;
+	}
 	bool State::LessThan(int i1, int i2)
 	{
-		return lua_lessthan(L, i1, i2);
+		bool ret = false;
+		i1 = ToAbsoluteIndex(i1);
+		i2 = ToAbsoluteIndex(i2);
+		lua_pushcfunction(L, &lessthan_protected);
+		lua_pushvalue(L, i1);
+		lua_pushvalue(L, i2);
+		lua_pushlightuserdata(L, &ret);
+		TCall(3, 0);
+		return ret;
 	}
 	bool State::IsNoneOrNil(int idx)
 	{
@@ -226,17 +259,16 @@ namespace lua50 {
 	{
 		return lua_tostring(L, index);
 	}
-	size_t State::StringLength(int index)
-	{
-		return lua_strlen(L, index);
-	}
 	CFunction State::ToCFunction(int index)
 	{
 		return lua_tocfunction(L, index);
 	}
 	State State::ToThread(int index)
 	{
-		return { lua_tothread(L, index) };
+		lua_State* l = lua_tothread(L, index);
+		if (!l)
+			throw LuaException("invalid thread");
+		return { l };
 	}
 	const void* State::ToPointer(int index)
 	{
@@ -245,6 +277,18 @@ namespace lua50 {
 	void* State::ToUserdata(int index)
 	{
 		return lua_touserdata(L, index);
+	}
+	size_t State::ObjLength(int index)
+	{
+		LType t = Type(index);
+		switch (t) {
+		case LType::String:
+			return lua_strlen(L, index);
+		case LType::Table:
+			return luaL_getn(L, index);
+		default:
+			return 0;
+		}
 	}
 	void State::Push(bool b)
 	{
@@ -290,9 +334,19 @@ namespace lua50 {
 		va_end(args);
 		return r;
 	}
+	int concat_protected(lua_State* L)
+	{
+		int n = static_cast<int>(lua_tonumber(L, -1));
+		lua_pop(L, 1);
+		lua_concat(L, n);
+		return 1;
+	}
 	void State::Concat(int num)
 	{
-		lua_concat(L, num);
+		lua_pushcfunction(L, &concat_protected);
+		lua_insert(L, -num-1);
+		lua_pushnumber(L, num);
+		TCall(num + 1, 1);
 	}
 	bool State::GetMetatable(int index)
 	{
@@ -310,9 +364,18 @@ namespace lua50 {
 	{
 		lua_newtable(L);
 	}
+	int gettable_protected(lua_State* L)
+	{
+		lua_gettable(L, 1);
+		return 1;
+	}
 	void State::GetTable(int index)
 	{
-		lua_gettable(L, index);
+		lua_pushvalue(L, index);
+		lua_insert(L, -2);
+		lua_pushcfunction(L, &gettable_protected);
+		lua_insert(L, -3);
+		TCall(2, 1);
 	}
 	void State::GetTableRaw(int index)
 	{
@@ -322,9 +385,18 @@ namespace lua50 {
 	{
 		lua_rawgeti(L, index, n);
 	}
+	int settable_protected(lua_State* L)
+	{
+		lua_settable(L, 1);
+		return 0;
+	}
 	void State::SetTable(int index)
 	{
-		lua_settable(L, index);
+		lua_pushvalue(L, index);
+		lua_insert(L, -3);
+		lua_pushcfunction(L, &settable_protected);
+		lua_insert(L, -4);
+		TCall(3, 0);
 	}
 	void State::SetTableRaw(int index)
 	{
@@ -334,9 +406,31 @@ namespace lua50 {
 	{
 		lua_rawseti(L, index, n);
 	}
+	int next_protected(lua_State* L)
+	{
+		bool has = lua_next(L, 2);
+		*static_cast<bool*>(lua_touserdata(L, 1)) = has;
+		return has ? 2 : 0;
+	}
 	bool State::Next(int index)
 	{
-		return lua_next(L, index);
+		bool r = false;
+		lua_pushvalue(L, index);
+		lua_insert(L, -2);
+		lua_pushlightuserdata(L, &r);
+		lua_insert(L, -3);
+		lua_pushcfunction(L, &next_protected);
+		lua_insert(L, -4);
+		TCall(3, MULTIRET);
+		return r;
+	}
+	PairsHolder State::Pairs(int index)
+	{
+		return PairsHolder(*this, index);
+	}
+	IPairsHolder State::IPairs(int index)
+	{
+		return IPairsHolder(*this, index);
 	}
 	void State::Call(int nargs, int nresults)
 	{
@@ -349,16 +443,17 @@ namespace lua50 {
 	void State::TCall(int nargs, int nresults)
 	{
 		Push<DefaultErrorDecorator>();
-		Insert(1);
-		ErrorCode c = PCall(nargs, nresults, 1);
+		int ehsi = ToAbsoluteIndex(-nargs - 2); // just under the func to be called
+		Insert(ehsi);
+		ErrorCode c = PCall(nargs, nresults, ehsi);
 		if (c != ErrorCode::Success) {
 			std::string msg = ErrorCodeFormat(c);
 			msg += ToString(-1);
 			Pop(1); // error msg
-			Remove(1); // DefaultErrorDecorator
+			Remove(ehsi); // DefaultErrorDecorator
 			throw LuaException{ msg };
 		}
-		Remove(1); // DefaultErrorDecorator
+		Remove(ehsi); // DefaultErrorDecorator
 	}
 	std::string State::int2Str(int i) {
 		//return std::format("{0:X}", i);
@@ -404,7 +499,9 @@ namespace lua50 {
 				return "<Userdata " + ud + + " " + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
 			}
 		case lua50::LType::Thread:
-			return "<thread " + int2Str(reinterpret_cast<int>(lua_topointer(L, index))) + ">";
+			return "<thread " + int2Str(reinterpret_cast<int>(lua_tothread(L, index))) + ">";
+		case lua50::LType::None:
+			return "<none>";
 		default:
 			return "<unknown>";
 		}
@@ -455,7 +552,7 @@ namespace lua50 {
 		L.Pop(1);
 		trace << "\r\nStacktrace:\r\n";
 		trace << L.GenerateStackTrace(1, -1, true, true);
-		L.Push(trace.str().c_str());
+		L.Push(trace.str());
 		return 1;
 	}
 	const char* State::ErrorCodeFormat(ErrorCode c)
@@ -510,9 +607,9 @@ namespace lua50 {
 	{
 		return static_cast<ErrorCode>(lua_resume(L, narg));
 	}
-	int State::YieldThread(int nret)
+	void State::YieldThread(int nret)
 	{
-		return lua_yield(L, nret);
+		lua_yield(L, nret);
 	}
 	void State::XMove(State to, int num)
 	{
@@ -619,7 +716,13 @@ namespace lua50 {
 	}
 	bool State::CallMeta(int obj, const char* ev)
 	{
-		return luaL_callmeta(L, obj, ev);
+		obj = ToAbsoluteIndex(obj);
+		if (!GetMetaField(obj, ev)) {
+			return false;
+		}
+		PushValue(obj);
+		TCall(1, 1);
+		return true;
 	}
 	bool State::CallMeta(int obj, MetaEvent ev)
 	{
@@ -641,7 +744,7 @@ namespace lua50 {
 			if (!s)
 				TypeError(idx, LType::String);
 			if (len)
-				*len = StringLength(idx);
+				*len = lua_strlen(L, idx);
 			return s;
 		}
 		else {
@@ -686,18 +789,6 @@ namespace lua50 {
 		std::string sr = LuaVFormat(s, args);
 		va_end(args);
 		throw LuaException{ sr };
-	}
-	void State::Check(int idx, Integer* i)
-	{
-		*i = CheckInt(idx);
-	}
-	void State::Check(int idx, std::string* s)
-	{
-		*s = CheckStdString(idx);
-	}
-	void State::Check(int idx, Number* n)
-	{
-		*n = CheckNumber(idx);
 	}
 	Number State::CheckNumber(int idx)
 	{
@@ -881,6 +972,8 @@ namespace lua50 {
 	std::string State::ToStdString(int idx)
 	{
 		const char* s = lua_tostring(L, idx);
+		if (!s)
+			throw lua::LuaException("no string");
 		size_t l = lua_strlen(L, idx);
 		return { s, l };
 	}
@@ -912,5 +1005,124 @@ namespace lua50 {
 	ActivationRecord::ActivationRecord(lua_Debug* ar)
 	{
 		this->ar = ar;
+	}
+	StateCloser::StateCloser(State l)
+	{
+		L = l;
+	}
+	StateCloser::StateCloser(bool io, bool debug) : L{io, debug}
+	{
+	}
+	StateCloser::~StateCloser()
+	{
+		L.Close();
+	}
+	State StateCloser::GetState()
+	{
+		return L;
+	}
+	PairsHolder::PairsHolder(State l, int i)
+	{
+		L = l;
+		index = L.ToAbsoluteIndex(i);
+	}
+	PairsIter PairsHolder::begin()
+	{
+		L.Push();
+		PairsIter i{ L, index };
+		i.hasNext = L.Next(index);
+		return i;
+	}
+	PairsSentinel PairsHolder::end()
+	{
+		return PairsSentinel();
+	}
+	PairsIter::PairsIter(State l, int i)
+	{
+		L = l;
+		index = i;
+	}
+	PairsIter& PairsIter::operator++()
+	{
+		L.Pop(1); // value
+		hasNext = L.Next(index);
+		return *this;
+	}
+	PairsIter PairsIter::operator++(int)
+	{
+		PairsIter r = *this;
+		++(*this);
+		return r;
+	}
+	LType PairsIter::operator*()
+	{
+		return L.Type(-2);
+	}
+	bool operator==(const PairsIter& i, PairsSentinel s)
+	{
+		return !i.hasNext;
+	}
+	bool operator==(PairsSentinel s, const PairsIter& i)
+	{
+		return i == s;
+	}
+	bool operator==(const IPairsIter& i, PairsSentinel s)
+	{
+		return !i.hasNext;
+	}
+	bool operator==(PairsSentinel s, const IPairsIter& i)
+	{
+		return i == s;
+	}
+	IPairsHolder::IPairsHolder(State l, int i)
+	{
+		L = l;
+		index = L.ToAbsoluteIndex(i);
+	}
+	IPairsIter IPairsHolder::begin()
+	{
+		IPairsIter i{ L, index };
+		L.GetTableRawI(index, i.key);
+		if (L.Type(-1) == LType::Nil) {
+			i.hasNext = false;
+			L.Pop(1);
+		}
+		else {
+			i.hasNext = true;
+		}
+		return i;
+	}
+	PairsSentinel IPairsHolder::end()
+	{
+		return PairsSentinel();
+	}
+	IPairsIter::IPairsIter(State l, int i)
+	{
+		L = l;
+		index = i;
+	}
+	IPairsIter& IPairsIter::operator++()
+	{
+		L.Pop(1);
+		++key;
+		L.GetTableRawI(index, key);
+		if (L.Type(-1) == LType::Nil) {
+			hasNext = false;
+			L.Pop(1);
+		}
+		else {
+			hasNext = true;
+		}
+		return *this;
+	}
+	IPairsIter IPairsIter::operator++(int)
+	{
+		IPairsIter r = *this;
+		++(*this);
+		return r;
+	}
+	int IPairsIter::operator*()
+	{
+		return key;
 	}
 };
