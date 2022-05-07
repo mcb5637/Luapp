@@ -381,7 +381,7 @@ namespace lua50 {
 	{
 		lua_rawget(L, index);
 	}
-	void State::GetTableRawI(int index, int n)
+	void State::GetTableRaw(int index, int n)
 	{
 		lua_rawgeti(L, index, n);
 	}
@@ -402,7 +402,7 @@ namespace lua50 {
 	{
 		lua_rawset(L, index);
 	}
-	void State::SetTableRawI(int index, int n)
+	void State::SetTableRaw(int index, int n)
 	{
 		lua_rawseti(L, index, n);
 	}
@@ -963,7 +963,7 @@ namespace lua50 {
 	}
 	void State::Push(Reference r, int t)
 	{
-		GetTableRawI(t, r.r);
+		GetTableRaw(t, r.r);
 	}
 	void State::Push(const std::string& s)
 	{
@@ -1082,7 +1082,7 @@ namespace lua50 {
 	IPairsIter IPairsHolder::begin()
 	{
 		IPairsIter i{ L, index };
-		L.GetTableRawI(index, i.key);
+		L.GetTableRaw(index, i.key);
 		if (L.Type(-1) == LType::Nil) {
 			i.hasNext = false;
 			L.Pop(1);
@@ -1105,7 +1105,7 @@ namespace lua50 {
 	{
 		L.Pop(1);
 		++key;
-		L.GetTableRawI(index, key);
+		L.GetTableRaw(index, key);
 		if (L.Type(-1) == LType::Nil) {
 			hasNext = false;
 			L.Pop(1);

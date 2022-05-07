@@ -1073,7 +1073,7 @@ namespace lua50 {
 		/// </summary>
 		/// <param name="index">valid index for table access</param>
 		/// <param name="n">key</param>
-		void GetTableRawI(int index, int n);
+		void GetTableRaw(int index, int n);
 		/// <summary>
 		/// assigns the value at the top of the stack to the key just below the top in the table at index. pops both key and value from the stack.
 		/// may call metamethods.
@@ -1096,7 +1096,7 @@ namespace lua50 {
 		/// </summary>
 		/// <param name="index">valid index for table acccess</param>
 		/// <param name="n">key</param>
-		void SetTableRawI(int index, int n);
+		void SetTableRaw(int index, int n);
 		/// <summary>
 		/// traverses the table index by poping the previous key from the stack and pushing the next key and value to the stack.
 		/// if there are no more elements in the table, returns false and pushes nothing. otherwise returns true.
