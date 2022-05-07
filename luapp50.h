@@ -959,7 +959,7 @@ namespace lua50 {
 		void Push();
 		/// <summary>
 		/// pushes a CFunction or CClosure (function with upvalues) onto the stack.
-		/// to create a CClosure, push the initial valuues for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
+		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
 		/// <para>[-nups,+1,m]</para>
 		/// </summary>
 		/// <param name="f">function</param>
@@ -967,7 +967,7 @@ namespace lua50 {
 		void Push(CFunction f, int nups = 0);
 		/// <summary>
 		/// pushes a CFunction or CClosure (function with upvalues) onto the stack.
-		/// to create a CClosure, push the initial valuues for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
+		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
 		/// <para>[-nups,+1,m]</para>
 		/// </summary>
 		/// <param name="F">function</param>
@@ -979,7 +979,7 @@ namespace lua50 {
 		}
 		/// <summary>
 		/// pushes a CppFunction or CppClosure (function with upvalues) onto the stack.
-		/// to create a CClosure, push the initial valuues for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
+		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
 		/// <para>[-nups,+1,m]</para>
 		/// </summary>
 		/// <param name="F">function</param>
@@ -1127,7 +1127,7 @@ namespace lua50 {
 		/// <para>the iteration begins at key 1 and ends directly before the first key that is assigned nil.</para>
 		/// <para>when the iteration ends by reaching its end, no value is left on the stack.</para>
 		/// <para>if you break the iteration (or leave it otherwise), you have to clean up the value from the stack yourself.</para>
-		/// <para>[-0,+2|0,-]</para>
+		/// <para>[-0,+1|0,-]</para>
 		/// </summary>
 		/// <param name="index">valid index to iterate over</param>
 		/// <returns>IPairsHolder</returns>
@@ -1803,7 +1803,7 @@ namespace lua50 {
 		/// <exception cref="lua::LuaException">if !a</exception>
 		void Assert(bool a, const char* msg);
 		/// <summary>
-		/// used to buold a prefix for error messages, pushes a string of the form 'chunkname:currentline: '
+		/// used to build a prefix for error messages, pushes a string of the form 'chunkname:currentline: '
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="lvl">stack level</param>
@@ -1831,15 +1831,15 @@ namespace lua50 {
 		/// pushes the metatable associated with name.
 		/// <para>[-0,+1,-]</para>
 		/// </summary>
-		/// <param name="name"></param>
+		/// <param name="name">metatable name</param>
 		void GetMetaTableFromRegistry(const char* name);
 		/// <summary>
 		/// if the registry already has a value associated with name, returns 0. otherwise creates a new table, adds it and returns 1.
 		/// in both cases, pushes the final value onto the stack.
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
-		/// <param name="name"></param>
-		/// <returns></returns>
+		/// <param name="name">metatable name</param>
+		/// <returns>created</returns>
 		bool NewMetaTable(const char* name);
 
 		/// <summary>
@@ -1859,6 +1859,7 @@ namespace lua50 {
 		/// </summary>
 		/// <param name="idx">aceptable index to check</param>
 		/// <param name="def">default value</param>
+		/// <param name="l">optional length out</param>
 		/// <returns>c string</returns>
 		/// <exception cref="lua::LuaException">if invalid</exception>
 		const char* OptString(int idx, const char* def, size_t* l = nullptr);
