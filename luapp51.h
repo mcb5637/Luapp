@@ -13,7 +13,7 @@ struct lua_State;
 struct lua_Debug;
 
 
-namespace lua50 {
+namespace lua51 {
 	/// <summary>
 	/// turn on/off exception handling at compile time
 	/// if active, CppToCFunction catches any c++ exceptions and converts them to lua exceptions
@@ -76,27 +76,31 @@ namespace lua50 {
 		/// <summary>
 		/// no error.
 		/// </summary>
-		Success,
+		Success = 0,
+		/// <summary>
+		/// thread yielded (paused).
+		/// </summary>
+		Yield = 1,
 		/// <summary>
 		/// lua error at runtime.
 		/// </summary>
-		Runtime,
+		Runtime = 2,
+		/// <summary>
+		/// syntax error parsing lua code.
+		/// </summary>
+		Syntax = 3,
+		/// <summary>
+		/// out of memory.
+		/// </summary>
+		Memory = 4,
+		/// <summary>
+		/// error processing an error handler.
+		/// </summary>
+		ErrorHandler = 5,
 		/// <summary>
 		/// IO error reading or writing files.
 		/// </summary>
 		File,
-		/// <summary>
-		/// syntax error parsing lua code.
-		/// </summary>
-		Syntax,
-		/// <summary>
-		/// out of memory.
-		/// </summary>
-		Memory,
-		/// <summary>
-		/// error processing an error handler.
-		/// </summary>
-		ErrorHandler,
 	};
 	/// <summary>
 	/// metaevents used in metatables.
@@ -178,7 +182,7 @@ namespace lua50 {
 		/// </summary>
 		Name = 1,
 		/// <summary>
-		/// What, Source, LineDefined, ShortSrc fields.
+		/// What, Source, LineDefined, LastLineDefined, ShortSrc fields.
 		/// </summary>
 		Source = 2,
 		/// <summary>
@@ -235,6 +239,7 @@ namespace lua50 {
 		int CurrentLine = 0;
 		int NumUpvalues = 0;
 		int LineDefined = 0;
+		int LastLineDefined = 0;
 		char ShortSrc[SHORTSRC_SIZE] = {};
 	};
 	constexpr DebugInfoOptions operator|(DebugInfoOptions a, DebugInfoOptions b) {
@@ -645,7 +650,11 @@ namespace lua50 {
 		/// <summary>
 		/// pseudoindex to access the global environment.
 		/// </summary>
-		constexpr static int GLOBALSINDEX = -10001;
+		constexpr static int GLOBALSINDEX = -10002;
+		/// <summary>
+		/// pseudoindex to access the environment of the current running c function.
+		/// </summary>
+		constexpr static int ENVIRONINDEX = -10001;
 		/// <summary>
 		/// pseudoindex to access the registry.
 		/// you can store lua values here that you want to access from C++ code, but should not be available to lua.
@@ -913,6 +922,7 @@ namespace lua50 {
 		/// <summary>
 		/// returns the length of an object. for strings this is the number of bytes (==chars if each char is one byte).
 		/// for tables this is one less than the first integer key with a nil value (except if manualy set to something else).
+		/// for full userdata, it is the size of the allocated block of memory.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index"></param>
@@ -997,7 +1007,7 @@ namespace lua50 {
 		void PushLightUserdata(void* ud);
 		/// <summary>
 		/// pushes a formatted string onto the stack. similar to snprintf, but with no extra buffer.
-		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char.</para>
+		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char, %p pointer as hex number</para>
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">format string</param>
@@ -1006,7 +1016,7 @@ namespace lua50 {
 		const char* PushVFString(const char* s, va_list argp);
 		/// <summary>
 		/// pushes a formatted string onto the stack. similar to snprintf, but with no extra buffer.
-		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char.</para>
+		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char, %p pointer as hex number</para>
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">format string</param>
@@ -2151,7 +2161,23 @@ namespace lua50 {
 				return dynamic_cast<T*>(u->BaseObj);
 			}
 			else {
-				return static_cast<T*>(CheckUserdata(i, typename_details::type_name<T>()));
+				if (Type(i) != LType::Userdata)
+					return nullptr;
+				if (!GetMetatable(i))
+					return nullptr;
+				Push(TypeNameName);
+				GetTableRaw(-2);
+				if (Type(-1) != LType::String) {
+					Pop(2);
+					return nullptr;
+				}
+				const char* n = ToString(-1);
+				if (strcmp(n, typename_details::type_name<T>())) {
+					Pop(2);
+					return nullptr;
+				}
+				Pop(2);
+				return static_cast<T*>(ToUserdata(i));
 			}
 		}
 		/// <summary>
@@ -2660,6 +2686,6 @@ namespace lua50 {
 }
 
 #ifndef LuaVersion
-#define LuaVersion 5.0
-namespace lua = lua50;
+#define LuaVersion 5.1
+namespace lua = lua51;
 #endif
