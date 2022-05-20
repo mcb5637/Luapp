@@ -48,7 +48,7 @@ namespace typename_details {
 	};
 
 	template <typename T>
-	consteval const char* type_name()
+	constexpr const char* type_name()
 	{
 		constexpr auto& value = type_name_holder<T>::value;
 		return value.data();

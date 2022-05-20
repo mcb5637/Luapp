@@ -2016,8 +2016,8 @@ namespace lua50 {
 		{
 			if constexpr (BaseDefined<T>) {
 				L.GetUserData<T>(1); // just use the checks here to validate the argument
-				UserDataBaseHolder<T, T::BaseClass>* u = static_cast<UserDataBaseHolder<T, T::BaseClass>*>(L.ToUserdata(1));
-				u->~UserDataBaseHolder<T, T::BaseClass>();
+				UserDataBaseHolder<T, typename T::BaseClass>* u = static_cast<UserDataBaseHolder<T, typename T::BaseClass>*>(L.ToUserdata(1));
+				u->~UserDataBaseHolder<T, typename T::BaseClass>();
 			}
 			else {
 				L.GetUserData<T>(1)->~T();
@@ -2137,7 +2137,7 @@ namespace lua50 {
 					return nullptr;
 				}
 				const char* n = ToString(-1);
-				if (strcmp(n, typename_details::type_name<T::BaseClass>())) {
+				if (strcmp(n, typename_details::type_name<typename T::BaseClass>())) {
 					Pop(2);
 					return nullptr;
 				}
@@ -2250,8 +2250,8 @@ namespace lua50 {
 				SetTableRaw(-3);
 				Push(BaseTypeNameName);
 				if constexpr (BaseDefined<T>) {
-					static_assert(std::derived_from<T, T::BaseClass>);
-					Push(typename_details::type_name<T::BaseClass>());
+					static_assert(std::derived_from<T, typename T::BaseClass>);
+					Push(typename_details::type_name<typename T::BaseClass>());
 				}
 				else
 					Push(typename_details::type_name<T>());
@@ -2337,7 +2337,7 @@ namespace lua50 {
 		template<class T, class ... Args>
 		T* NewUserData(Args&& ... args) {
 			if constexpr (BaseDefined<T>) {
-				UserDataBaseHolder<T, T::BaseClass>* t = new (NewUserdata(sizeof(UserDataBaseHolder<T, T::BaseClass>))) UserDataBaseHolder<T, T::BaseClass>(std::forward<Args>(args)...);
+				UserDataBaseHolder<T, typename T::BaseClass>* t = new (NewUserdata(sizeof(UserDataBaseHolder<T, typename T::BaseClass>))) UserDataBaseHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
 				GetUserDataMetatable<T>();
 				SetMetatable(-2);
 				return &t->ActualObj;
