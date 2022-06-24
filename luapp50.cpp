@@ -13,6 +13,7 @@ extern "C" {
 #include <cstdlib>
 #include <type_traits>
 #include <sstream>
+#include <format>
 
 namespace lua50 {
 	// make sure all the constants match
@@ -456,8 +457,8 @@ namespace lua50 {
 		Remove(ehsi); // DefaultErrorDecorator
 	}
 	std::string State::int2Str(int i) {
-		//return std::format("{0:X}", i);
-		return std::to_string(i);
+		return std::format("{0:X}", i);
+		//return std::to_string(i);
 	}
 	std::string State::ToDebugString(int index)
 	{
@@ -469,13 +470,13 @@ namespace lua50 {
 		case lua50::LType::Boolean:
 			return ToBoolean(index) ? "true" : "false";
 		case lua50::LType::LightUserdata:
-			return "<LightUserdata " + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
+			return "<LightUserdata 0x" + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
 		case lua50::LType::Number:
 			return std::to_string(ToNumber(index));
 		case lua50::LType::String:
 			return "\"" + ToStdString(index) + "\"";
 		case lua50::LType::Table:
-			return "<table " + int2Str(reinterpret_cast<int>(lua_topointer(L, index))) + ">";
+			return "<table 0x" + int2Str(reinterpret_cast<int>(lua_topointer(L, index))) + ">";
 		case lua50::LType::Function:
 			{
 				PushValue(index);
@@ -486,7 +487,11 @@ namespace lua50 {
 				name << d.NameWhat << " ";
 				name << (d.Name ? d.Name : "null") << " (defined in:";
 				name << d.ShortSrc << ":";
-				name << d.CurrentLine << ")>";
+				if (IsCFunction(index))
+					name << "0x" << int2Str(reinterpret_cast<int>(ToCFunction(index)));
+				else
+					name << d.LineDefined;
+				name << ")>";
 				return name.str();
 			}
 		case lua50::LType::Userdata:
@@ -496,10 +501,10 @@ namespace lua50 {
 					ud = ToString(-1);
 					Pop(1);
 				}
-				return "<Userdata " + ud + + " " + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
+				return "<Userdata " + ud + + " 0x" + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
 			}
 		case lua50::LType::Thread:
-			return "<thread " + int2Str(reinterpret_cast<int>(lua_tothread(L, index))) + ">";
+			return "<thread 0x" + int2Str(reinterpret_cast<int>(lua_tothread(L, index))) + ">";
 		case lua50::LType::None:
 			return "<none>";
 		default:
