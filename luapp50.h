@@ -314,7 +314,7 @@ namespace lua50 {
 				try {
 					ret = F(L);
 				}
-				catch (std::exception& e) {
+				catch (const std::exception& e) {
 					L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
 					err = true;
 				}
@@ -566,7 +566,7 @@ namespace lua50 {
 				try {
 					F(L, ActivationRecord{ ar });
 				}
-				catch (std::exception& e) {
+				catch (const std::exception& e) {
 					L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
 					err = true;
 				}
