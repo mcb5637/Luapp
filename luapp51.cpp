@@ -279,9 +279,9 @@ namespace lua51 {
 	{
 		return static_cast<Integer>(lua_tonumber(L, index));
 	}
-	const char* State::ToString(int index)
+	const char* State::ToString(int index, size_t* len)
 	{
-		return lua_tostring(L, index);
+		return lua_tolstring(L, index, len);
 	}
 	CFunction State::ToCFunction(int index)
 	{
@@ -375,6 +375,24 @@ namespace lua51 {
 	void* State::NewUserdata(size_t s)
 	{
 		return lua_newuserdata(L, s);
+	}
+	ErrorCode State::Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
+	{
+		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname));
+	}
+	void State::Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud)
+	{
+		lua_dump(L, writer, ud);
+	}
+	std::string State::Dump()
+	{
+		std::stringstream str{};
+		Dump([](lua_State* L, const void* data, size_t s, void* ud) {
+			auto* st = static_cast<std::stringstream*>(ud);
+			st->write(static_cast<const char*>(data), s);
+			return 0;
+			}, &str);
+		return str.str();
 	}
 	void State::NewTable()
 	{

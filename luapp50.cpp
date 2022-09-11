@@ -256,14 +256,12 @@ namespace lua50 {
 	{
 		return static_cast<Integer>(lua_tonumber(L, index));
 	}
-	const char* State::ToString(int index)
+	const char* State::ToString(int index, size_t* len)
 	{
-		return lua_tostring(L, index);
-	}
-	const char* lua50::State::ToString(int index, size_t& len)
-	{
-		len = lua_strlen(L, index);
-		return ToString(index);
+		const char* r = lua_tostring(L, index);
+		if (len)
+			*len = lua_strlen(L, index);
+		return r;
 	}
 	CFunction State::ToCFunction(int index)
 	{
@@ -366,15 +364,15 @@ namespace lua50 {
 	{
 		return lua_newuserdata(L, s);
 	}
-	ErrorCode lua50::State::Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
+	ErrorCode State::Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
 	{
 		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname));
 	}
-	void lua50::State::Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud)
+	void State::Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud)
 	{
 		lua_dump(L, writer, ud);
 	}
-	std::string lua50::State::Dump()
+	std::string State::Dump()
 	{
 		std::stringstream str{};
 		Dump([](lua_State* L, const void* data, size_t s, void* ud) {

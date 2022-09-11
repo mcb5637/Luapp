@@ -319,7 +319,7 @@ namespace lua51 {
 				try {
 					ret = F(L);
 				}
-				catch (std::exception& e) {
+				catch (const std::exception& e) {
 					L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
 					err = true;
 				}
@@ -571,7 +571,7 @@ namespace lua51 {
 				try {
 					F(L, ActivationRecord{ ar });
 				}
-				catch (std::exception& e) {
+				catch (const std::exception& e) {
 					L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
 					err = true;
 				}
@@ -886,8 +886,9 @@ namespace lua51 {
 		/// <para>[-0,+0,m]</para>
 		/// </summary>
 		/// <param name="index">acceptable index to convert</param>
+		/// <param name="len">outputs the string length, if not nullptr</param>
 		/// <returns>c string</returns>
-		const char* ToString(int index);
+		const char* ToString(int index, size_t* len = nullptr);
 		/// <summary>
 		/// converts the value at index to a CFunction. must be a CFunction, otherwise returns nullptr.
 		/// <para>[-0,+0,-]</para>
@@ -1055,6 +1056,32 @@ namespace lua51 {
 		/// <see cref="lua::State:NewUserData"/>
 		/// <returns>userdata pointer</returns>
 		void* NewUserdata(size_t s);
+
+		/// <summary>
+		/// loads a lua chunk via a reader function.
+		/// automatically detects text or binary.
+		/// reader should return nullptr and set size to 0 to indicate EOF.
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <param name="reader">reader function</param>
+		/// <param name="ud">data, passed to reader</param>
+		/// <param name="chunkname">name of the chunk</param>
+		/// <returns>error code</returns>
+		ErrorCode Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname);
+
+		/// <summary>
+		/// dumps a lua function at the top of the stack to binary, which can be loaded again via Load.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="writer">writer function</param>
+		/// <param name="ud">data, passed to writer</param>
+		void Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud);
+		/// <summary>
+		/// dumps a lua function at the top of the stack to binary, which can be loaded again via Load.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <returns>binary data of the function</returns>
+		std::string Dump();
 
 		/// <summary>
 		/// creates a new table and pushes it onto the stack.
@@ -2026,8 +2053,8 @@ namespace lua51 {
 		{
 			if constexpr (BaseDefined<T>) {
 				L.GetUserData<T>(1); // just use the checks here to validate the argument
-				UserDataBaseHolder<T, T::BaseClass>* u = static_cast<UserDataBaseHolder<T, T::BaseClass>*>(L.ToUserdata(1));
-				u->~UserDataBaseHolder<T, T::BaseClass>();
+				UserDataBaseHolder<T, typename T::BaseClass>* u = static_cast<UserDataBaseHolder<T, typename T::BaseClass>*>(L.ToUserdata(1));
+				u->~UserDataBaseHolder<T, typename T::BaseClass>();
 			}
 			else {
 				L.GetUserData<T>(1)->~T();
@@ -2147,7 +2174,7 @@ namespace lua51 {
 					return nullptr;
 				}
 				const char* n = ToString(-1);
-				if (strcmp(n, typename_details::type_name<T::BaseClass>())) {
+				if (strcmp(n, typename_details::type_name<typename T::BaseClass>())) {
 					Pop(2);
 					return nullptr;
 				}
@@ -2276,8 +2303,8 @@ namespace lua51 {
 				SetTableRaw(-3);
 				Push(BaseTypeNameName);
 				if constexpr (BaseDefined<T>) {
-					static_assert(std::derived_from<T, T::BaseClass>);
-					Push(typename_details::type_name<T::BaseClass>());
+					static_assert(std::derived_from<T, typename T::BaseClass>);
+					Push(typename_details::type_name<typename T::BaseClass>());
 				}
 				else
 					Push(typename_details::type_name<T>());
@@ -2363,7 +2390,7 @@ namespace lua51 {
 		template<class T, class ... Args>
 		T* NewUserData(Args&& ... args) {
 			if constexpr (BaseDefined<T>) {
-				UserDataBaseHolder<T, T::BaseClass>* t = new (NewUserdata(sizeof(UserDataBaseHolder<T, T::BaseClass>))) UserDataBaseHolder<T, T::BaseClass>(std::forward<Args>(args)...);
+				UserDataBaseHolder<T, typename T::BaseClass>* t = new (NewUserdata(sizeof(UserDataBaseHolder<T, typename T::BaseClass>))) UserDataBaseHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
 				GetUserDataMetatable<T>();
 				SetMetatable(-2);
 				return &t->ActualObj;
