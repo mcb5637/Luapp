@@ -880,6 +880,17 @@ namespace lua50 {
 		/// <returns>c string</returns>
 		const char* ToString(int index);
 		/// <summary>
+		/// converts the value at index to a string. must be a string or a number, otherwise returns nullptr.
+		/// the return value might no longer be valid, if the lua value gets removed from the stack.
+		/// the string is guranteed to have a ending 0, but other 0es might be in the string.
+		/// <para>warning: converts the value on the stack to a string, which might confuse pairs/next</para>
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="index">acceptable index to convert</param>
+		/// <param name="len">outputs the string length</param>
+		/// <returns>c string</returns>
+		const char* ToString(int index, size_t& len);
+		/// <summary>
 		/// converts the value at index to a CFunction. must be a CFunction, otherwise returns nullptr.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
@@ -1045,6 +1056,32 @@ namespace lua50 {
 		/// <see cref="lua::State:NewUserData"/>
 		/// <returns>userdata pointer</returns>
 		void* NewUserdata(size_t s);
+
+		/// <summary>
+		/// loads a lua chunk via a reader function.
+		/// automatically detects text or binary.
+		/// reader should return nullptr and set size to 0 to indicate EOF.
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <param name="reader">reader function</param>
+		/// <param name="ud">data, passed to reader</param>
+		/// <param name="chunkname">name of the chunk</param>
+		/// <returns>error code</returns>
+		ErrorCode Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname);
+
+		/// <summary>
+		/// dumps a lua function at the top of the stack to binary, which can be loaded again via Load.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="writer">writer function</param>
+		/// <param name="ud">data, passed to writer</param>
+		void Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud);
+		/// <summary>
+		/// dumps a lua function at the top of the stack to binary, which can be loaded again via Load.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <returns>binary data of the function</returns>
+		std::string Dump();
 
 		/// <summary>
 		/// creates a new table and pushes it onto the stack.

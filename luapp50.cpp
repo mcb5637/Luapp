@@ -260,6 +260,11 @@ namespace lua50 {
 	{
 		return lua_tostring(L, index);
 	}
+	const char* lua50::State::ToString(int index, size_t& len)
+	{
+		len = lua_strlen(L, index);
+		return ToString(index);
+	}
 	CFunction State::ToCFunction(int index)
 	{
 		return lua_tocfunction(L, index);
@@ -360,6 +365,24 @@ namespace lua50 {
 	void* State::NewUserdata(size_t s)
 	{
 		return lua_newuserdata(L, s);
+	}
+	ErrorCode lua50::State::Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
+	{
+		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname));
+	}
+	void lua50::State::Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud)
+	{
+		lua_dump(L, writer, ud);
+	}
+	std::string lua50::State::Dump()
+	{
+		std::stringstream str{};
+		Dump([](lua_State* L, const void* data, size_t s, void* ud) {
+			auto* st = static_cast<std::stringstream*>(ud);
+			st->write(static_cast<const char*>(data), s);
+			return 0;
+			}, &str);
+		return str.str();
 	}
 	void State::NewTable()
 	{
