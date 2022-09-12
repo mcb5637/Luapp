@@ -231,6 +231,8 @@ namespace lua51 {
 	}
 	bool State::Equal(int i1, int i2)
 	{
+		if (!IsValidIndex(i1) || !IsValidIndex(i2))
+			return false;
 		bool ret = false;
 		i1 = ToAbsoluteIndex(i1);
 		i2 = ToAbsoluteIndex(i2);
@@ -253,6 +255,8 @@ namespace lua51 {
 	}
 	bool State::LessThan(int i1, int i2)
 	{
+		if (!IsValidIndex(i1) || !IsValidIndex(i2))
+			return false;
 		bool ret = false;
 		i1 = ToAbsoluteIndex(i1);
 		i2 = ToAbsoluteIndex(i2);
@@ -262,6 +266,20 @@ namespace lua51 {
 		lua_pushlightuserdata(L, &ret);
 		TCall(3, 0);
 		return ret;
+	}
+	bool State::Compare(int i1, int i2, ComparisonOperator op)
+	{
+		switch (op)
+		{
+		case ComparisonOperator::Equals:
+			return Equal(i1, i2);
+		case ComparisonOperator::LessThan:
+			return LessThan(i1, i2);
+		case ComparisonOperator::LessThanOrEquals:
+			return LessThan(i1, i2) || Equal(i1, i2);
+		default:
+			return false;
+		}
 	}
 	bool State::IsNoneOrNil(int idx)
 	{
@@ -364,6 +382,37 @@ namespace lua51 {
 		lua_pushnumber(L, num);
 		TCall(num + 1, 1);
 	}
+	void State::Arithmetic(ArihmeticOperator op)
+	{
+		switch (op)
+		{
+		case ArihmeticOperator::Add:
+			DoString("return function(a, b) return a + b; end");
+			break;
+		case ArihmeticOperator::Subtract:
+			DoString("return function(a, b) return a - b; end");
+			break;
+		case ArihmeticOperator::Multiply:
+			DoString("return function(a, b) return a * b; end");
+			break;
+		case ArihmeticOperator::Divide:
+			DoString("return function(a, b) return a / b; end");
+			break;
+		case ArihmeticOperator::Modulo:
+			DoString("return function(a, b) return math.mod(a, b); end");
+			break;
+		case ArihmeticOperator::Pow:
+			DoString("return function(a, b) return a ^ b; end");
+			break;
+		case ArihmeticOperator::UnaryNegation:
+			DoString("return function(a) return -a; end");
+			break;
+		default:
+			Push();
+		}
+		lua_insert(L, op == ArihmeticOperator::UnaryNegation ? -2 : -3);
+		TCall(op == ArihmeticOperator::UnaryNegation ? 1 : 2, 1);
+	}
 	bool State::GetMetatable(int index)
 	{
 		return lua_getmetatable(L, index);
@@ -439,6 +488,29 @@ namespace lua51 {
 	void State::SetTableRaw(int index, int n)
 	{
 		lua_rawseti(L, index, n);
+	}
+	void State::SetGlobal()
+	{
+		SetTableRaw(GLOBALSINDEX);
+	}
+	void State::SetGlobal(const char* k)
+	{
+		Push(k);
+		Insert(-2);
+		SetGlobal();
+	}
+	void State::GetGlobal()
+	{
+		GetTableRaw(GLOBALSINDEX);
+	}
+	void State::GetGlobal(const char* k)
+	{
+		Push(k);
+		GetGlobal();
+	}
+	void State::PushGlobalTable()
+	{
+		PushValue(GLOBALSINDEX);
 	}
 	int next_protected(lua_State* L)
 	{
@@ -774,11 +846,9 @@ namespace lua51 {
 	const char* State::CheckString(int idx, size_t* len)
 	{
 		if constexpr (CatchExceptions) {
-			const char* s = ToString(idx);
+			const char* s = ToString(idx, len);
 			if (!s)
 				TypeError(idx, LType::String);
-			if (len)
-				*len = lua_strlen(L, idx);
 			return s;
 		}
 		else {
@@ -796,6 +866,51 @@ namespace lua51 {
 		size_t l;
 		const char* s = OptString(idx, def.c_str(), &l);
 		return { s, l };
+	}
+	const char* State::ConvertToString(int idx, size_t* len)
+	{
+		idx = ToAbsoluteIndex(idx);
+		if (CallMeta(idx, MetaEvent::ToString)) {  /* metafield? */
+			if (!IsString(-1))
+				throw lua::LuaException{ "'__tostring' must return a string" };
+		}
+		else {
+			switch (Type(idx)) {
+			case lua::LType::Number: {
+				PushFString("%f", lua_tonumber(L, idx));
+				break;
+			}
+			case lua::LType::String:
+				PushValue(idx);
+				break;
+			case lua::LType::Boolean:
+				Push((ToBoolean(idx) ? "true" : "false"));
+				break;
+			case lua::LType::Nil:
+				Push("nil");
+				break;
+			default: {
+				if (GetMetaField(idx, MetaEvent::Name))  /* try name */
+				{
+					if (IsString(-1)) {
+						PushFString("%s: %p", ToString(-1), ToPointer(idx));
+						Remove(-2);
+						break;
+					}
+					Remove(-2);
+				}
+				PushFString("%s: %p", TypeName(Type(idx)), ToPointer(idx));
+				break;
+			}
+			}
+		}
+		return ToString(-1, len);
+	}
+	std::string State::ConvertToStdString(int idx)
+	{
+		size_t len;
+		const char* s = ConvertToString(idx, &len);
+		return { s, len };
 	}
 	ErrorCode State::DoString(const std::string& code, const char* name)
 	{
@@ -1005,10 +1120,10 @@ namespace lua51 {
 	}
 	std::string State::ToStdString(int idx)
 	{
-		const char* s = lua_tostring(L, idx);
+		size_t l = 0;
+		const char* s = lua_tolstring(L, idx, &l);
 		if (!s)
 			throw lua::LuaException("no string");
-		size_t l = lua_strlen(L, idx);
 		return { s, l };
 	}
 	bool State::CheckStack(int extra)

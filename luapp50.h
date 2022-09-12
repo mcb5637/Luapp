@@ -163,6 +163,14 @@ namespace lua50 {
 		/// weak table modes.
 		/// </summary>
 		WeakTable,
+		/// <summary>
+		/// function to convert to a string. only used in ConvertToString Luapp methods.
+		/// </summary>
+		ToString,
+		/// <summary>
+		/// userdata class name.
+		/// </summary>
+		Name,
 	};
 	/// <summary>
 	/// options which fields of DebugInfo to fill.
@@ -261,6 +269,56 @@ namespace lua50 {
 		using under = std::underlying_type<HookEvent>::type;
 		return static_cast<HookEvent>(static_cast<under>(a) ^ static_cast<under>(b));
 	}
+	/// <summary>
+	/// operators for comparisons.
+	/// </summary>
+	enum class ComparisonOperator : int {
+		/// <summary>
+		/// == opeator.
+		/// </summary>
+		Equals = 0,
+		/// <summary>
+		/// < operator.
+		/// </summary>
+		LessThan = 1,
+		/// <summary>
+		/// <= operator.
+		/// </summary>
+		LessThanOrEquals = 2,
+	};
+	/// <summary>
+	/// operators for arithmetic operations.
+	/// </summary>
+	enum class ArihmeticOperator : int {
+		/// <summary>
+		/// + operator
+		/// </summary>
+		Add = 0,
+		/// <summary>
+		/// - operator
+		/// </summary>
+		Subtract = 1,
+		/// <summary>
+		/// * operator
+		/// </summary>
+		Multiply = 2,
+		/// <summary>
+		/// / operator
+		/// </summary>
+		Divide = 3,
+		/// <summary>
+		/// % operator
+		/// </summary>
+		Modulo = 4,
+		/// <summary>
+		/// ^ operator
+		/// </summary>
+		Pow = 5,
+		/// <summary>
+		/// unary - operator
+		/// </summary>
+		UnaryNegation = 6,
+	};
 
 	class State;
 
@@ -815,6 +873,7 @@ namespace lua50 {
 		const char* TypeName(LType t);
 		/// <summary>
 		/// checks equality of 2 values. may call metamethods.
+		/// also returns false, if any of the indices are invalid.
 		/// <para>[-0,+0,e]</para>
 		/// </summary>
 		/// <param name="i1">acceptable index 1</param>
@@ -824,6 +883,7 @@ namespace lua50 {
 		bool Equal(int i1, int i2);
 		/// <summary>
 		/// checks primitive equality of 2 values. does not call metametods.
+		/// also returns false, if any of the indices are invalid.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="i1">acceptable index 1</param>
@@ -832,6 +892,7 @@ namespace lua50 {
 		bool RawEqual(int i1, int i2);
 		/// <summary>
 		/// checks if i1 is smaller than i2. may call metamethods.
+		/// also returns false, if any of the indices are invalid.
 		/// <para>[-0,+0,e]</para>
 		/// </summary>
 		/// <param name="i1">acceptable index 1</param>
@@ -839,6 +900,18 @@ namespace lua50 {
 		/// <returns>smaller than</returns>
 		/// <exception cref="lua::LuaException">on lua error</exception>
 		bool LessThan(int i1, int i2);
+		/// <summary>
+		/// compares 2 lua values. returns true, if the value at i1 satisfies op when compared with the value at i2.
+		/// also returns false, if any of the indices are invalid.
+		/// may call metamethods.
+		/// <para>[-0,+0,e]</para>
+		/// </summary>
+		/// <param name="i1">acceptable index 1</param>
+		/// <param name="i2">acceptable index 1</param>
+		/// <param name="op">operator</param>
+		/// <returns>satisfies</returns>
+		/// <exception cref="lua::LuaException">on lua error</exception>
+		bool Compare(int i1, int i2, ComparisonOperator op);
 		/// <summary>
 		/// checks if the index is not valid (none) or the value at it is nil.
 		/// <para>[-0,+0,-]</para>
@@ -1021,6 +1094,16 @@ namespace lua50 {
 		/// <param name="num">number of values to concatenate</param>
 		/// <exception cref="lua::LuaException">on lua error</exception>
 		void Concat(int num);
+		/// <summary>
+		/// performs an arithmetic operation over the 2 values at the top of the stack (or one in case of unary negation), pops the values and pushes the result.
+		/// the top values is the second operand.
+		/// this function evaluates lua code.
+		/// may call metamethods.
+		/// <para>[-2|1,+1,e]</para>
+		/// </summary>
+		/// <param name="op">operator</param>
+		/// <exception cref="lua::LuaException">on lua error</exception>
+		void Arithmetic(ArihmeticOperator op);
 
 		/// <summary>
 		/// pushes the metatable of the value at index and returns true if there is one. if there is no metatable pushes nothing and returns false.
@@ -1124,6 +1207,37 @@ namespace lua50 {
 		/// <param name="index">valid index for table acccess</param>
 		/// <param name="n">key</param>
 		void SetTableRaw(int index, int n);
+		/// <summary>
+		/// assigns the value at the top of the stack to the key just below the top in the global table. pops both key and value from the stack.
+		/// may not call metamethods.
+		/// <para>[-2,+0,m]</para>
+		/// </summary>
+		void SetGlobal();
+		/// <summary>
+		/// assigns the value at the top of the stack to the key k in the global table. pops the value from the stack.
+		/// may not call metamethods.
+		/// <para>[-1,+0,m]</para>
+		/// </summary>
+		/// <param name="k">key</param>
+		void SetGlobal(const char* k);
+		/// <summary>
+		/// pops a key from the stack, and pushes the associated value in the global table onto the stack.
+		/// may not call metamethods.
+		/// <para>[-1,+1,-]</para>
+		/// </summary>
+		void GetGlobal();
+		/// <summary>
+		/// pushes the with k associated value in the global table onto the stack.
+		/// may not call metamethods.
+		/// <para>[-0,+1,-]</para>
+		/// </summary>
+		/// <param name="k"></param>
+		void GetGlobal(const char* k);
+		/// <summary>
+		/// pushes the global environment (table).
+		/// <para>[-0,+1,-]</para>
+		/// </summary>
+		void PushGlobalTable();
 		/// <summary>
 		/// traverses the table index by poping the previous key from the stack and pushing the next key and value to the stack.
 		/// if there are no more elements in the table, returns false and pushes nothing. otherwise returns true.
@@ -1297,13 +1411,13 @@ namespace lua50 {
 		void RegisterGlobalLib(const T& funcs, const char* name) {
 			Push(name);
 			Push(name);
-			GetTableRaw(GLOBALSINDEX);
+			GetGlobal();
 			if (!IsTable(-1)) {
 				Pop(1);
 				NewTable();
 			}
 			RegisterFuncs(funcs, -3);
-			SetTableRaw(GLOBALSINDEX);
+			SetGlobal();
 		}
 
 		/// <summary>
@@ -1626,6 +1740,10 @@ namespace lua50 {
 				return "__gc";
 			case MetaEvent::WeakTable:
 				return "__mode";
+			case MetaEvent::ToString:
+				return "__tostring";
+			case MetaEvent::Name:
+				return "__name";
 			default:
 				return "";
 			};
@@ -1689,6 +1807,7 @@ namespace lua50 {
 		Integer CheckInt(int idx);
 		/// <summary>
 		/// checks if there is a string and returns it.
+		/// <para>warning: converts the value on the stack to a string, which might confuse pairs/next</para>
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
 		/// <param name="idx">acceptable index to check</param>
@@ -1882,6 +2001,7 @@ namespace lua50 {
 		/// <summary>
 		/// in idx is a string returns. if idx is none or nil, returns def.
 		/// otherwise throws.
+		/// <para>warning: converts the value on the stack to a string, which might confuse pairs/next</para>
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
 		/// <param name="idx">aceptable index to check</param>
@@ -1985,6 +2105,23 @@ namespace lua50 {
 		/// <returns>string</returns>
 		/// <exception cref="lua::LuaException">if invalid</exception>
 		std::string OptStdString(int idx, const std::string& def);
+		/// <summary>
+		/// converts idx to a string, pushes it and returns it.
+		/// calls ToString metamethod, if possible.
+		/// <para>[-0,+1,e]</para>
+		/// </summary>
+		/// <param name="idx">valid index to convert</param>
+		/// <param name="len">length output, if not nullptr</param>
+		/// <returns>c string</returns>
+		const char* ConvertToString(int idx, size_t* len = nullptr);
+		/// <summary>
+		/// converts idx to a string, pushes it and returns it.
+		/// calls ToString metamethod, if possible.
+		/// <para>[-0,+1,e]</para>
+		/// </summary>
+		/// <param name="idx">valid index to convert</param>
+		/// <returns>string</returns>
+		std::string ConvertToStdString(int idx);
 		/// <summary>
 		/// loads a std::string and executes it. returns an error code.
 		/// <para>[-0,+?,m]</para>
@@ -2272,6 +2409,9 @@ namespace lua50 {
 				if constexpr (CallCpp<T>)
 					RegisterFunc<T::Call>(GetMetaEventName(MetaEvent::Call), -3);
 
+				Push(GetMetaEventName(MetaEvent::Name));
+				Push(typename_details::type_name<T>());
+				SetTableRaw(-3);
 				Push(TypeNameName);
 				Push(typename_details::type_name<T>());
 				SetTableRaw(-3);

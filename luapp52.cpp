@@ -1,21 +1,20 @@
 #include "../pch.h"
 
-#include "luapp50.h"
+#include "luapp52.h"
 
-#define LUA_API __declspec(dllimport)
+#define LUA_BUILD_AS_DLL 1
 extern "C" {
-#include "..\lua50\lua.h"
-#include "..\lua50\lauxlib.h"
-#include "..\lua50\lualib.h"
+#include "..\lua52\lua.h"
+#include "..\lua52\lauxlib.h"
+#include "..\lua52\lualib.h"
 }
-#undef LUA_API
+#undef LUA_BUILD_AS_DLL
 
 #include <cstdlib>
 #include <type_traits>
 #include <sstream>
-#include <format>
 
-namespace lua50 {
+namespace lua52 {
 	// make sure all the constants match
 	// i do define them new to avoid having to include the c lua files and having all their funcs/defines in global namespace
 	static_assert(State::MINSTACK == LUA_MINSTACK);
@@ -32,7 +31,6 @@ namespace lua50 {
 	static_assert(std::is_same<Number, lua_Number>::value);
 	static_assert(std::is_same<CFunction, lua_CFunction>::value);
 	static_assert(std::is_same<CHook, lua_Hook>::value);
-	static_assert(State::GLOBALSINDEX == LUA_GLOBALSINDEX);
 	static_assert(State::MULTIRET == LUA_MULTRET);
 	static_assert(ErrorCode::Success == static_cast<ErrorCode>(0));
 	static_assert(ErrorCode::Runtime == static_cast<ErrorCode>(LUA_ERRRUN));
@@ -40,6 +38,8 @@ namespace lua50 {
 	static_assert(ErrorCode::ErrorHandler == static_cast<ErrorCode>(LUA_ERRERR));
 	static_assert(ErrorCode::Syntax == static_cast<ErrorCode>(LUA_ERRSYNTAX));
 	static_assert(ErrorCode::File == static_cast<ErrorCode>(LUA_ERRFILE));
+	static_assert(ErrorCode::Yield == static_cast<ErrorCode>(LUA_YIELD));
+	static_assert(ErrorCode::GarbageCollection == static_cast<ErrorCode>(LUA_ERRGCMM));
 	static_assert(State::Upvalueindex(1) == lua_upvalueindex(1));
 	static_assert(State::Upvalueindex(500) == lua_upvalueindex(500));
 	static_assert(State::REGISTRYINDEX == LUA_REGISTRYINDEX);
@@ -49,6 +49,18 @@ namespace lua50 {
 	static_assert(HookEvent::Return == static_cast<HookEvent>(LUA_MASKRET));
 	static_assert(HookEvent::Line == static_cast<HookEvent>(LUA_MASKLINE));
 	static_assert(HookEvent::Count == static_cast<HookEvent>(LUA_MASKCOUNT));
+	static_assert(ComparisonOperator::Equals == static_cast<ComparisonOperator>(LUA_OPEQ));
+	static_assert(ComparisonOperator::LessThan == static_cast<ComparisonOperator>(LUA_OPLT));
+	static_assert(ComparisonOperator::LessThanOrEquals == static_cast<ComparisonOperator>(LUA_OPLE));
+	static_assert(State::REGISTRY_MAINTHREAD == LUA_RIDX_MAINTHREAD);
+	static_assert(State::REGISTRY_GLOBALS == LUA_RIDX_GLOBALS);
+	static_assert(ArihmeticOperator::Add == static_cast<ArihmeticOperator>(LUA_OPADD));
+	static_assert(ArihmeticOperator::Subtract == static_cast<ArihmeticOperator>(LUA_OPSUB));
+	static_assert(ArihmeticOperator::Multiply == static_cast<ArihmeticOperator>(LUA_OPMUL));
+	static_assert(ArihmeticOperator::Divide == static_cast<ArihmeticOperator>(LUA_OPDIV));
+	static_assert(ArihmeticOperator::Modulo == static_cast<ArihmeticOperator>(LUA_OPMOD));
+	static_assert(ArihmeticOperator::Pow == static_cast<ArihmeticOperator>(LUA_OPPOW));
+	static_assert(ArihmeticOperator::UnaryNegation == static_cast<ArihmeticOperator>(LUA_OPUNM));
 
 
 	HookEvent LuaHookToEvent(int ev) {
@@ -57,8 +69,8 @@ namespace lua50 {
 			return HookEvent::Call;
 		case LUA_HOOKRET:
 			return HookEvent::Return;
-		case LUA_HOOKTAILRET:
-			return HookEvent::TailReturn;
+		case LUA_HOOKTAILCALL:
+			return HookEvent::TailCall;
 		case LUA_HOOKLINE:
 			return HookEvent::Line;
 		case LUA_HOOKCOUNT:
@@ -76,6 +88,10 @@ namespace lua50 {
 		d.currentline = 0;
 		d.nups = 0;
 		d.linedefined = 0;
+		d.lastlinedefined = 0;
+		d.nparams = 0;
+		d.isvararg = 0;
+		d.istailcall = 0;
 		d.short_src[0] = '\0';
 	}
 	void CopyDebugInfo(const lua_Debug& src, DebugInfo& trg) {
@@ -87,6 +103,10 @@ namespace lua50 {
 		trg.CurrentLine = src.currentline;
 		trg.NumUpvalues = src.nups;
 		trg.LineDefined = src.linedefined;
+		trg.LastLineDefined = src.lastlinedefined;
+		trg.NumParameters = src.nparams;
+		trg.IsVarArg = src.isvararg;
+		trg.IsTailCall = src.istailcall;
 		memcpy(trg.ShortSrc, src.short_src, DebugInfo::SHORTSRC_SIZE);
 		trg.ShortSrc[DebugInfo::SHORTSRC_SIZE - 1] = '\0';
 	}
@@ -98,17 +118,23 @@ namespace lua50 {
 		this->L = L;
 	}
 
-	lua50::State::State(bool io, bool debug)
+	State::State(bool io, bool debug)
 	{
-		L = lua_open();
-		luaopen_base(L);
-		luaopen_string(L);
-		luaopen_table(L);
-		luaopen_math(L);
-		if (io)
-			luaopen_io(L);
-		if (debug)
-			luaopen_debug(L);
+		L = luaL_newstate();
+		luaL_requiref(L, "_G", luaopen_base, true);
+		luaL_requiref(L, "coroutine", luaopen_coroutine, true);
+		luaL_requiref(L, "table", luaopen_table, true);
+		luaL_requiref(L, "string", luaopen_string, true);
+		luaL_requiref(L, "bit32", luaopen_bit32, true);
+		luaL_requiref(L, "math", luaopen_math, true);
+		if (io) {
+			luaL_requiref(L, "package", luaopen_package, true);
+			luaL_requiref(L, "io", luaopen_io, true);
+			luaL_requiref(L, "os", luaopen_os, true);
+		}
+		if (debug) {
+			luaL_requiref(L, "debug", luaopen_debug, true);
+		}
 		lua_settop(L, 0);
 	}
 
@@ -200,63 +226,39 @@ namespace lua50 {
 	{
 		return lua_typename(L, static_cast<int>(t));
 	}
-	int equal_protected(lua_State* L)
-	{
-		bool r = lua_equal(L, 1, 2);
-		*static_cast<bool*>(lua_touserdata(L, 3)) = r;
-		return 0;
-	}
 	bool State::Equal(int i1, int i2)
 	{
-		if (!IsValidIndex(i1) || !IsValidIndex(i2))
-			return false;
-		bool ret = false;
-		i1 = ToAbsoluteIndex(i1);
-		i2 = ToAbsoluteIndex(i2);
-		lua_pushcfunction(L, &equal_protected);
-		lua_pushvalue(L, i1);
-		lua_pushvalue(L, i2);
-		lua_pushlightuserdata(L, &ret);
-		TCall(3, 0);
-		return ret;
+		return Compare(i1, i2, ComparisonOperator::Equals);
 	}
 	bool State::RawEqual(int i1, int i2)
 	{
 		return lua_rawequal(L, i1, i2);
 	}
-	int lessthan_protected(lua_State* L)
+	bool State::LessThan(int i1, int i2)
 	{
-		bool r = lua_lessthan(L, 1, 2);
+		return Compare(i1, i2, ComparisonOperator::LessThan);
+	}
+	int compare_protected(lua_State* L)
+	{
+		int op = lua_tointeger(L, 4);
+		bool r = lua_compare(L, 1, 2, op);
 		*static_cast<bool*>(lua_touserdata(L, 3)) = r;
 		return 0;
 	}
-	bool State::LessThan(int i1, int i2)
+	bool State::Compare(int i1, int i2, ComparisonOperator op)
 	{
+		bool ret = false;
 		if (!IsValidIndex(i1) || !IsValidIndex(i2))
 			return false;
-		bool ret = false;
 		i1 = ToAbsoluteIndex(i1);
 		i2 = ToAbsoluteIndex(i2);
-		lua_pushcfunction(L, &lessthan_protected);
+		lua_pushcfunction(L, &compare_protected);
 		lua_pushvalue(L, i1);
 		lua_pushvalue(L, i2);
 		lua_pushlightuserdata(L, &ret);
-		TCall(3, 0);
+		lua_pushinteger(L, static_cast<int>(op));
+		TCall(4, 0);
 		return ret;
-	}
-	bool State::Compare(int i1, int i2, ComparisonOperator op)
-	{
-		switch (op)
-		{
-		case ComparisonOperator::Equals:
-			return Equal(i1, i2);
-		case ComparisonOperator::LessThan:
-			return LessThan(i1, i2);
-		case ComparisonOperator::LessThanOrEquals:
-			return LessThan(i1, i2) || Equal(i1, i2);
-		default:
-			return false;
-		}
 	}
 	bool State::IsNoneOrNil(int idx)
 	{
@@ -266,20 +268,25 @@ namespace lua50 {
 	{
 		return lua_toboolean(L, index);
 	}
-	Number State::ToNumber(int index)
+	Number State::ToNumber(int index, bool throwIfNotNumber)
 	{
-		return lua_tonumber(L, index);
+		int isnum = 0;
+		Number n = lua_tonumberx(L, index, &isnum);
+		if (throwIfNotNumber && !isnum)
+			throw lua::LuaException{ "ToNumber not a number" };
+		return n;
 	}
-	Integer State::ToInteger(int index)
+	Integer State::ToInteger(int index, bool throwIfNotNumber)
 	{
-		return static_cast<Integer>(lua_tonumber(L, index));
+		int isnum = 0;
+		Integer n = lua_tointegerx(L, index, &isnum);
+		if (throwIfNotNumber && !isnum)
+			throw lua::LuaException{ "ToInteger not a number" };
+		return n;
 	}
 	const char* State::ToString(int index, size_t* len)
 	{
-		const char* r = lua_tostring(L, index);
-		if (len)
-			*len = lua_strlen(L, index);
-		return r;
+		return lua_tolstring(L, index, len);
 	}
 	CFunction State::ToCFunction(int index)
 	{
@@ -302,15 +309,7 @@ namespace lua50 {
 	}
 	size_t State::ObjLength(int index)
 	{
-		LType t = Type(index);
-		switch (t) {
-		case LType::String:
-			return lua_strlen(L, index);
-		case LType::Table:
-			return luaL_getn(L, index);
-		default:
-			return 0;
-		}
+		return lua_rawlen(L, index);
 	}
 	void State::Push(bool b)
 	{
@@ -322,7 +321,7 @@ namespace lua50 {
 	}
 	void State::Push(Integer i)
 	{
-		lua_pushnumber(L, static_cast<Number>(i));
+		lua_pushinteger(L, i);
 	}
 	void State::Push(const char* s)
 	{
@@ -370,36 +369,19 @@ namespace lua50 {
 		lua_pushnumber(L, num);
 		TCall(num + 1, 1);
 	}
+	int arith_protected(lua_State* L)
+	{
+		int op = lua_tointeger(L, -1);
+		lua_pop(L, 1);
+		lua_arith(L, op);
+		return 1;
+	}
 	void State::Arithmetic(ArihmeticOperator op)
 	{
-		switch (op)
-		{
-		case ArihmeticOperator::Add:
-			DoString("return function(a, b) return a + b; end");
-			break;
-		case ArihmeticOperator::Subtract:
-			DoString("return function(a, b) return a - b; end");
-			break;
-		case ArihmeticOperator::Multiply:
-			DoString("return function(a, b) return a * b; end");
-			break;
-		case ArihmeticOperator::Divide:
-			DoString("return function(a, b) return a / b; end");
-			break;
-		case ArihmeticOperator::Modulo:
-			DoString("return function(a, b) return math.mod(a, b); end");
-			break;
-		case ArihmeticOperator::Pow:
-			DoString("return function(a, b) return a ^ b; end");
-			break;
-		case ArihmeticOperator::UnaryNegation:
-			DoString("return function(a) return -a; end");
-			break;
-		default:
-			Push();
-		}
+		lua_pushcfunction(L, &arith_protected);
 		lua_insert(L, op == ArihmeticOperator::UnaryNegation ? -2 : -3);
-		TCall(op == ArihmeticOperator::UnaryNegation ? 1 : 2, 1);
+		lua_pushinteger(L, static_cast<int>(op));
+		TCall(op == ArihmeticOperator::UnaryNegation ? 2 : 3, 1);
 	}
 	bool State::GetMetatable(int index)
 	{
@@ -415,7 +397,7 @@ namespace lua50 {
 	}
 	ErrorCode State::Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
 	{
-		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname));
+		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname, nullptr));
 	}
 	void State::Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud)
 	{
@@ -479,7 +461,10 @@ namespace lua50 {
 	}
 	void State::SetGlobal()
 	{
-		SetTableRaw(GLOBALSINDEX);
+		PushGlobalTable();
+		Insert(-3);
+		SetTableRaw(-3);
+		Pop(1);
 	}
 	void State::SetGlobal(const char* k)
 	{
@@ -489,7 +474,10 @@ namespace lua50 {
 	}
 	void State::GetGlobal()
 	{
-		GetTableRaw(GLOBALSINDEX);
+		PushGlobalTable();
+		Insert(-2);
+		GetTableRaw(-2);
+		Remove(-2);
 	}
 	void State::GetGlobal(const char* k)
 	{
@@ -498,7 +486,7 @@ namespace lua50 {
 	}
 	void State::PushGlobalTable()
 	{
-		PushValue(GLOBALSINDEX);
+		lua_pushglobaltable(L);
 	}
 	int next_protected(lua_State* L)
 	{
@@ -550,27 +538,27 @@ namespace lua50 {
 		Remove(ehsi); // DefaultErrorDecorator
 	}
 	std::string State::int2Str(int i) {
-		return std::format("{0:X}", i);
-		//return std::to_string(i);
+		//return std::format("{0:X}", i);
+		return std::to_string(i);
 	}
 	std::string State::ToDebugString(int index)
 	{
 		LType t = Type(index);
 		switch (t)
 		{
-		case lua50::LType::Nil:
+		case LType::Nil:
 			return "nil";
-		case lua50::LType::Boolean:
+		case LType::Boolean:
 			return ToBoolean(index) ? "true" : "false";
-		case lua50::LType::LightUserdata:
-			return "<LightUserdata 0x" + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
-		case lua50::LType::Number:
+		case LType::LightUserdata:
+			return "<LightUserdata " + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
+		case LType::Number:
 			return std::to_string(ToNumber(index));
-		case lua50::LType::String:
+		case LType::String:
 			return "\"" + ToStdString(index) + "\"";
-		case lua50::LType::Table:
-			return "<table 0x" + int2Str(reinterpret_cast<int>(lua_topointer(L, index))) + ">";
-		case lua50::LType::Function:
+		case LType::Table:
+			return "<table " + int2Str(reinterpret_cast<int>(lua_topointer(L, index))) + ">";
+		case LType::Function:
 			{
 				PushValue(index);
 				DebugInfo d = Debug_GetInfoForFunc(DebugInfoOptions::Name | DebugInfoOptions::Source | DebugInfoOptions::Line);
@@ -580,25 +568,21 @@ namespace lua50 {
 				name << d.NameWhat << " ";
 				name << (d.Name ? d.Name : "null") << " (defined in:";
 				name << d.ShortSrc << ":";
-				if (IsCFunction(index))
-					name << "0x" << int2Str(reinterpret_cast<int>(ToCFunction(index)));
-				else
-					name << d.LineDefined;
-				name << ")>";
+				name << d.CurrentLine << ")>";
 				return name.str();
 			}
-		case lua50::LType::Userdata:
+		case LType::Userdata:
 			{
 				std::string ud = "";
 				if (GetMetaField(-1, TypeNameName)) {
 					ud = ToString(-1);
 					Pop(1);
 				}
-				return "<Userdata " + ud + + " 0x" + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
+				return "<Userdata " + ud + + " " + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
 			}
-		case lua50::LType::Thread:
-			return "<thread 0x" + int2Str(reinterpret_cast<int>(lua_tothread(L, index))) + ">";
-		case lua50::LType::None:
+		case LType::Thread:
+			return "<thread " + int2Str(reinterpret_cast<int>(lua_tothread(L, index))) + ">";
+		case LType::None:
 			return "<none>";
 		default:
 			return "<unknown>";
@@ -657,17 +641,17 @@ namespace lua50 {
 	{
 		switch (c)
 		{
-		case lua50::ErrorCode::Success:
+		case ErrorCode::Success:
 			return "Lua_Success: ";
-		case lua50::ErrorCode::Runtime:
+		case ErrorCode::Runtime:
 			return "Lua_RuntimeError: ";
-		case lua50::ErrorCode::File:
+		case ErrorCode::File:
 			return "Lua_FileError: ";
-		case lua50::ErrorCode::Syntax:
+		case ErrorCode::Syntax:
 			return "Lua_SyntaxError: ";
-		case lua50::ErrorCode::Memory:
+		case ErrorCode::Memory:
 			return "Lua_MemoryError: ";
-		case lua50::ErrorCode::ErrorHandler:
+		case ErrorCode::ErrorHandler:
 			return "Lua_HandlerError: ";
 		default:
 			return "Lua_UnknownErrorCode: ";
@@ -693,6 +677,11 @@ namespace lua50 {
 		Push(f);
 		SetTableRaw(index);
 	}
+	void State::RegisterFunc(const char* name, CFunction f)
+	{
+		Push(f);
+		SetGlobal(name);
+	}
 	void State::Error()
 	{
 		lua_error(L);
@@ -703,7 +692,7 @@ namespace lua50 {
 	}
 	ErrorCode State::ResumeThread(int narg)
 	{
-		return static_cast<ErrorCode>(lua_resume(L, narg));
+		return static_cast<ErrorCode>(lua_resume(L, nullptr, narg));
 	}
 	void State::YieldThread(int nret)
 	{
@@ -755,6 +744,14 @@ namespace lua50 {
 	const char* State::Debug_SetUpvalue(int index, int upnum)
 	{
 		return lua_setupvalue(L, index, upnum);
+	}
+	const void* State::Debug_UpvalueID(int index, int upnum)
+	{
+		return lua_upvalueid(L, index, upnum);
+	}
+	void State::Debug_UpvalueJoin(int funcMod, int upMod, int funcTar, int upTar)
+	{
+		lua_upvaluejoin(L, funcMod, upMod, funcTar, upTar);
 	}
 	void State::Debug_SetHook(CHook hook, HookEvent mask, int count)
 	{
@@ -833,16 +830,23 @@ namespace lua50 {
 	}
 	Integer State::CheckInt(int idx)
 	{
-		return static_cast<Integer>(CheckNumber(idx));
+		if constexpr (CatchExceptions) {
+			int isnum = 0;
+			Integer n = lua_tointegerx(L, idx, &isnum);
+			if (!isnum)
+				TypeError(idx, LType::Number);
+			return n;
+		}
+		else {
+			return luaL_checknumber(L, idx);
+		}
 	}
 	const char* State::CheckString(int idx, size_t* len)
 	{
 		if constexpr (CatchExceptions) {
-			const char* s = ToString(idx);
+			const char* s = ToString(idx, len);
 			if (!s)
 				TypeError(idx, LType::String);
-			if (len)
-				*len = lua_strlen(L, idx);
 			return s;
 		}
 		else {
@@ -884,27 +888,20 @@ namespace lua50 {
 				Push("nil");
 				break;
 			default: {
-				int top = GetTop();
 				if (GetMetaField(idx, MetaEvent::Name))  /* try name */
 				{
-					top = GetTop();
 					if (IsString(-1)) {
-						top = GetTop();
-						PushFString("%s: %d", ToString(-1), ToPointer(idx));
-						top = GetTop();
+						PushFString("%s: %p", ToString(-1), ToPointer(idx));
 						Remove(-2);
-						top = GetTop();
 						break;
 					}
 					Remove(-2);
-					top = GetTop();
 				}
 				PushFString("%s: %p", TypeName(Type(idx)), ToPointer(idx));
 				break;
 			}
 			}
 		}
-		int top = GetTop();
 		return ToString(-1, len);
 	}
 	std::string State::ConvertToStdString(int idx)
@@ -943,8 +940,9 @@ namespace lua50 {
 	Number State::CheckNumber(int idx)
 	{
 		if constexpr (CatchExceptions) {
-			Number n = ToNumber(idx);
-			if (n == 0 && !IsNumber(idx))
+			int isnum = 0;
+			Number n = lua_tonumberx(L, idx, &isnum);
+			if (!isnum)
 				TypeError(idx, LType::Number);
 			return n;
 		}
@@ -982,15 +980,15 @@ namespace lua50 {
 	}
 	ErrorCode State::DoFile(const char* filename)
 	{
-		return static_cast<ErrorCode>(lua_dofile(L, filename));
+		return static_cast<ErrorCode>(luaL_dofile(L, filename));
 	}
 	ErrorCode State::DoString(const char* code)
 	{
-		return static_cast<ErrorCode>(lua_dostring(L, code));
+		return static_cast<ErrorCode>(luaL_dostring(L, code));
 	}
 	ErrorCode State::DoString(const char* code, size_t l, const char* name)
 	{
-		return static_cast<ErrorCode>(lua_dobuffer(L, code, l, name));
+		return static_cast<ErrorCode>(luaL_loadbuffer(L, code, l, name) || lua_pcall(L, 0, LUA_MULTRET, 0));
 	}
 	ErrorCode State::LoadBuffer(const char* code, size_t len, const char* name)
 	{
@@ -1029,13 +1027,8 @@ namespace lua50 {
 	}
 	void State::TypeError(int idx, const char* t)
 	{
-		if constexpr (CatchExceptions) {
-			std::string s = LuaFormat("%s expected, got %s", t, TypeName(Type(idx)));
-			ArgError(idx, s.c_str());
-		}
-		else {
-			luaL_typerror(L, idx, t);
-		}
+		std::string s = LuaFormat("%s expected, got %s", t, TypeName(Type(idx)));
+		ArgError(idx, s.c_str());
 	}
 	void State::Assert(bool a, const char* msg)
 	{
@@ -1121,10 +1114,10 @@ namespace lua50 {
 	}
 	std::string State::ToStdString(int idx)
 	{
-		const char* s = lua_tostring(L, idx);
+		size_t l = 0;
+		const char* s = lua_tolstring(L, idx, &l);
 		if (!s)
 			throw lua::LuaException("no string");
-		size_t l = lua_strlen(L, idx);
 		return { s, l };
 	}
 	bool State::CheckStack(int extra)

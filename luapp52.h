@@ -13,7 +13,7 @@ struct lua_State;
 struct lua_Debug;
 
 
-namespace lua51 {
+namespace lua52 {
 	/// <summary>
 	/// turn on/off exception handling at compile time
 	/// if active, CppToCFunction catches any c++ exceptions and converts them to lua exceptions
@@ -94,9 +94,13 @@ namespace lua51 {
 		/// </summary>
 		Memory = 4,
 		/// <summary>
+		/// error in a finalizer metamethod. (has no relation to the current chunk)
+		/// </summary>
+		GarbageCollection = 5,
+		/// <summary>
 		/// error processing an error handler.
 		/// </summary>
-		ErrorHandler = 5,
+		ErrorHandler = 6,
 		/// <summary>
 		/// IO error reading or writing files.
 		/// </summary>
@@ -127,6 +131,10 @@ namespace lua51 {
 		/// </summary>
 		Pow,
 		/// <summary>
+		/// % operator.
+		/// </summary>
+		Modulo,
+		/// <summary>
 		/// unary - operator.
 		/// </summary>
 		UnaryMinus,
@@ -134,6 +142,10 @@ namespace lua51 {
 		/// .. operator.
 		/// </summary>
 		Concat,
+		/// <summary>
+		/// # operator.
+		/// </summary>
+		Length,
 		/// <summary>
 		/// == operator
 		/// </summary>
@@ -168,7 +180,7 @@ namespace lua51 {
 		/// </summary>
 		WeakTable,
 		/// <summary>
-		/// function to convert to a string. only used in ConvertToString Luapp methods.
+		/// function to convert to a string.
 		/// </summary>
 		ToString,
 		/// <summary>
@@ -198,9 +210,13 @@ namespace lua51 {
 		/// </summary>
 		Line = 4,
 		/// <summary>
-		/// NumUpvalues field.
+		/// NumUpvalues, NumParameters, IsVarArg fields.
 		/// </summary>
 		Upvalues = 8,
+		/// <summary>
+		/// IsTailCall field.
+		/// </summary>
+		TailCall = 16,
 	};
 	/// <summary>
 	/// events in DebugInfo::Event and as condition specifier for Debug_SetHook.
@@ -227,11 +243,11 @@ namespace lua51 {
 		/// </summary>
 		Count = 8,
 		/// <summary>
-		/// leaving a function via a tail return
-		/// (meaning lua skipped the stack frame of that function, which makes any calls to Debug_GetInfoFromAR useless)
-		/// (requested via Return)
+		/// calling a function via a tail return
+		/// (meaning lua will skipp the return of this function)
+		/// (requested via Call)
 		/// </summary>
-		TailReturn = 16,
+		TailCall = 16,
 	};
 	/// <summary>
 	/// debug info for a function/stack level. see DebugInfoOptions for what to fill.
@@ -246,8 +262,11 @@ namespace lua51 {
 		const char* Source = nullptr;
 		int CurrentLine = 0;
 		int NumUpvalues = 0;
+		int NumParameters = 0;
 		int LineDefined = 0;
 		int LastLineDefined = 0;
+		bool IsVarArg = false;
+		bool IsTailCall = false;
 		char ShortSrc[SHORTSRC_SIZE] = {};
 	};
 	constexpr DebugInfoOptions operator|(DebugInfoOptions a, DebugInfoOptions b) {
@@ -706,25 +725,25 @@ namespace lua51 {
 		/// </summary>
 		constexpr static int MINSTACK = 20;
 		/// <summary>
-		/// pseudoindex to access the global environment.
-		/// </summary>
-		constexpr static int GLOBALSINDEX = -10002;
-		/// <summary>
-		/// pseudoindex to access the environment of the current running c function.
-		/// </summary>
-		constexpr static int ENVIRONINDEX = -10001;
-		/// <summary>
 		/// pseudoindex to access the registry.
 		/// you can store lua values here that you want to access from C++ code, but should not be available to lua.
 		/// use light userdata with adresses of something in your code, or strings prefixed with your library name as keys.
 		/// integer keys are reserved for the Reference mechanism.
 		/// </summary>
 		/// <see cref="lua::State::Ref"/>
-		constexpr static int REGISTRYINDEX = -10000;
+		constexpr static int REGISTRYINDEX = -1000000-1000;
 		/// <summary>
 		/// passing this to call signals to return all values.
 		/// </summary>
 		constexpr static int MULTIRET = -1;
+		/// <summary>
+		/// index in the registry, where the main thread of a state is stored (the threac created with the state).
+		/// </summary>
+		constexpr static int REGISTRY_MAINTHREAD = 1;
+		/// <summary>
+		/// index in the registry, where the global environment(table) is stored.
+		/// </summary>
+		constexpr static int REGISTRY_GLOBALS = 2;
 		/// <summary>
 		/// returns the pseudoindex to access upvalue i.
 		/// </summary>
@@ -732,7 +751,7 @@ namespace lua51 {
 		/// <returns>pseudoindex</returns>
 		constexpr static int Upvalueindex(int i)
 		{
-			return GLOBALSINDEX - i;
+			return REGISTRYINDEX - i;
 		}
 
 		/// <summary>
@@ -941,16 +960,20 @@ namespace lua51 {
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">acceptable index to convert</param>
+		/// <param name="throwIfNotNumber">throw exception if not number instead of returning 0</param>
 		/// <returns>number</returns>
-		Number ToNumber(int index);
+		/// <exception cref="lua::LuaException">if not a number and throw requested</exception>
+		Number ToNumber(int index, bool throwIfNotNumber = false);
 		/// <summary>
 		/// converts the value at index to an integer. must be a number or a string convertible to a number, otherise returns 0.
-		/// <para>equivalent of calling tonumber and casting to int</para>
+		/// if the number is not an integer, it is truncated.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">acceptable index to convert</param>
+		/// <param name="throwIfNotNumber">throw exception if not number instead of returning 0</param>
 		/// <returns>integer</returns>
-		Integer ToInteger(int index);
+		/// <exception cref="lua::LuaException">if not a number and throw requested</exception>
+		Integer ToInteger(int index, bool throwIfNotNumber = false);
 		/// <summary>
 		/// converts the value at index to a string. must be a string or a number, otherwise returns nullptr.
 		/// the return value might no longer be valid, if the lua value gets removed from the stack.
@@ -994,7 +1017,7 @@ namespace lua51 {
 		/// <returns>userdata pointer</returns>
 		void* ToUserdata(int index);
 		/// <summary>
-		/// returns the length of an object. for strings this is the number of bytes (==chars if each char is one byte).
+		/// returns the raw length of an object. for strings this is the number of bytes (==chars if each char is one byte).
 		/// for tables this is one less than the first integer key with a nil value (except if manualy set to something else).
 		/// for full userdata, it is the size of the allocated block of memory.
 		/// <para>[-0,+0,-]</para>
@@ -1016,7 +1039,7 @@ namespace lua51 {
 		/// <param name="n">number</param>
 		void Push(Number n);
 		/// <summary>
-		/// pushes an number onto the stack. (integer gets converted to number).
+		/// pushes an integer onto the stack.
 		/// <para>[-0,+1,-]</para>
 		/// </summary>
 		/// <param name="i">int</param>
@@ -1107,7 +1130,6 @@ namespace lua51 {
 		/// <summary>
 		/// performs an arithmetic operation over the 2 values at the top of the stack (or one in case of unary negation), pops the values and pushes the result.
 		/// the top values is the second operand.
-		/// this function evaluates lua code.
 		/// may call metamethods.
 		/// <para>[-2|1,+1,e]</para>
 		/// </summary>
@@ -1371,7 +1393,14 @@ namespace lua51 {
 		/// <param name="name">key to register</param>
 		/// <param name="f">function to register</param>
 		/// <param name="index">valid index where to register</param>
-		void RegisterFunc(const char* name, CFunction f, int index = GLOBALSINDEX);
+		void RegisterFunc(const char* name, CFunction f, int index);
+		/// <summary>
+		/// registers the function f via the key name in the global environment.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="name">key to register</param>
+		/// <param name="f">function to register</param>
+		void RegisterFunc(const char* name, CFunction f);
 		/// <summary>
 		/// registers the function f via the key name in index.
 		/// use index = -3 to register in the ToS.
@@ -1381,8 +1410,18 @@ namespace lua51 {
 		/// <param name="F">function to register</param>
 		/// <param name="index">valid index where to register</param>
 		template<CFunction F>
-		void RegisterFunc(const char* name, int index = GLOBALSINDEX) {
+		void RegisterFunc(const char* name, int index) {
 			RegisterFunc(name, F, index);
+		}
+		/// <summary>
+		/// registers the function f via the key name in the global environment.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="name">key to register</param>
+		/// <param name="F">function to register</param>
+		template<CFunction F>
+		void RegisterFunc(const char* name) {
+			RegisterFunc(name, F);
 		}
 		/// <summary>
 		/// registers the function f via the key name in index.
@@ -1393,9 +1432,20 @@ namespace lua51 {
 		/// <param name="F">function to register</param>
 		/// <param name="index">valid index where to register</param>
 		template<CppFunction F>
-		void RegisterFunc(const char* name, int index = GLOBALSINDEX)
+		void RegisterFunc(const char* name, int index)
 		{
 			RegisterFunc(name, &CppToCFunction<F>, index);
+		}
+		/// <summary>
+		/// registers the function f via the key name in the global environment.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="name">key to register</param>
+		/// <param name="F">function to register</param>
+		template<CppFunction F>
+		void RegisterFunc(const char* name)
+		{
+			RegisterFunc(name, &CppToCFunction<F>);
 		}
 		/// <summary>
 		/// registers all functions in funcs into index.
@@ -1405,9 +1455,20 @@ namespace lua51 {
 		/// <param name="funcs">iterable containing FuncReference to register</param>
 		/// <param name="index">valid index where to register</param>
 		template<class T>
-		void RegisterFuncs(const T& funcs, int index = GLOBALSINDEX) {
+		void RegisterFuncs(const T& funcs, int index) {
 			for (const FuncReference& f : funcs) {
 				RegisterFunc(f.Name, f.Func, index);
+			}
+		}
+		/// <summary>
+		/// registers all functions in funcs into the global environment.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="funcs">iterable containing FuncReference to register</param>
+		template<class T>
+		void RegisterFuncs(const T& funcs) {
+			for (const FuncReference& f : funcs) {
+				RegisterFunc(f.Name, f.Func);
 			}
 		}
 		/// <summary>
@@ -1509,6 +1570,36 @@ namespace lua51 {
 					return ">ulS";
 				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
 					return ">ulSn";
+				case DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">nt";
+				case DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return ">St";
+				case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">Snt";
+				case DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return ">lt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">lnt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return ">lSt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">lSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall:
+					return ">ut";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">unt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return ">uSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">uSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return ">ult";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">ulnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return ">ulSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">ulSnt";
 				default:
 					return "";
 				}
@@ -1547,6 +1638,36 @@ namespace lua51 {
 					return "fulS";
 				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
 					return "fulSn";
+				case DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "fnt";
+				case DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "fSt";
+				case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "fSnt";
+				case DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return "flt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "flnt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "flSt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "flSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall:
+					return "fut";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "funt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "fuSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "fuSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return "fult";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "fulnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "fulSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "fulSnt";
 				default:
 					return "";
 				}
@@ -1586,6 +1707,36 @@ namespace lua51 {
 					return "ulS";
 				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
 					return "ulSn";
+				case DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "nt";
+				case DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "St";
+				case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "Snt";
+				case DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return "lt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "lnt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "lSt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "lSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall:
+					return "ut";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "unt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "uSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "uSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return "ult";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "ulnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "ulSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "ulSnt";
 				default:
 					return "";
 				}
@@ -1653,6 +1804,24 @@ namespace lua51 {
 		/// <param name="upnum">number of upvalue</param>
 		/// <returns>upvalue name</returns>
 		const char* Debug_SetUpvalue(int index, int upnum);
+		/// <summary>
+		/// allows to check if upvalues of (possibly different) functions share the same upvalue.
+		/// shared upvalues return the same identifier.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="index">valid index to set the upvalue of</param>
+		/// <param name="upnum">number of upvalue, needs to be valid</param>
+		/// <returns>upvalue identifier</returns>
+		const void* Debug_UpvalueID(int index, int upnum);
+		/// <summary>
+		/// makes the upMod upvalue of funcMod refer to the upTar upvalue of funcTar.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="funcMod">valid index to modify the upvalue of</param>
+		/// <param name="upMod">number of upvalue to modify, needs to be valid</param>
+		/// <param name="funcTar">valid index to target the upvalue of</param>
+		/// <param name="upTar">number of upvalue to target, needs to be valid</param>
+		void Debug_UpvalueJoin(int funcMod, int upMod, int funcTar, int upTar);
 	private:
 		void Debug_SetHook(CHook hook, HookEvent mask, int count);
 	public:
@@ -1728,12 +1897,16 @@ namespace lua51 {
 				return "__mul";
 			case MetaEvent::Divide:
 				return "__div";
+			case MetaEvent::Modulo:
+				return "__mod";
 			case MetaEvent::Pow:
 				return "__pow";
 			case MetaEvent::UnaryMinus:
 				return "__unm";
 			case MetaEvent::Concat:
 				return "__concat";
+			case MetaEvent::Length:
+				return "__len";
 			case MetaEvent::Equals:
 				return "__eq";
 			case MetaEvent::LessThan:
@@ -1808,7 +1981,7 @@ namespace lua51 {
 		/// <exception cref="lua::LuaException">if none</exception>
 		void CheckAny(int idx);
 		/// <summary>
-		/// checks if there is a number and returns it cast to a int.
+		/// checks if there is a integer and returns it.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
 		/// <param name="idx">acceptable index to check</param>
@@ -2011,7 +2184,6 @@ namespace lua51 {
 		/// <summary>
 		/// in idx is a string returns. if idx is none or nil, returns def.
 		/// otherwise throws.
-		/// <para>warning: converts the value on the stack to a string, which might confuse pairs/next</para>
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
 		/// <param name="idx">aceptable index to check</param>
@@ -2853,6 +3025,6 @@ namespace lua51 {
 }
 
 #ifndef LuaVersion
-#define LuaVersion 5.1
-namespace lua = lua51;
+#define LuaVersion 5.2
+namespace lua = lua52;
 #endif
