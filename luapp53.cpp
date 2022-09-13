@@ -1,12 +1,12 @@
 #include "../pch.h"
 
-#include "luapp52.h"
+#include "luapp53.h"
 
 #define LUA_BUILD_AS_DLL 1
 extern "C" {
-#include "..\lua52\lua.h"
-#include "..\lua52\lauxlib.h"
-#include "..\lua52\lualib.h"
+#include "..\lua53\lua.h"
+#include "..\lua53\lauxlib.h"
+#include "..\lua53\lualib.h"
 }
 #undef LUA_BUILD_AS_DLL
 
@@ -14,7 +14,7 @@ extern "C" {
 #include <type_traits>
 #include <sstream>
 
-namespace lua52 {
+namespace lua53 {
 	// make sure all the constants match
 	// i do define them new to avoid having to include the c lua files and having all their funcs/defines in global namespace
 	static_assert(State::MINSTACK == LUA_MINSTACK);
@@ -58,10 +58,17 @@ namespace lua52 {
 	static_assert(ArihmeticOperator::Add == static_cast<ArihmeticOperator>(LUA_OPADD));
 	static_assert(ArihmeticOperator::Subtract == static_cast<ArihmeticOperator>(LUA_OPSUB));
 	static_assert(ArihmeticOperator::Multiply == static_cast<ArihmeticOperator>(LUA_OPMUL));
-	static_assert(ArihmeticOperator::Divide == static_cast<ArihmeticOperator>(LUA_OPDIV));
 	static_assert(ArihmeticOperator::Modulo == static_cast<ArihmeticOperator>(LUA_OPMOD));
 	static_assert(ArihmeticOperator::Pow == static_cast<ArihmeticOperator>(LUA_OPPOW));
+	static_assert(ArihmeticOperator::Divide == static_cast<ArihmeticOperator>(LUA_OPDIV));
+	static_assert(ArihmeticOperator::IntegerDivide == static_cast<ArihmeticOperator>(LUA_OPIDIV));
+	static_assert(ArihmeticOperator::BitwiseAnd == static_cast<ArihmeticOperator>(LUA_OPBAND));
+	static_assert(ArihmeticOperator::BitwiseOr == static_cast<ArihmeticOperator>(LUA_OPBOR));
+	static_assert(ArihmeticOperator::BitwiseXOr == static_cast<ArihmeticOperator>(LUA_OPBXOR));
+	static_assert(ArihmeticOperator::ShiftLeft == static_cast<ArihmeticOperator>(LUA_OPSHL));
+	static_assert(ArihmeticOperator::ShiftRight == static_cast<ArihmeticOperator>(LUA_OPSHR));
 	static_assert(ArihmeticOperator::UnaryNegation == static_cast<ArihmeticOperator>(LUA_OPUNM));
+	static_assert(ArihmeticOperator::BitwiseNot == static_cast<ArihmeticOperator>(LUA_OPBNOT));
 
 
 	HookEvent LuaHookToEvent(int ev) {
@@ -126,7 +133,7 @@ namespace lua52 {
 		luaL_requiref(L, LUA_COLIBNAME, luaopen_coroutine, true);
 		luaL_requiref(L, LUA_TABLIBNAME, luaopen_table, true);
 		luaL_requiref(L, LUA_STRLIBNAME, luaopen_string, true);
-		luaL_requiref(L, LUA_BITLIBNAME, luaopen_bit32, true);
+		luaL_requiref(L, LUA_UTF8LIBNAME, luaopen_utf8, true);
 		luaL_requiref(L, LUA_MATHLIBNAME, luaopen_math, true);
 		if (io) {
 			luaL_requiref(L, LUA_LOADLIBNAME, luaopen_package, true);
@@ -207,6 +214,10 @@ namespace lua52 {
 	{
 		return lua_isnumber(L, index);
 	}
+	bool State::IsInteger(int index)
+	{
+		return lua_isinteger(L, index);
+	}
 	bool State::IsString(int index)
 	{
 		return lua_isstring(L, index);
@@ -249,7 +260,7 @@ namespace lua52 {
 	}
 	int compare_protected(lua_State* L)
 	{
-		int op = lua_tointeger(L, 4);
+		int op = static_cast<int>(lua_tointeger(L, 4));
 		bool r = lua_compare(L, 1, 2, op);
 		*static_cast<bool*>(lua_touserdata(L, 3)) = r;
 		return 0;
@@ -332,6 +343,14 @@ namespace lua52 {
 	{
 		return lua_rawlen(L, index);
 	}
+	bool State::NumberToInteger(Number n, Integer& i)
+	{
+		return lua_numbertointeger(n, &i);
+	}
+	size_t State::StringToNumber(const char* s)
+	{
+		return lua_stringtonumber(L, s);
+	}
 	void State::Push(bool b)
 	{
 		lua_pushboolean(L, b);
@@ -343,6 +362,10 @@ namespace lua52 {
 	void State::Push(Integer i)
 	{
 		lua_pushinteger(L, i);
+	}
+	void State::Push(int i)
+	{
+		lua_pushinteger(L, static_cast<Integer>(i));
 	}
 	void State::Push(const char* s)
 	{
@@ -392,17 +415,18 @@ namespace lua52 {
 	}
 	int arith_protected(lua_State* L)
 	{
-		int op = lua_tointeger(L, -1);
+		int op = static_cast<int>(lua_tointeger(L, -1));
 		lua_pop(L, 1);
 		lua_arith(L, op);
 		return 1;
 	}
 	void State::Arithmetic(ArihmeticOperator op)
 	{
+		bool hasoneparam = op == ArihmeticOperator::UnaryNegation || op == ArihmeticOperator::BitwiseNot;
 		lua_pushcfunction(L, &arith_protected);
-		lua_insert(L, op == ArihmeticOperator::UnaryNegation ? -2 : -3);
+		lua_insert(L, hasoneparam ? -2 : -3);
 		lua_pushinteger(L, static_cast<int>(op));
-		TCall(op == ArihmeticOperator::UnaryNegation ? 2 : 3, 1);
+		TCall(hasoneparam ? 2 : 3, 1);
 	}
 	bool State::GetMetatable(int index)
 	{
@@ -422,7 +446,7 @@ namespace lua52 {
 	}
 	void State::Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud)
 	{
-		lua_dump(L, writer, ud);
+		lua_dump(L, writer, ud, false);
 	}
 	std::string State::Dump()
 	{
@@ -722,6 +746,10 @@ namespace lua52 {
 	void State::XMove(State to, int num)
 	{
 		lua_xmove(L, to.L, num);
+	}
+	bool State::IsYieldable()
+	{
+		return lua_isyieldable(L);
 	}
 	bool State::Debug_GetStack(int level, DebugInfo& Info, DebugInfoOptions opt, bool pushFunc)
 	{

@@ -152,6 +152,12 @@ namespace lua50 {
 	{
 		lua_replace(L, index);
 	}
+	void State::Copy(int from, int to)
+	{
+		to = ToAbsoluteIndex(to);
+		PushValue(from);
+		Replace(to);
+	}
 	void State::Pop(int num)
 	{
 		lua_pop(L, num);
@@ -163,6 +169,10 @@ namespace lua50 {
 	bool State::IsNil(int index)
 	{
 		return lua_isnil(L, index);
+	}
+	bool State::IsNone(int index)
+	{
+		return lua_isnone(L, index);
 	}
 	bool State::IsBoolean(int index)
 	{

@@ -357,11 +357,11 @@ namespace lua52 {
 	};
 
 	/// <summary>
-	/// default number type. any number in lua 5.0 is of this type.
+	/// default number type.
 	/// </summary>
 	using Number = double;
 	/// <summary>
-	/// integer type. in lua 5.0 internal representation always as Number, used only as typecasts for convienience functions.
+	/// integer type.
 	/// </summary>
 	using Integer = int;
 	/// <summary>
@@ -518,6 +518,11 @@ namespace lua52 {
 		{a / b} -> std::same_as<T>;
 	};
 	/// <summary>
+	/// checks if a type has a userdata modulo defined manually via Modulo static member.
+	/// </summary>
+	template<class T>
+	concept ModuloCpp = std::is_same_v<CppFunction, decltype(&T::Modulo)> || std::is_same_v<CFunction, decltype(&T::Modulo)>;
+	/// <summary>
 	/// checks if a type has a userdata pow defined manually via Pow static member.
 	/// </summary>
 	template<class T>
@@ -534,6 +539,11 @@ namespace lua52 {
 	concept UnaryMinusOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
 		{-a} -> std::same_as<T>;
 	};
+	/// <summary>
+	/// checks if a type has a userdata length defined manually via Length static member.
+	/// </summary>
+	template<class T>
+	concept LengthCpp = std::is_same_v<CppFunction, decltype(&T::Length)> || std::is_same_v<CFunction, decltype(&T::Length)>;
 	/// <summary>
 	/// checks if a type has a userdata concat defined manually via Concat static member.
 	/// </summary>
@@ -816,6 +826,13 @@ namespace lua52 {
 		/// <param name="index">valid index to replace</param>
 		void Replace(int index);
 		/// <summary>
+		/// copies the element at from to to, replacing it without shifting other elements.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="from">valid index to copy</param>
+		/// <param name="to">valid index to replace</param>
+		void Copy(int from, int to);
+		/// <summary>
 		/// pops num elements from the stack
 		/// <para>[-num,+0,-]</para>
 		/// </summary>
@@ -836,6 +853,13 @@ namespace lua52 {
 		/// <param name="index">acceptable index to check</param>
 		/// <returns>is nil</returns>
 		bool IsNil(int index);
+		/// <summary>
+		/// returns if the value at index is none (outside the stack)..
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="index">acceptable index to check</param>
+		/// <returns>is none</returns>
+		bool IsNone(int index);
 		/// <summary>
 		/// returns if the value at index is of type boolean.
 		/// <para>[-0,+0,-]</para>
@@ -1017,14 +1041,23 @@ namespace lua52 {
 		/// <returns>userdata pointer</returns>
 		void* ToUserdata(int index);
 		/// <summary>
-		/// returns the raw length of an object. for strings this is the number of bytes (==chars if each char is one byte).
+		/// returns the length of an object. this is the same as applying the # operator (may call metamethods).
+		/// pushes the result onto the stack.
+		/// <para>[-0,+1,e]</para>
+		/// </summary>
+		/// <param name="index">index to query</param>
+		/// <exception cref="lua::LuaException">on lua error</exception>
+		void ObjLength(int index);
+		/// <summary>
+		/// returns the length of an object. for strings this is the number of bytes (==chars if each char is one byte).
 		/// for tables this is one less than the first integer key with a nil value (except if manualy set to something else).
 		/// for full userdata, it is the size of the allocated block of memory.
-		/// <para>[-0,+0,-]</para>
+		/// pushes the result onto the stack.
+		/// <para>[-0,+1,-]</para>
 		/// </summary>
-		/// <param name="index"></param>
+		/// <param name="index">index to query</param>
 		/// <returns>size</returns>
-		size_t ObjLength(int index);
+		size_t RawLength(int index);
 
 		/// <summary>
 		/// pushes a boolean onto the stack.
@@ -2577,7 +2610,7 @@ namespace lua52 {
 
 				if constexpr (SubtractCpp<T>)
 					RegisterFunc<T::Substract>(GetMetaEventName(MetaEvent::Subtract), -3);
-				else if constexpr (AddOp<T>)
+				else if constexpr (SubtractOp<T>)
 					RegisterFunc<UserData_SubtractOperator<T>>(GetMetaEventName(MetaEvent::Subtract), -3);
 
 				if constexpr (MultiplyCpp<T>)
@@ -2590,6 +2623,9 @@ namespace lua52 {
 				else if constexpr (DivideOp<T>)
 					RegisterFunc<UserData_DivideOperator<T>>(GetMetaEventName(MetaEvent::Divide), -3);
 
+				if constexpr (ModuloCpp<T>)
+					RegisterFunc<T::Modulo>(GetMetaEventName(MetaEvent::Modulo), -3);
+
 				if constexpr (PowCpp<T>)
 					RegisterFunc<T::Pow>(GetMetaEventName(MetaEvent::Pow), -3);
 
@@ -2597,6 +2633,9 @@ namespace lua52 {
 					RegisterFunc<T::UnaryMinus>(GetMetaEventName(MetaEvent::UnaryMinus), -3);
 				else if constexpr (UnaryMinusOp<T>)
 					RegisterFunc<UserData_UnaryMinusOperator<T>>(GetMetaEventName(MetaEvent::UnaryMinus), -3);
+
+				if constexpr (LengthCpp<T>)
+					RegisterFunc<T::Length>(GetMetaEventName(MetaEvent::Length), -3);
 
 				if constexpr (ConcatCpp<T>)
 					RegisterFunc<T::Concat>(GetMetaEventName(MetaEvent::Concat), -3);
@@ -2666,6 +2705,10 @@ namespace lua52 {
 		/// <para>- Divide static member.</para>
 		/// <para>- / operator overload (only works for both operands of type T).</para>
 		/// <para></para>
+		/// <para>% operator (__mod):</para>
+		/// <para>- Modulo static member.</para>
+		/// <para>(no operator in c++).</para>
+		/// <para></para>
 		/// <para>^ operator (__pow):</para>
 		/// <para>- Pow static member.</para>
 		/// <para>(no operator in c++).</para>
@@ -2673,6 +2716,10 @@ namespace lua52 {
 		/// <para>unary - operator (__unm):</para>
 		/// <para>- UnaryMinus static member.</para>
 		/// <para>- (unary) - operator overload.</para>
+		/// <para></para>
+		/// <para># operator (__len):</para>
+		/// <para>- Length static member.</para>
+		/// <para>(no operator in c++).</para>
 		/// <para></para>
 		/// <para>.. operator (__concat):</para>
 		/// <para>- Concat static member.</para>
@@ -2716,151 +2763,6 @@ namespace lua52 {
 		}
 	private:
 		static std::string int2Str(int i);
-	public:
-		template<class T>
-		std::string AnalyzeUserDataType() {
-			GetUserDataMetatable<T>();
-			std::string re{ "analyzing type: " };
-			re += typename_details::type_name<T>();
-
-
-			Push(GetMetaEventName(MetaEvent::Index));
-			GetTableRaw(-2);
-			if (IsTable(-1)) {
-				re += "\nmethod list:";
-				Push();
-				while (Next(-2)) {
-					if (Type(-2) == LType::String) {
-						re += "\n\t";
-						re += ToString(-2);
-						re += " ";
-						re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-					}
-					Pop(1);
-				}
-			}
-			else if (IsFunction(-1)) {
-				Push(MethodsName);
-				GetTableRaw(-3);
-				if (IsTable(-1)) {
-					re += "\nmethod list:";
-					Push();
-					while (Next(-2)) {
-						if (Type(-2) == LType::String) {
-							re += "\n\t";
-							re += ToString(-2);
-							re += " ";
-							re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-						}
-						Pop(1);
-					}
-				}
-				Pop(1);
-				re += "\nindex ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::Finalizer));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\nfinalizer ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::Equals));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\ncomparator equals ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::LessThan));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\ncomparator lessthan ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::Add));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\nadd ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::Subtract));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\nsub ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::Multiply));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\nmul ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::Divide));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\ndiv ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::Pow));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\npow ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::UnaryMinus));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\nunm ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::Concat));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\nconcat ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::NewIndex));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\nnewindex ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			Push(GetMetaEventName(MetaEvent::Call));
-			GetTableRaw(-2);
-			if (IsFunction(-1)) {
-				re += "\ncall ";
-				re += int2Str(reinterpret_cast<int>(ToPointer(-1)));
-			}
-			Pop(1);
-
-			re += "\ncomplete";
-			Pop(1);
-			return re;
-		}
 	};
 
 	/// <summary>
