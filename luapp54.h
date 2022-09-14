@@ -13,7 +13,7 @@ struct lua_State;
 struct lua_Debug;
 
 
-namespace lua51 {
+namespace lua54 {
 	/// <summary>
 	/// turn on/off exception handling at compile time
 	/// if active, CppToCFunction catches any c++ exceptions and converts them to lua exceptions
@@ -123,6 +123,10 @@ namespace lua51 {
 		/// </summary>
 		Divide,
 		/// <summary>
+		/// // operator.
+		/// </summary>
+		IntegerDivide,
+		/// <summary>
 		/// ^ operator.
 		/// </summary>
 		Pow,
@@ -134,6 +138,30 @@ namespace lua51 {
 		/// unary - operator.
 		/// </summary>
 		UnaryMinus,
+		/// <summary>
+		/// &amp; operator.
+		/// </summary>
+		BitwiseAnd,
+		/// <summary>
+		/// | operator.
+		/// </summary>
+		BitwiseOr,
+		/// <summary>
+		/// ~ operator.
+		/// </summary>
+		BitwiseXOr,
+		/// <summary>
+		/// unary ~ operator.
+		/// </summary>
+		BitwiseNot,
+		/// <summary>
+		/// &lt;&lt; operator.
+		/// </summary>
+		ShiftLeft,
+		/// <summary>
+		/// &gt;&gt; operator.
+		/// </summary>
+		ShiftRight,
 		/// <summary>
 		/// .. operator.
 		/// </summary>
@@ -176,7 +204,7 @@ namespace lua51 {
 		/// </summary>
 		WeakTable,
 		/// <summary>
-		/// function to convert to a string. only used in ConvertToString Luapp methods.
+		/// function to convert to a string.
 		/// </summary>
 		ToString,
 		/// <summary>
@@ -198,7 +226,7 @@ namespace lua51 {
 		/// </summary>
 		Name = 1,
 		/// <summary>
-		/// What, Source, LineDefined, LastLineDefined, ShortSrc fields.
+		/// What, Source, LineDefined, LastLineDefined, ShortSrc, SourceLen fields.
 		/// </summary>
 		Source = 2,
 		/// <summary>
@@ -206,9 +234,17 @@ namespace lua51 {
 		/// </summary>
 		Line = 4,
 		/// <summary>
-		/// NumUpvalues field.
+		/// NumUpvalues, NumParameters, IsVarArg fields.
 		/// </summary>
 		Upvalues = 8,
+		/// <summary>
+		/// IsTailCall field.
+		/// </summary>
+		TailCall = 16,
+		/// <summary>
+		/// FirstValueTransferred, NumberTransferred fields.
+		/// </summary>
+		Transfer = 32,
 	};
 	/// <summary>
 	/// events in DebugInfo::Event and as condition specifier for Debug_SetHook.
@@ -235,11 +271,11 @@ namespace lua51 {
 		/// </summary>
 		Count = 8,
 		/// <summary>
-		/// leaving a function via a tail return
-		/// (meaning lua skipped the stack frame of that function, which makes any calls to Debug_GetInfoFromAR useless)
-		/// (requested via Return)
+		/// calling a function via a tail return
+		/// (meaning lua will skipp the return of this function)
+		/// (requested via Call)
 		/// </summary>
-		TailReturn = 16,
+		TailCall = 16,
 	};
 	/// <summary>
 	/// debug info for a function/stack level. see DebugInfoOptions for what to fill.
@@ -252,10 +288,16 @@ namespace lua51 {
 		const char* NameWhat = nullptr;
 		const char* What = nullptr;
 		const char* Source = nullptr;
+		size_t SourceLen = 0;
 		int CurrentLine = 0;
 		int NumUpvalues = 0;
+		int NumParameters = 0;
 		int LineDefined = 0;
 		int LastLineDefined = 0;
+		bool IsVarArg = false;
+		bool IsTailCall = false;
+		unsigned short FirstValueTransferred = 0;
+		unsigned short NumberTransferred = 0;
 		char ShortSrc[SHORTSRC_SIZE] = {};
 	};
 	constexpr DebugInfoOptions operator|(DebugInfoOptions a, DebugInfoOptions b) {
@@ -316,21 +358,49 @@ namespace lua51 {
 		/// </summary>
 		Multiply = 2,
 		/// <summary>
-		/// / operator
-		/// </summary>
-		Divide = 3,
-		/// <summary>
 		/// % operator
 		/// </summary>
-		Modulo = 4,
+		Modulo = 3,
 		/// <summary>
 		/// ^ operator
 		/// </summary>
-		Pow = 5,
+		Pow = 4,
+		/// <summary>
+		/// / operator on floats
+		/// </summary>
+		Divide = 5,
+		/// <summary>
+		/// / operator on ints (divides, then floors)
+		/// </summary>
+		IntegerDivide = 6,
+		/// <summary>
+		/// &amp; operator
+		/// </summary>
+		BitwiseAnd = 7,
+		/// <summary>
+		/// | operator
+		/// </summary>
+		BitwiseOr = 8,
+		/// <summary>
+		/// ~ operator
+		/// </summary>
+		BitwiseXOr = 9,
+		/// <summary>
+		/// &lt;&lt; operator
+		/// </summary>
+		ShiftLeft = 10,
+		/// <summary>
+		/// &gt;&gt; operator
+		/// </summary>
+		ShiftRight = 11,
 		/// <summary>
 		/// unary - operator
 		/// </summary>
-		UnaryNegation = 6,
+		UnaryNegation = 12,
+		/// <summary>
+		/// unary ~ operator
+		/// </summary>
+		BitwiseNot = 13,
 	};
 
 	class State;
@@ -346,13 +416,13 @@ namespace lua51 {
 	};
 
 	/// <summary>
-	/// default number type. any number in lua 5.1 is of this type.
+	/// default number type.
 	/// </summary>
 	using Number = double;
 	/// <summary>
-	/// integer type. in lua 5.1 internal representation always as Number, used only as typecasts for convienience functions.
+	/// integer type.
 	/// </summary>
-	using Integer = int;
+	using Integer = long long;
 	/// <summary>
 	/// aka lua_CFunction. no type conversion/exception handling. use CppFunction when in doubt.
 	/// </summary>
@@ -519,6 +589,11 @@ namespace lua51 {
 		{a / b} -> std::same_as<T>;
 	};
 	/// <summary>
+	/// checks if a type has a userdata integer divide defined manually via IntegerDivide static member.
+	/// </summary>
+	template<class T>
+	concept IntegerDivideCpp = std::is_same_v<CppFunction, decltype(&T::IntegerDivide)> || std::is_same_v<CFunction, decltype(&T::IntegerDivide)>;
+	/// <summary>
 	/// checks if a type has a userdata modulo defined manually via Modulo static member.
 	/// </summary>
 	template<class T>
@@ -534,11 +609,83 @@ namespace lua51 {
 	template<class T>
 	concept UnaryMinusCpp = std::is_same_v<CppFunction, decltype(&T::UnaryMinus)> || std::is_same_v<CFunction, decltype(&T::UnaryMinus)>;
 	/// <summary>
-	/// checks if a type has a userdata unary inus defined via c++ operator.
+	/// checks if a type has a userdata unary minus defined via c++ operator.
 	/// </summary>
 	template<class T>
 	concept UnaryMinusOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
 		{-a} -> std::same_as<T>;
+	};
+	/// <summary>
+	/// checks if a type has a userdata binary and defined manually via BitwiseAnd static member.
+	/// </summary>
+	template<class T>
+	concept BitwiseAndCpp = std::is_same_v<CppFunction, decltype(&T::BitwiseAnd)> || std::is_same_v<CFunction, decltype(&T::BitwiseAnd)>;
+	/// <summary>
+	/// checks if a type has a userdata binary and defined via c++ operator.
+	/// </summary>
+	template<class T>
+	concept BitwiseAndOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+		{a & b} -> std::same_as<T>;
+	};
+	/// <summary>
+	/// checks if a type has a userdata binary or defined manually via BitwiseOr static member.
+	/// </summary>
+	template<class T>
+	concept BitwiseOrCpp = std::is_same_v<CppFunction, decltype(&T::BitwiseOr)> || std::is_same_v<CFunction, decltype(&T::BitwiseOr)>;
+	/// <summary>
+	/// checks if a type has a userdata binary or defined via c++ operator.
+	/// </summary>
+	template<class T>
+	concept BitwiseOrOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+		{a | b} -> std::same_as<T>;
+	};
+	/// <summary>
+	/// checks if a type has a userdata binary xor defined manually via BitwiseXOr static member.
+	/// </summary>
+	template<class T>
+	concept BitwiseXOrCpp = std::is_same_v<CppFunction, decltype(&T::BitwiseXOr)> || std::is_same_v<CFunction, decltype(&T::BitwiseXOr)>;
+	/// <summary>
+	/// checks if a type has a userdata binary xor defined via c++ operator.
+	/// </summary>
+	template<class T>
+	concept BitwiseXOrOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+		{a ^ b} -> std::same_as<T>;
+	};
+	/// <summary>
+	/// checks if a type has a userdata binary not defined manually via BitwiseNot static member.
+	/// </summary>
+	template<class T>
+	concept BitwiseNotCpp = std::is_same_v<CppFunction, decltype(&T::BitwiseNot)> || std::is_same_v<CFunction, decltype(&T::BitwiseNot)>;
+	/// <summary>
+	/// checks if a type has a userdata binary not defined via c++ operator.
+	/// </summary>
+	template<class T>
+	concept  BitwiseNotOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
+		{~a} -> std::same_as<T>;
+	};
+	/// <summary>
+	/// checks if a type has a userdata binary shift left defined manually via ShiftLeft static member.
+	/// </summary>
+	template<class T>
+	concept ShiftLeftCpp = std::is_same_v<CppFunction, decltype(&T::ShiftLeft)> || std::is_same_v<CFunction, decltype(&T::ShiftLeft)>;
+	/// <summary>
+	/// checks if a type has a userdata binary shift left defined via c++ operator.
+	/// </summary>
+	template<class T>
+	concept ShiftLeftOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+		{a << b} -> std::same_as<T>;
+	};
+	/// <summary>
+	/// checks if a type has a userdata binary shift right defined manually via ShiftRight static member.
+	/// </summary>
+	template<class T>
+	concept ShiftRightCpp = std::is_same_v<CppFunction, decltype(&T::ShiftRight)> || std::is_same_v<CFunction, decltype(&T::ShiftRight)>;
+	/// <summary>
+	/// checks if a type has a userdata binary shift right defined via c++ operator.
+	/// </summary>
+	template<class T>
+	concept ShiftRightOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+		{a >> b} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata length defined manually via Length static member.
@@ -736,25 +883,25 @@ namespace lua51 {
 		/// </summary>
 		constexpr static int MINSTACK = 20;
 		/// <summary>
-		/// pseudoindex to access the global environment.
-		/// </summary>
-		constexpr static int GLOBALSINDEX = -10002;
-		/// <summary>
-		/// pseudoindex to access the environment of the current running c function.
-		/// </summary>
-		constexpr static int ENVIRONINDEX = -10001;
-		/// <summary>
 		/// pseudoindex to access the registry.
 		/// you can store lua values here that you want to access from C++ code, but should not be available to lua.
 		/// use light userdata with adresses of something in your code, or strings prefixed with your library name as keys.
 		/// integer keys are reserved for the Reference mechanism.
 		/// </summary>
 		/// <see cref="lua::State::Ref"/>
-		constexpr static int REGISTRYINDEX = -10000;
+		constexpr static int REGISTRYINDEX = -1000000-1000;
 		/// <summary>
 		/// passing this to call signals to return all values.
 		/// </summary>
 		constexpr static int MULTIRET = -1;
+		/// <summary>
+		/// index in the registry, where the main thread of a state is stored (the threac created with the state).
+		/// </summary>
+		constexpr static int REGISTRY_MAINTHREAD = 1;
+		/// <summary>
+		/// index in the registry, where the global environment(table) is stored.
+		/// </summary>
+		constexpr static int REGISTRY_GLOBALS = 2;
 		/// <summary>
 		/// returns the pseudoindex to access upvalue i.
 		/// </summary>
@@ -762,7 +909,7 @@ namespace lua51 {
 		/// <returns>pseudoindex</returns>
 		constexpr static int Upvalueindex(int i)
 		{
-			return GLOBALSINDEX - i;
+			return REGISTRYINDEX - i;
 		}
 
 		/// <summary>
@@ -798,7 +945,8 @@ namespace lua51 {
 
 		/// <summary>
 		/// sets the stack index to the acceptable index or 0. fills unused positions with nil, or removes now unused space.
-		/// <para>[-?,+?,-]</para>
+		/// <para>[-?,+?,e]</para>
+		/// <para>this function can run code when closing a to-be-closed slot, cannot convert a lua error to lua::LuaException.</para>
 		/// </summary>
 		/// <param name="index">new top index</param>
 		void SetTop(int index);
@@ -835,7 +983,8 @@ namespace lua51 {
 		void Copy(int from, int to);
 		/// <summary>
 		/// pops num elements from the stack
-		/// <para>[-num,+0,-]</para>
+		/// <para>[-num,+0,e]</para>
+		/// <para>this function can run code when closing a to-be-closed slot, cannot convert a lua error to lua::LuaException.</para>
 		/// </summary>
 		/// <param name="num">amount to pop</param>
 		void Pop(int num);
@@ -875,6 +1024,13 @@ namespace lua51 {
 		/// <param name="index">acceptable index to check</param>
 		/// <returns>is number</returns>
 		bool IsNumber(int index);
+		/// <summary>
+		/// returns if the value at index is a number and represented as an integer.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="index">acceptable index to check</param>
+		/// <returns>is int</returns>
+		bool IsInteger(int index);
 		/// <summary>
 		/// returns if the value at index is a string or a number (always cnvertible to string).
 		/// <para>[-0,+0,-]</para>
@@ -985,16 +1141,20 @@ namespace lua51 {
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">acceptable index to convert</param>
+		/// <param name="throwIfNotNumber">throw exception if not number instead of returning 0</param>
 		/// <returns>number</returns>
-		Number ToNumber(int index);
+		/// <exception cref="lua::LuaException">if not a number and throw requested</exception>
+		Number ToNumber(int index, bool throwIfNotNumber = false);
 		/// <summary>
 		/// converts the value at index to an integer. must be a number or a string convertible to a number, otherise returns 0.
-		/// <para>equivalent of calling tonumber and casting to int</para>
+		/// if the number is not an integer, it is truncated.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">acceptable index to convert</param>
+		/// <param name="throwIfNotNumber">throw exception if not number instead of returning 0</param>
 		/// <returns>integer</returns>
-		Integer ToInteger(int index);
+		/// <exception cref="lua::LuaException">if not a number and throw requested</exception>
+		Integer ToInteger(int index, bool throwIfNotNumber = false);
 		/// <summary>
 		/// converts the value at index to a string. must be a string or a number, otherwise returns nullptr.
 		/// the return value might no longer be valid, if the lua value gets removed from the stack.
@@ -1038,14 +1198,38 @@ namespace lua51 {
 		/// <returns>userdata pointer</returns>
 		void* ToUserdata(int index);
 		/// <summary>
+		/// returns the length of an object. this is the same as applying the # operator (may call metamethods).
+		/// pushes the result onto the stack.
+		/// <para>[-0,+1,e]</para>
+		/// </summary>
+		/// <param name="index">index to query</param>
+		/// <exception cref="lua::LuaException">on lua error</exception>
+		void ObjLength(int index);
+		/// <summary>
 		/// returns the length of an object. for strings this is the number of bytes (==chars if each char is one byte).
 		/// for tables this is one less than the first integer key with a nil value (except if manualy set to something else).
 		/// for full userdata, it is the size of the allocated block of memory.
-		/// <para>[-0,+0,-]</para>
+		/// pushes the result onto the stack.
+		/// <para>[-0,+1,-]</para>
 		/// </summary>
-		/// <param name="index">valid index to query</param>
+		/// <param name="index">index to query</param>
 		/// <returns>size</returns>
 		size_t RawLength(int index);
+		/// <summary>
+		/// attempts to convert a number to an interger, if it is inside the range the integer type can represent.
+		/// </summary>
+		/// <param name="n">number to convert</param>
+		/// <param name="i">integer output</param>
+		/// <returns>convertion successful</returns>
+		static bool NumberToInteger(Number n, Integer& i);
+		/// <summary>
+		/// converts the c string s to a number or integer. s may have leading and trailing spaces, as well as a sign.
+		/// if the conversion is not successful, pushes nothing and returns 0. otherwise pushes the resulting number/integer and returns the string length.
+		/// <para>[-0,+1|0,-]</para>
+		/// </summary>
+		/// <param name="s">string to convert</param>
+		/// <returns>string length if successful, 0 otherwise</returns>
+		size_t StringToNumber(const char* s);
 
 		/// <summary>
 		/// pushes a boolean onto the stack.
@@ -1060,11 +1244,17 @@ namespace lua51 {
 		/// <param name="n">number</param>
 		void Push(Number n);
 		/// <summary>
-		/// pushes an number onto the stack. (integer gets converted to number).
+		/// pushes an integer onto the stack.
 		/// <para>[-0,+1,-]</para>
 		/// </summary>
 		/// <param name="i">int</param>
 		void Push(Integer i);
+		/// <summary>
+		/// pushes an integer onto the stack.
+		/// <para>[-0,+1,-]</para>
+		/// </summary>
+		/// <param name="i">int</param>
+		void Push(int i);
 		/// <summary>
 		/// pushes a string onto the stack. the string ends at the first embedded 0.
 		/// lua copies the string, so the buffer passed into this func can be immediately reused.
@@ -1125,7 +1315,7 @@ namespace lua51 {
 		void PushLightUserdata(void* ud);
 		/// <summary>
 		/// pushes a formatted string onto the stack. similar to snprintf, but with no extra buffer.
-		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char, %p pointer as hex number</para>
+		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %I Integer, %d int, %c int as single char, %U long int as UTF-8 byte sequence, %p pointer as hex number</para>
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">format string</param>
@@ -1134,7 +1324,7 @@ namespace lua51 {
 		const char* PushVFString(const char* s, va_list argp);
 		/// <summary>
 		/// pushes a formatted string onto the stack. similar to snprintf, but with no extra buffer.
-		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char, %p pointer as hex number</para>
+		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %I Integer, %d int, %c int as single char, %U long int as UTF-8 byte sequence, %p pointer as hex number</para>
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">format string</param>
@@ -1149,9 +1339,8 @@ namespace lua51 {
 		/// <exception cref="lua::LuaException">on lua error</exception>
 		void Concat(int num);
 		/// <summary>
-		/// performs an arithmetic operation over the 2 values at the top of the stack (or one in case of unary negation), pops the values and pushes the result.
+		/// performs an arithmetic operation over the 2 values at the top of the stack (or one in case of unary negation and bitwise not), pops the values and pushes the result.
 		/// the top values is the second operand.
-		/// this function evaluates lua code.
 		/// may call metamethods.
 		/// <para>[-2|1,+1,e]</para>
 		/// </summary>
@@ -1177,12 +1366,32 @@ namespace lua51 {
 
 		/// <summary>
 		/// creates a new userdata and returns its adress.
+		/// the userdata has nuvalues associated with it.
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
-		/// <param name="s"></param>
+		/// <param name="s">userdata size</param>
+		/// <param name="nuvalues">number of uvalues</param>
 		/// <see cref="lua::State:NewUserData"/>
 		/// <returns>userdata pointer</returns>
-		void* NewUserdata(size_t s);
+		void* NewUserdata(size_t s, int nuvalues = 0);
+		/// <summary>
+		/// pushes the uservalue of an userdata and returns its type.
+		/// if the uservalue does not exist, pushes nil and returns None.
+		/// <para>[-0,+1,-]</para>
+		/// </summary>
+		/// <param name="index">valid index of the userdata</param>
+		/// <param name="nuvalue">number of the uservalue</param>
+		/// <returns>type</returns>
+		LType GetUserValue(int index, int nuvalue = 1);
+		/// <summary>
+		/// pops a value from the stack and sets it as the uservalue of an userdata.
+		/// returns if the uservalue exists.
+		/// <para>[-1,+0,-]</para>
+		/// </summary>
+		/// <param name="index">valid index of the userdata</param>
+		/// <param name="nuvalue">number of the uservalue</param>
+		/// <returns>successful</returns>
+		bool SetUserValue(int index, int nuvalue = 1);
 
 		/// <summary>
 		/// loads a lua chunk via a reader function.
@@ -1331,6 +1540,24 @@ namespace lua51 {
 		// no access to fenv
 
 		/// <summary>
+		/// marks the index in the stack as to-be-closed. like a to-be-closed variable in lua, the value in the slot will be closed when it goes out of scope.
+		/// (exiting c function, lua error, or removed via SetTop/Pop.)
+		/// it will also be closed by a call to CloseSlot.
+		/// note that in case of return or error, the stack has unwound and buffers/variables from your function are out of scope.
+		/// <para>should not be called with an index that is equal or below any active to-be-closed slot.</para>
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="index">valid index to mark</param>
+		void MarkAsToClose(int index);
+		/// <summary>
+		/// closes the last previously marked index and sets its value to nil.
+		/// note that this method cannot convert a lua error to a lua::LuaException.
+		/// <para>[-0,+0,e]</para>
+		/// </summary>
+		/// <param name="index">valid index to close</param>
+		void CloseSlot(int index);
+
+		/// <summary>
 		/// calls a function. does not catch exceptions, so better use pcall or tcall instead.
 		/// first push the function, then the arguments in order, then call.
 		/// pops the function and its arguments, then pushes its results.
@@ -1415,7 +1642,14 @@ namespace lua51 {
 		/// <param name="name">key to register</param>
 		/// <param name="f">function to register</param>
 		/// <param name="index">valid index where to register</param>
-		void RegisterFunc(const char* name, CFunction f, int index = GLOBALSINDEX);
+		void RegisterFunc(const char* name, CFunction f, int index);
+		/// <summary>
+		/// registers the function f via the key name in the global environment.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="name">key to register</param>
+		/// <param name="f">function to register</param>
+		void RegisterFunc(const char* name, CFunction f);
 		/// <summary>
 		/// registers the function f via the key name in index.
 		/// use index = -3 to register in the ToS.
@@ -1425,8 +1659,18 @@ namespace lua51 {
 		/// <param name="F">function to register</param>
 		/// <param name="index">valid index where to register</param>
 		template<CFunction F>
-		void RegisterFunc(const char* name, int index = GLOBALSINDEX) {
+		void RegisterFunc(const char* name, int index) {
 			RegisterFunc(name, F, index);
+		}
+		/// <summary>
+		/// registers the function f via the key name in the global environment.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="name">key to register</param>
+		/// <param name="F">function to register</param>
+		template<CFunction F>
+		void RegisterFunc(const char* name) {
+			RegisterFunc(name, F);
 		}
 		/// <summary>
 		/// registers the function f via the key name in index.
@@ -1437,9 +1681,20 @@ namespace lua51 {
 		/// <param name="F">function to register</param>
 		/// <param name="index">valid index where to register</param>
 		template<CppFunction F>
-		void RegisterFunc(const char* name, int index = GLOBALSINDEX)
+		void RegisterFunc(const char* name, int index)
 		{
 			RegisterFunc(name, &CppToCFunction<F>, index);
+		}
+		/// <summary>
+		/// registers the function f via the key name in the global environment.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="name">key to register</param>
+		/// <param name="F">function to register</param>
+		template<CppFunction F>
+		void RegisterFunc(const char* name)
+		{
+			RegisterFunc(name, &CppToCFunction<F>);
 		}
 		/// <summary>
 		/// registers all functions in funcs into index.
@@ -1449,9 +1704,20 @@ namespace lua51 {
 		/// <param name="funcs">iterable containing FuncReference to register</param>
 		/// <param name="index">valid index where to register</param>
 		template<class T>
-		void RegisterFuncs(const T& funcs, int index = GLOBALSINDEX) {
+		void RegisterFuncs(const T& funcs, int index) {
 			for (const FuncReference& f : funcs) {
 				RegisterFunc(f.Name, f.Func, index);
+			}
+		}
+		/// <summary>
+		/// registers all functions in funcs into the global environment.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="funcs">iterable containing FuncReference to register</param>
+		template<class T>
+		void RegisterFuncs(const T& funcs) {
+			for (const FuncReference& f : funcs) {
+				RegisterFunc(f.Name, f.Func);
 			}
 		}
 		/// <summary>
@@ -1496,8 +1762,9 @@ namespace lua51 {
 		/// <para>[-?,+?,-]</para>
 		/// </summary>
 		/// <param name="narg">number of arguments</param>
+		/// <param name="nresult">number of results</param>
 		/// <returns>error code</returns>
-		ErrorCode ResumeThread(int narg);
+		ErrorCode ResumeThread(int narg, int& nresult);
 		/// <summary>
 		/// yields a thread and returns to resume. first pass the return values and then call yield with the number of return values.
 		/// this function may never return, it is not possible to yield through C boundaries in lua 5.0.
@@ -1515,6 +1782,12 @@ namespace lua51 {
 		/// <param name="to">transfer values to</param>
 		/// <param name="num">number ov values to transfer</param>
 		void XMove(State to, int num);
+		/// <summary>
+		/// returns if a coroutine can yield.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <returns>yieldable</returns>
+		bool IsYieldable();
 
 	private:
 		constexpr const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
@@ -1553,6 +1826,36 @@ namespace lua51 {
 					return ">ulS";
 				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
 					return ">ulSn";
+				case DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">nt";
+				case DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return ">St";
+				case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">Snt";
+				case DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return ">lt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">lnt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return ">lSt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">lSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall:
+					return ">ut";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">unt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return ">uSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">uSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return ">ult";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">ulnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return ">ulSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return ">ulSnt";
 				default:
 					return "";
 				}
@@ -1591,12 +1894,101 @@ namespace lua51 {
 					return "fulS";
 				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
 					return "fulSn";
+				case DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "fnt";
+				case DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "fSt";
+				case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "fSnt";
+				case DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return "flt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "flnt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "flSt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "flSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall:
+					return "fut";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "funt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "fuSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "fuSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return "fult";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "fulnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "fulSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "fulSnt";
+				case DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "fnr";
+				case DebugInfoOptions::Source | DebugInfoOptions::Transfer:
+					return "fSr";
+				case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "fSnr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Transfer:
+					return "flr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "flnr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
+					return "flSr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "flSnr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Transfer:
+					return "fur";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "funr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
+					return "fuSr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "fuSnr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Transfer:
+					return "fulr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "fulnr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
+					return "fulSr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "fulSnr";
+				case DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "fntr";
+				case DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "fStr";
+				case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "fSntr";
+				case DebugInfoOptions::Line | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "fltr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "flntr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "flStr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "flSntr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "futr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "funtr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "fuStr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "fuSntr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "fultr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "fulntr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "fulStr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "fulSntr";
 				default:
 					return "";
 				}
 			}
 			else {
-
 				switch (opt) {
 				case DebugInfoOptions::None:
 					return "";
@@ -1630,6 +2022,96 @@ namespace lua51 {
 					return "ulS";
 				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
 					return "ulSn";
+				case DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "nt";
+				case DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "St";
+				case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "Snt";
+				case DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return "lt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "lnt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "lSt";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "lSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall:
+					return "ut";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "unt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "uSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "uSnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall:
+					return "ult";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "ulnt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
+					return "ulSt";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
+					return "ulSnt";
+				case DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "nr";
+				case DebugInfoOptions::Source | DebugInfoOptions::Transfer:
+					return "Sr";
+				case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "Snr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Transfer:
+					return "lr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "lnr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
+					return "lSr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "lSnr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Transfer:
+					return "ur";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "unr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
+					return "uSr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "uSnr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Transfer:
+					return "ulr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "ulnr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
+					return "ulSr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
+					return "ulSnr";
+				case DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "ntr";
+				case DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "Str";
+				case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "Sntr";
+				case DebugInfoOptions::Line | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "ltr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "lntr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "lStr";
+				case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "lSntr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "utr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "untr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "uStr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "uSntr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "ultr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "ulntr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "ulStr";
+				case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
+					return "ulSntr";
 				default:
 					return "";
 				}
@@ -1697,6 +2179,24 @@ namespace lua51 {
 		/// <param name="upnum">number of upvalue</param>
 		/// <returns>upvalue name</returns>
 		const char* Debug_SetUpvalue(int index, int upnum);
+		/// <summary>
+		/// allows to check if upvalues of (possibly different) functions share the same upvalue.
+		/// shared upvalues return the same identifier.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="index">valid index to set the upvalue of</param>
+		/// <param name="upnum">number of upvalue, needs to be valid</param>
+		/// <returns>upvalue identifier</returns>
+		const void* Debug_UpvalueID(int index, int upnum);
+		/// <summary>
+		/// makes the upMod upvalue of funcMod refer to the upTar upvalue of funcTar.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="funcMod">valid index to modify the upvalue of</param>
+		/// <param name="upMod">number of upvalue to modify, needs to be valid</param>
+		/// <param name="funcTar">valid index to target the upvalue of</param>
+		/// <param name="upTar">number of upvalue to target, needs to be valid</param>
+		void Debug_UpvalueJoin(int funcMod, int upMod, int funcTar, int upTar);
 	private:
 		void Debug_SetHook(CHook hook, HookEvent mask, int count);
 	public:
@@ -1772,12 +2272,26 @@ namespace lua51 {
 				return "__mul";
 			case MetaEvent::Divide:
 				return "__div";
+			case MetaEvent::IntegerDivide:
+				return "__idiv";
 			case MetaEvent::Modulo:
 				return "__mod";
 			case MetaEvent::Pow:
 				return "__pow";
 			case MetaEvent::UnaryMinus:
 				return "__unm";
+			case MetaEvent::BitwiseAnd:
+				return "__band";
+			case MetaEvent::BitwiseOr:
+				return "__bor";
+			case MetaEvent::BitwiseXOr:
+				return "__bxor";
+			case MetaEvent::BitwiseNot:
+				return "__bnot";
+			case MetaEvent::ShiftLeft:
+				return "__shl";
+			case MetaEvent::ShiftRight:
+				return "__shr";
 			case MetaEvent::Concat:
 				return "__concat";
 			case MetaEvent::Length:
@@ -1856,7 +2370,7 @@ namespace lua51 {
 		/// <exception cref="lua::LuaException">if none</exception>
 		void CheckAny(int idx);
 		/// <summary>
-		/// checks if there is a number and returns it cast to a int.
+		/// checks if there is a integer and returns it.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
 		/// <param name="idx">acceptable index to check</param>
@@ -2059,7 +2573,6 @@ namespace lua51 {
 		/// <summary>
 		/// in idx is a string returns. if idx is none or nil, returns def.
 		/// otherwise throws.
-		/// <para>warning: converts the value on the stack to a string, which might confuse pairs/next</para>
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
 		/// <param name="idx">aceptable index to check</param>
@@ -2334,6 +2847,53 @@ namespace lua51 {
 			return 1;
 		}
 		template<class T>
+		requires BitwiseAndOp<T>
+		static int UserData_BitwiseAndOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			T* o = L.GetUserData<T>(2);
+			L.NewUserData<T>(std::move(*t & *o));
+			return 1;
+		}
+		template<class T>
+		requires BitwiseOrOp<T>
+		static int UserData_BitwiseOrOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			T* o = L.GetUserData<T>(2);
+			L.NewUserData<T>(std::move(*t | *o));
+			return 1;
+		}
+		template<class T>
+		requires BitwiseXOrOp<T>
+		static int UserData_BitwiseXOrOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			T* o = L.GetUserData<T>(2);
+			L.NewUserData<T>(std::move(*t ^ *o));
+			return 1;
+		}
+		template<class T>
+		requires BitwiseNotOp<T>
+		static int UserData_BitwiseNotOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			L.NewUserData<T>(std::move(~(*t)));
+			return 1;
+		}
+		template<class T>
+		requires ShiftLeftOp<T>
+		static int UserData_ShiftLeftOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			T* o = L.GetUserData<T>(2);
+			L.NewUserData<T>(std::move(*t << *o));
+			return 1;
+		}
+		template<class T>
+		requires ShiftRightOp<T>
+		static int UserData_ShiftRightOperator(State L) {
+			T* t = L.GetUserData<T>(1);
+			T* o = L.GetUserData<T>(2);
+			L.NewUserData<T>(std::move(*t >> *o));
+			return 1;
+		}
+		template<class T>
 		requires IndexCpp<T>
 		static int UserData_IndexOperator(State L) {
 			T* t = L.GetUserData<T>(1);
@@ -2487,6 +3047,9 @@ namespace lua51 {
 				else if constexpr (DivideOp<T>)
 					RegisterFunc<UserData_DivideOperator<T>>(GetMetaEventName(MetaEvent::Divide), -3);
 
+				if constexpr (IntegerDivideCpp<T>)
+					RegisterFunc<T::IntegerDivide>(GetMetaEventName(MetaEvent::IntegerDivide), -3);
+
 				if constexpr (ModuloCpp<T>)
 					RegisterFunc<T::Modulo>(GetMetaEventName(MetaEvent::Modulo), -3);
 
@@ -2497,6 +3060,36 @@ namespace lua51 {
 					RegisterFunc<T::UnaryMinus>(GetMetaEventName(MetaEvent::UnaryMinus), -3);
 				else if constexpr (UnaryMinusOp<T>)
 					RegisterFunc<UserData_UnaryMinusOperator<T>>(GetMetaEventName(MetaEvent::UnaryMinus), -3);
+
+				if constexpr (BitwiseAndCpp<T>)
+					RegisterFunc<T::BitwiseAnd>(GetMetaEventName(MetaEvent::BitwiseAnd), -3);
+				else if constexpr (BitwiseAndOp<T>)
+					RegisterFunc<UserData_BitwiseAndOperator<T>>(GetMetaEventName(MetaEvent::BitwiseAnd), -3);
+
+				if constexpr (BitwiseOrCpp<T>)
+					RegisterFunc<T::BitwiseOr>(GetMetaEventName(MetaEvent::BitwiseOr), -3);
+				else if constexpr (BitwiseOrOp<T>)
+					RegisterFunc<UserData_BitwiseOrOperator<T>>(GetMetaEventName(MetaEvent::BitwiseOr), -3);
+
+				if constexpr (BitwiseXOrCpp<T>)
+					RegisterFunc<T::BitwiseXOr>(GetMetaEventName(MetaEvent::BitwiseXOr), -3);
+				else if constexpr (BitwiseXOrOp<T>)
+					RegisterFunc<UserData_BitwiseXOrOperator<T>>(GetMetaEventName(MetaEvent::BitwiseXOr), -3);
+
+				if constexpr (BitwiseNotCpp<T>)
+					RegisterFunc<T::BitwiseNot>(GetMetaEventName(MetaEvent::BitwiseNot), -3);
+				else if constexpr (BitwiseNotOp<T>)
+					RegisterFunc<UserData_BitwiseNotOperator<T>>(GetMetaEventName(MetaEvent::BitwiseNot), -3);
+
+				if constexpr (ShiftLeftCpp<T>)
+					RegisterFunc<T::ShiftLeft>(GetMetaEventName(MetaEvent::ShiftLeft), -3);
+				else if constexpr (ShiftLeftOp<T>)
+					RegisterFunc<UserData_ShiftLeftOperator<T>>(GetMetaEventName(MetaEvent::ShiftLeft), -3);
+
+				if constexpr (ShiftRightCpp<T>)
+					RegisterFunc<T::ShiftRight>(GetMetaEventName(MetaEvent::ShiftRight), -3);
+				else if constexpr (ShiftRightOp<T>)
+					RegisterFunc<UserData_ShiftRightOperator<T>>(GetMetaEventName(MetaEvent::ShiftRight), -3);
 
 				if constexpr (LengthCpp<T>)
 					RegisterFunc<T::Length>(GetMetaEventName(MetaEvent::Length), -3);
@@ -2549,7 +3142,7 @@ namespace lua51 {
 		/// <para>- Equals static member.</para>
 		/// <para>- == operator overload (or &lt;==&gt; overload) (checks type, then operator).</para>
 		/// <para></para>
-		/// <para>&lt; comparator (also &gt;, &gt;=, &lt;= comparator) (__lt and __le):</para>
+		/// <para>&lt; comparator (also &gt; comparator) (__lt):</para>
 		/// <para>- LessThan static member.</para>
 		/// <para>- &lt; operator overload (or &lt;==&gt; overload) (checks type, then operator).</para>
 		/// <para></para>
@@ -2573,6 +3166,10 @@ namespace lua51 {
 		/// <para>- Divide static member.</para>
 		/// <para>- / operator overload (only works for both operands of type T).</para>
 		/// <para></para>
+		/// <para>// operator (__idiv):</para>
+		/// <para>- IntegerDivide static member.</para>
+		/// <para>(no operator in c++).</para>
+		/// <para></para>
 		/// <para>% operator (__mod):</para>
 		/// <para>- Modulo static member.</para>
 		/// <para>(no operator in c++).</para>
@@ -2584,6 +3181,30 @@ namespace lua51 {
 		/// <para>unary - operator (__unm):</para>
 		/// <para>- UnaryMinus static member.</para>
 		/// <para>- (unary) - operator overload.</para>
+		/// <para></para>
+		/// <para>&amp; operator (__band):</para>
+		/// <para>- BitwiseAnd static member.</para>
+		/// <para>- &amp; operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>| operator (__bor):</para>
+		/// <para>- BitwiseOr static member.</para>
+		/// <para>- | operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>~ operator (__bxor):</para>
+		/// <para>- BitwiseXOr static member.</para>
+		/// <para>- ^ operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>unary ~ operator (__bnot):</para>
+		/// <para>- BitwiseNot static member.</para>
+		/// <para>- (unary) ~ operator overload.</para>
+		/// <para></para>
+		/// <para>&lt;&lt; operator (__shl):</para>
+		/// <para>- ShiftLeft static member.</para>
+		/// <para>- &lt;&lt; operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>&gt;&gt; operator (__shr):</para>
+		/// <para>- ShiftRight static member.</para>
+		/// <para>- &gt;&gt; operator overload (only works for both operands of type T).</para>
 		/// <para></para>
 		/// <para># operator (__len):</para>
 		/// <para>- Length static member.</para>
@@ -2612,12 +3233,39 @@ namespace lua51 {
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <typeparam name="T">type to create</typeparam>
+		/// <typeparam name="...Args">parameters for constructor</typeparam>
 		/// <param name="...args">parameters for constructor</param>
 		/// <returns>obj</returns>
 		template<class T, class ... Args>
 		T* NewUserData(Args&& ... args) {
 			if constexpr (BaseDefined<T>) {
 				UserDataBaseHolder<T, typename T::BaseClass>* t = new (NewUserdata(sizeof(UserDataBaseHolder<T, typename T::BaseClass>))) UserDataBaseHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
+				GetUserDataMetatable<T>();
+				SetMetatable(-2);
+				return &t->ActualObj;
+			}
+			else {
+				T* t = new (NewUserdata(sizeof(T))) T(std::forward<Args>(args)...);
+				GetUserDataMetatable<T>();
+				SetMetatable(-2);
+				return t;
+			}
+		}
+		/// <summary>
+		/// <para>converts a c++ class to a lua userdata. creates a new full userdata and calls the constructor of T, forwarding all arguments.</para>
+		/// <para>a class (metatable) for a userdata type is only generated once, and then reused for all userdata of the same type.</para>
+		/// <para></para>
+		/// <para>lua class generation: see lua::State::NewUserData</para>
+		/// </summary>
+		/// <typeparam name="T">type to create</typeparam>
+		/// <typeparam name="...Args">parameters for constructor</typeparam>
+		/// <param name="nuvalues">number of user values</param>
+		/// <param name="...args">parameters for constructor</param>
+		/// <returns>obj</returns>
+		template<class T, class ... Args>
+		T* NewUserDataWithUserValues(int nuvalues, Args&& ... args) {
+			if constexpr (BaseDefined<T>) {
+				UserDataBaseHolder<T, typename T::BaseClass>* t = new (NewUserdata(sizeof(UserDataBaseHolder<T, typename T::BaseClass>), nuvalues)) UserDataBaseHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
 				GetUserDataMetatable<T>();
 				SetMetatable(-2);
 				return &t->ActualObj;
@@ -2795,6 +3443,6 @@ namespace lua51 {
 }
 
 #ifndef LuaVersion
-#define LuaVersion 5.1
-namespace lua = lua51;
+#define LuaVersion 5.4
+namespace lua = lua54;
 #endif

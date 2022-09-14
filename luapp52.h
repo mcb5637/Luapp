@@ -470,6 +470,18 @@ namespace lua52 {
 		{a < b} -> std::same_as<bool>;
 	};
 	/// <summary>
+	/// checks if a type has a userdata lessthan equals defined manually via LessOrEquals static member.
+	/// </summary>
+	template<class T>
+	concept LessThanEqualsCpp = std::is_same_v<CppFunction, decltype(&T::LessOrEquals)> || std::is_same_v<CFunction, decltype(&T::LessOrEquals)>;
+	/// <summary>
+	/// checks if a type has a userdata lessthan equals defined via c++ operator.
+	/// </summary>
+	template<class T>
+	concept LessThanEqualsOp = requires (T a, T b) {
+		{a <= b} -> std::same_as<bool>;
+	};
+	/// <summary>
 	/// checks if a type has a userdata add defined manually via Add static member.
 	/// </summary>
 	template<class T>
@@ -1194,6 +1206,20 @@ namespace lua52 {
 		/// <see cref="lua::State:NewUserData"/>
 		/// <returns>userdata pointer</returns>
 		void* NewUserdata(size_t s);
+		/// <summary>
+		/// pushes the uservalue of an userdata and returns its type.
+		/// if the uservalue does not exist, pushes nil and returns None.
+		/// <para>[-0,+1,-]</para>
+		/// </summary>
+		/// <param name="index">valid index of the userdata</param>
+		/// <returns>type</returns>
+		LType GetUserValue(int index);
+		/// <summary>
+		/// pops a value from the stack and sets it as the uservalue of an userdata.
+		/// <para>[-1,+0,-]</para>
+		/// </summary>
+		/// <param name="index">valid index of the userdata</param>
+		void SetUserValue(int index);
 
 		/// <summary>
 		/// loads a lua chunk via a reader function.
@@ -2436,6 +2462,22 @@ namespace lua52 {
 			return 1;
 		}
 		template<class T>
+		requires LessThanOp<T>
+		static int UserData_LessThanEqualsOperator(State L) {
+			if (L.GetTop() < 2) {
+				L.Push(false);
+				return 1;
+			}
+			T* t = L.OptionalUserData<T>(1);
+			T* o = L.OptionalUserData<T>(2);
+			if (t && o) {
+				L.Push(*t <= *o);
+				return 1;
+			}
+			L.Push(false);
+			return 1;
+		}
+		template<class T>
 		requires AddOp<T>
 		static int UserData_AddOperator(State L) {
 			T* t = L.GetUserData<T>(1);
@@ -2591,17 +2633,22 @@ namespace lua52 {
 				}
 
 				if constexpr (!std::is_trivially_destructible_v<T>)
-					RegisterFunc(GetMetaEventName(MetaEvent::Finalizer), &CppToCFunction<UserData_Finalizer<T>>, -3);
+					RegisterFunc<UserData_Finalizer<T>>(GetMetaEventName(MetaEvent::Finalizer), -3);
 
 				if constexpr (EquatableCpp<T>)
 					RegisterFunc<T::Equals>(GetMetaEventName(MetaEvent::Equals), -3);
 				else if constexpr (EquatableOp<T>)
-					RegisterFunc(GetMetaEventName(MetaEvent::Equals), &CppToCFunction<UserData_EqualsOperator<T>>, -3);
+					RegisterFunc<UserData_EqualsOperator<T>>(GetMetaEventName(MetaEvent::Equals), -3);
 
 				if constexpr (LessThanCpp<T>)
 					RegisterFunc<T::LessThan>(GetMetaEventName(MetaEvent::LessThan), -3);
 				else if constexpr (LessThanOp<T>)
 					RegisterFunc<UserData_LessThanOperator<T>>(GetMetaEventName(MetaEvent::LessThan), -3);
+
+				if constexpr (LessThanEqualsCpp<T>)
+					RegisterFunc<T::LessOrEquals>(GetMetaEventName(MetaEvent::LessOrEquals), -3);
+				else if constexpr (LessThanEqualsOp<T>)
+					RegisterFunc<UserData_LessThanEqualsOperator<T>>(GetMetaEventName(MetaEvent::LessOrEquals), -3);
 
 				if constexpr (AddCpp<T>)
 					RegisterFunc<T::Add>(GetMetaEventName(MetaEvent::Add), -3);
@@ -2688,6 +2735,10 @@ namespace lua52 {
 		/// <para>&lt; comparator (also &gt;, &gt;=, &lt;= comparator) (__lt and __le):</para>
 		/// <para>- LessThan static member.</para>
 		/// <para>- &lt; operator overload (or &lt;==&gt; overload) (checks type, then operator).</para>
+		/// <para></para>
+		/// <para>&lt;= comparator (also &lt;= comparator) (__le):</para>
+		/// <para>- LessOrEquals static member.</para>
+		/// <para>- &lt;= operator overload (or &lt;==&gt; overload) (checks type, then operator).</para>
 		/// <para></para>
 		/// <para>+ operator (__add):</para>
 		/// <para>- Add static member.</para>

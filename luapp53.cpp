@@ -440,6 +440,14 @@ namespace lua53 {
 	{
 		return lua_newuserdata(L, s);
 	}
+	LType State::GetUserValue(int index)
+	{
+		return static_cast<LType>(lua_getuservalue(L, index));
+	}
+	void State::SetUserValue(int index)
+	{
+		lua_setuservalue(L, index);
+	}
 	ErrorCode State::Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
 	{
 		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname, nullptr));
