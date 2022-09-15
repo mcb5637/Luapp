@@ -424,6 +424,14 @@ namespace lua50 {
 		{T::LuaMethods.end()} -> std::input_iterator;
 	};
 	/// <summary>
+	/// checks if a type has additional metamethods to register for a userdata type via LuaMetaMethods.
+	/// </summary>
+	template<class T>
+	concept HasLuaMetaMethods = requires {
+		{T::LuaMetaMethods.begin()} -> std::input_iterator;
+		{T::LuaMetaMethods.end()} -> std::input_iterator;
+	};
+	/// <summary>
 	/// checks if a type has a userdata equals defined manually via Equals static member.
 	/// </summary>
 	template<class T>
@@ -2456,6 +2464,9 @@ namespace lua50 {
 				if constexpr (CallCpp<T>)
 					RegisterFunc<T::Call>(GetMetaEventName(MetaEvent::Call), -3);
 
+				if constexpr (HasLuaMetaMethods<T>)
+					RegisterFuncs(T::LuaMetaMethods, -3);
+
 				Push(GetMetaEventName(MetaEvent::Name));
 				Push(typename_details::type_name<T>());
 				SetTableRaw(-3);
@@ -2541,6 +2552,8 @@ namespace lua50 {
 		/// <para>- Index static member.</para>
 		/// <para></para>
 		/// <para>if T has both LuaMethods and Index defined, first LuaMethods is searched, and if nothing is found, Index is called.</para>
+		/// <para></para>
+		/// <para>if T::LuaMetaMethods is iterable over LuaReference, registers them all into the metatable as additional metamethods (possibly overriding the default generaded)</para>
 		/// <para></para>
 		/// <para>to handle inheritance, define T::BaseClass as T in the base class and do not change the typedef in the derived classes.</para>
 		/// <para>a call to GetUserData&lt;T::BaseClass&gt; on an userdata of type T will then return a correctly cast pointer to T::BaseClass.</para>

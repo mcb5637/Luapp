@@ -310,7 +310,7 @@ namespace lua50 {
 	{
 		return lua_touserdata(L, index);
 	}
-	size_t State::ObjLength(int index)
+	size_t State::RawLength(int index)
 	{
 		LType t = Type(index);
 		switch (t) {
