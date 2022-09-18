@@ -2384,7 +2384,7 @@ namespace lua54 {
 		/// <param name="idx">acceptable index to check</param>
 		/// <returns>int</returns>
 		/// <exception cref="lua::LuaException">if not number</exception>
-		Integer CheckInt(int idx);
+		int CheckInt(int idx);
 		/// <summary>
 		/// checks if there is a string and returns it.
 		/// <para>warning: converts the value on the stack to a string, which might confuse pairs/next</para>
@@ -2577,7 +2577,7 @@ namespace lua54 {
 		/// <param name="def">default value</param>
 		/// <returns>int</returns>
 		/// <exception cref="lua::LuaException">if invalid</exception>
-		Integer OptInteger(int idx, Integer def);
+		int OptInteger(int idx, int def);
 		/// <summary>
 		/// in idx is a string returns. if idx is none or nil, returns def.
 		/// otherwise throws.

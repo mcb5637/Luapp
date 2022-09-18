@@ -2,13 +2,15 @@
 
 #include "luapp54.h"
 
-#define LUA_BUILD_AS_DLL 1
+#ifndef LUA_CPPLINKAGE
 extern "C" {
+#endif
 #include "..\lua54\lua.h"
 #include "..\lua54\lauxlib.h"
 #include "..\lua54\lualib.h"
+#ifndef LUA_CPPLINKAGE
 }
-#undef LUA_BUILD_AS_DLL
+#endif
 
 #include <cstdlib>
 #include <type_traits>
@@ -898,17 +900,17 @@ namespace lua54 {
 		if (Type(idx) == LType::None)
 			ArgError(idx, "value expected");
 	}
-	Integer State::CheckInt(int idx)
+	int State::CheckInt(int idx)
 	{
 		if constexpr (CatchExceptions) {
 			int isnum = 0;
 			Integer n = lua_tointegerx(L, idx, &isnum);
 			if (!isnum)
 				TypeError(idx, LType::Number);
-			return n;
+			return static_cast<int>(n);
 		}
 		else {
-			return luaL_checknumber(L, idx);
+			return static_cast<int>(luaL_checkinteger(L, idx));
 		}
 	}
 	const char* State::CheckString(int idx, size_t* len)
@@ -1131,7 +1133,7 @@ namespace lua54 {
 	{
 		return luaL_newmetatable(L, name);
 	}
-	Integer State::OptInteger(int idx, Integer def)
+	int State::OptInteger(int idx, int def)
 	{
 		if (IsNoneOrNil(idx))
 			return def;

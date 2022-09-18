@@ -2,13 +2,15 @@
 
 #include "luapp53.h"
 
-#define LUA_BUILD_AS_DLL 1
+#ifndef LUA_CPPLINKAGE
 extern "C" {
+#endif
 #include "..\lua53\lua.h"
 #include "..\lua53\lauxlib.h"
 #include "..\lua53\lualib.h"
+#ifndef LUA_CPPLINKAGE
 }
-#undef LUA_BUILD_AS_DLL
+#endif
 
 #include <cstdlib>
 #include <type_traits>
@@ -895,7 +897,7 @@ namespace lua53 {
 			return n;
 		}
 		else {
-			return luaL_checknumber(L, idx);
+			return luaL_checkinteger(L, idx);
 		}
 	}
 	const char* State::CheckString(int idx, size_t* len)

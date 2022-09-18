@@ -2,13 +2,15 @@
 
 #include "luapp51.h"
 
-#define LUA_BUILD_AS_DLL 1
+#ifndef LUA_CPPLINKAGE
 extern "C" {
+#endif
 #include "..\lua51\lua.h"
 #include "..\lua51\lauxlib.h"
 #include "..\lua51\lualib.h"
+#ifndef LUA_CPPLINKAGE
 }
-#undef LUA_BUILD_AS_DLL
+#endif
 
 #include <cstdlib>
 #include <type_traits>
