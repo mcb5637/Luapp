@@ -1133,6 +1133,35 @@ namespace lua54 {
 	{
 		return luaL_newmetatable(L, name);
 	}
+	bool State::GetSubTable(const char* name, int index)
+	{
+		index = ToAbsoluteIndex(index);
+		Push(name);
+		GetTableRaw(index);
+		if (!IsTable(-1)) {
+			Pop(1);
+			NewTable();
+			Push(name);
+			PushValue(-2);
+			SetTableRaw(index);
+			return false;
+		}
+		return true;
+	}
+	bool State::GetSubTable(const char* name)
+	{
+		Push(name);
+		GetGlobal();
+		if (!IsTable(-1)) {
+			Pop(1);
+			NewTable();
+			Push(name);
+			PushValue(-2);
+			SetGlobal();
+			return false;
+		}
+		return true;
+	}
 	int State::OptInteger(int idx, int def)
 	{
 		if (IsNoneOrNil(idx))

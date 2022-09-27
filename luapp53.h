@@ -2418,6 +2418,24 @@ namespace lua53 {
 		/// <param name="name">metatable name</param>
 		/// <returns>created</returns>
 		bool NewMetaTable(const char* name);
+		/// <summary>
+		/// checks if the table at index has a table under the key name. if it does not, creates one.
+		/// in both cases, pushes the table onto the stack.
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <param name="name">key to query</param>
+		/// <param name="index">index of the table</param>
+		/// <returns>had table before the call</returns>
+		bool GetSubTable(const char* name, int index);
+		/// <summary>
+		/// checks if the global table has a table under the key name. if it does not, creates one.
+		/// in both cases, pushes the table onto the stack.
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <param name="name">key to query</param>
+		/// <param name="index">index of the table</param>
+		/// <returns>had table before the call</returns>
+		bool GetSubTable(const char* name);
 
 		/// <summary>
 		/// in idx is a number returns it cast to an int. if idx is none or nil, returns def.
