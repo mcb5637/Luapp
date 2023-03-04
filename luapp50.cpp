@@ -468,7 +468,7 @@ namespace lua50 {
 	{
 		if constexpr (TypeChecks) {
 			if (Type(index) != LType::Table)
-				throw lua::LuaException{ "GetTableRaw cannot acces non tables" };
+				throw lua::LuaException{ "GetTableRaw cannot access non tables" };
 			CheckStackHasElements(IsPseudoIndex(index) ? 1 : 2);
 		}
 		lua_rawget(L, index);
@@ -477,7 +477,7 @@ namespace lua50 {
 	{
 		if constexpr (TypeChecks) {
 			if (Type(index) != LType::Table)
-				throw lua::LuaException{ "GetTableRaw cannot acces non tables" };
+				throw lua::LuaException{ "GetTableRaw cannot access non tables" };
 		}
 		lua_rawgeti(L, index, n);
 	}
@@ -498,8 +498,8 @@ namespace lua50 {
 	{
 		if constexpr (TypeChecks) {
 			if (Type(index) != LType::Table)
-				throw lua::LuaException{ "SetTableRaw cannot acces non tables" };
-			CheckStackHasElements(IsPseudoIndex(index) ? 1 : 2);
+				throw lua::LuaException{ "SetTableRaw cannot access non tables" };
+			CheckStackHasElements(IsPseudoIndex(index) ? 2 : 3);
 		}
 		lua_rawset(L, index);
 	}
@@ -507,7 +507,8 @@ namespace lua50 {
 	{
 		if constexpr (TypeChecks) {
 			if (Type(index) != LType::Table)
-				throw lua::LuaException{ "SetTableRaw cannot acces non tables" };
+				throw lua::LuaException{ "SetTableRaw cannot access non tables" };
+			CheckStackHasElements(IsPseudoIndex(index) ? 1 : 2);
 		}
 		lua_rawseti(L, index, n);
 	}

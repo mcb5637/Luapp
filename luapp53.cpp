@@ -72,6 +72,7 @@ namespace lua53 {
 	static_assert(ArihmeticOperator::UnaryNegation == static_cast<ArihmeticOperator>(LUA_OPUNM));
 	static_assert(ArihmeticOperator::BitwiseNot == static_cast<ArihmeticOperator>(LUA_OPBNOT));
 
+	std::string(*ExceptionConverter)(std::exception_ptr ex, const char* funcsig) = nullptr;
 
 	HookEvent LuaHookToEvent(int ev) {
 		switch (ev) {
@@ -487,10 +488,19 @@ namespace lua53 {
 	}
 	void State::GetTableRaw(int index)
 	{
+		if constexpr (TypeChecks) {
+			if (Type(index) != LType::Table)
+				throw lua::LuaException{ "GetTableRaw cannot access non tables" };
+			CheckStackHasElements(IsPseudoIndex(index) ? 1 : 2);
+		}
 		lua_rawget(L, index);
 	}
 	void State::GetTableRaw(int index, int n)
 	{
+		if constexpr (TypeChecks) {
+			if (Type(index) != LType::Table)
+				throw lua::LuaException{ "GetTableRaw cannot access non tables" };
+		}
 		lua_rawgeti(L, index, n);
 	}
 	int settable_protected(lua_State* L)
@@ -508,10 +518,20 @@ namespace lua53 {
 	}
 	void State::SetTableRaw(int index)
 	{
+		if constexpr (TypeChecks) {
+			if (Type(index) != LType::Table)
+				throw lua::LuaException{ "SetTableRaw cannot access non tables" };
+			CheckStackHasElements(IsPseudoIndex(index) ? 2 : 3);
+		}
 		lua_rawset(L, index);
 	}
 	void State::SetTableRaw(int index, int n)
 	{
+		if constexpr (TypeChecks) {
+			if (Type(index) != LType::Table)
+				throw lua::LuaException{ "SetTableRaw cannot access non tables" };
+			CheckStackHasElements(IsPseudoIndex(index) ? 1 : 2);
+		}
 		lua_rawseti(L, index, n);
 	}
 	void State::SetGlobal()
@@ -571,10 +591,16 @@ namespace lua53 {
 	}
 	void State::Call(int nargs, int nresults)
 	{
+		if constexpr (TypeChecks) {
+			CheckStackHasElements(nargs + 1);
+		}
 		lua_call(L, nargs, nresults);
 	}
 	ErrorCode State::PCall(int nargs, int nresults, int errfunc)
 	{
+		if constexpr (TypeChecks) {
+			CheckStackHasElements(nargs + 1 + (errfunc == 0 ? 0 : 1));
+		}
 		return static_cast<ErrorCode>(lua_pcall(L, nargs, nresults, errfunc));
 	}
 	void State::TCall(int nargs, int nresults)
@@ -747,14 +773,24 @@ namespace lua53 {
 	}
 	ErrorCode State::ResumeThread(int narg)
 	{
+		if constexpr (TypeChecks) {
+			if (Type(-narg - 1) != LType::Thread)
+				throw lua::LuaException{ "ResumeThread trying to resume non thread" };
+		}
 		return static_cast<ErrorCode>(lua_resume(L, nullptr, narg));
 	}
 	void State::YieldThread(int nret)
 	{
+		if constexpr (TypeChecks) {
+			CheckStackHasElements(nret);
+		}
 		lua_yield(L, nret);
 	}
 	void State::XMove(State to, int num)
 	{
+		if constexpr (TypeChecks) {
+			CheckStackHasElements(num);
+		}
 		lua_xmove(L, to.L, num);
 	}
 	bool State::IsYieldable()
@@ -881,6 +917,12 @@ namespace lua53 {
 	bool State::CallMeta(int obj, MetaEvent ev)
 	{
 		return CallMeta(obj, GetMetaEventName(ev));
+	}
+	void State::CheckStackHasElements(int n)
+	{
+		int t = GetTop();
+		if (t < n)
+			throw lua::LuaException{ "not enough stack elements" };
 	}
 	void State::CheckAny(int idx)
 	{
@@ -1220,7 +1262,7 @@ namespace lua53 {
 	{
 		if (i > 0)
 			return i;
-		if (i <= REGISTRYINDEX)
+		if (IsPseudoIndex(i))
 			return i;
 		return GetTop() + i + 1;
 	}

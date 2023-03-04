@@ -20,6 +20,16 @@ namespace lua51 {
 	/// (this gets used internally as well)
 	/// </summary>
 	constexpr const bool CatchExceptions = true;
+	/// <summary>
+	/// enable/disable type checks on API methods, as well as some stack space checks
+	/// </summary>
+	constexpr const bool TypeChecks = true;
+	/// <summary>
+	/// called in exception conversion from c++ to lua (that do not inherit from std::exception).
+	/// return value gets thrown as lua exception.
+	/// should throw anything, if exception cannot get converted, a default message gets thrown in that case.
+	/// </summary>
+	extern std::string(*ExceptionConverter)(std::exception_ptr ex, const char* funcsig);
 
 	/// <summary>
 	/// all values in lua are of one of these types:
@@ -390,8 +400,18 @@ namespace lua51 {
 					err = true;
 				}
 				catch (...) {
-					L.PushFString("unnown excetion catched in %s", __FUNCSIG__);
-					err = true;
+					if (ExceptionConverter) {
+						try {
+							auto s = ExceptionConverter(std::current_exception(), __FUNCSIG__);
+							L.Push(s);
+							err = true;
+						}
+						catch (...) {}
+					}
+					if (!err) {
+						L.PushFString("unknown exception caught in %s", __FUNCSIG__);
+						err = true;
+					}
 				}
 			}
 			if (err)
@@ -672,8 +692,18 @@ namespace lua51 {
 					err = true;
 				}
 				catch (...) {
-					L.PushFString("unnown excetion catched in %s", __FUNCSIG__);
-					err = true;
+					if (ExceptionConverter) {
+						try {
+							auto s = ExceptionConverter(std::current_exception(), __FUNCSIG__);
+							L.Push(s);
+							err = true;
+						}
+						catch (...) {}
+					}
+					if (!err) {
+						L.PushFString("unknown exception caught in %s", __FUNCSIG__);
+						err = true;
+					}
 				}
 			}
 			if (err)
@@ -701,7 +731,7 @@ namespace lua51 {
 	/// <para>(? is used for an amount that does not depend on the parameters)</para>
 	/// <para>(a|b indicates an amount of a or b),</para>
 	/// <para>e is an indication of possible exceptions</para>
-	/// <para>(- no exception, m memory only, e other exceptions, v throws on purpose).</para>
+	/// <para>(- no exception, m memory only, e other exceptions, v throws on purpose, t only with type checks enabled).</para>
 	/// </summary>
 	class State {
 	private:
@@ -797,12 +827,20 @@ namespace lua51 {
 		/// <returns>is valid</returns>
 		bool IsValidIndex(int i);
 		/// <summary>
-		/// converts an index to a absolte index (not depending on the stack top position).
+		/// converts an index to a absolute index (not depending on the stack top position).
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="i">index</param>
 		/// <returns>abs index</returns>
 		int ToAbsoluteIndex(int i);
+		/// <summary>
+		/// checks if a index is a pseudoindex.
+		/// </summary>
+		/// <param name="i">index</param>
+		/// <returns>is pseudoindex</returns>
+		constexpr static bool IsPseudoIndex(int i) {
+			return i <= REGISTRYINDEX;
+		}
 
 		/// <summary>
 		/// sets the stack index to the acceptable index or 0. fills unused positions with nil, or removes now unused space.
@@ -1234,14 +1272,14 @@ namespace lua51 {
 		/// <summary>
 		/// pops a key from the stack, and pushes the associated value in the table at index onto the stack.
 		/// may not call metamethods.
-		/// <para>[-1,+1,-]</para>
+		/// <para>[-1,+1,t]</para>
 		/// </summary>
 		/// <param name="index">valid index for table access</param>
 		void GetTableRaw(int index);
 		/// <summary>
 		/// pushes the with n associated value in the table at index onto the stack.
 		/// may not call metamethods.
-		/// <para>[-0,+1,-]</para>
+		/// <para>[-0,+1,t]</para>
 		/// </summary>
 		/// <param name="index">valid index for table access</param>
 		/// <param name="n">key</param>
@@ -1257,14 +1295,14 @@ namespace lua51 {
 		/// <summary>
 		/// assigns the value at the top of the stack to the key just below the top in the table at index. pops both key and value from the stack.
 		/// may not call metamethods.
-		/// <para>[-2,+0,m]</para>
+		/// <para>[-2,+0,mt]</para>
 		/// </summary>
 		/// <param name="index">valid index for table acccess</param>
 		void SetTableRaw(int index);
 		/// <summary>
 		/// assigns the value at the top of the stack to the key n in the table at index. pops the value from the stack.
 		/// may not call metamethods.
-		/// <para>[-1,+0,m]</para>
+		/// <para>[-1,+0,mt]</para>
 		/// </summary>
 		/// <param name="index">valid index for table acccess</param>
 		/// <param name="n">key</param>
@@ -1343,7 +1381,7 @@ namespace lua51 {
 		/// first push the function, then the arguments in order, then call.
 		/// pops the function and its arguments, then pushes its results.
 		/// use MULTIRET to return all values, use GetTop tofigure out how many got returned.
-		/// <para>[-nargs+1,+nresults,e]</para>
+		/// <para>[-nargs+1,+nresults,et]</para>
 		/// </summary>
 		/// <param name="nargs">number of parameters</param>
 		/// <param name="nresults">number of return values</param>
@@ -1354,7 +1392,7 @@ namespace lua51 {
 		/// pops the function and its arguments, then pushes its results.
 		/// use MULTIRET to return all values, use GetTop tofigure out how many got returned.
 		/// if an error gets cought, calls the error handler (if not 0) with an error message, which returns an error message, which then gets pushed onto the stack.
-		/// <para>[-nargs+1,+nresults|1,-]</para>
+		/// <para>[-nargs+1,+nresults|1,t]</para>
 		/// </summary>
 		/// <param name="nargs">number of parameters</param>
 		/// <param name="nresults">number of return values</param>
@@ -1367,7 +1405,7 @@ namespace lua51 {
 		/// pops the function and its arguments, then pushes its results.
 		/// use MULTIRET to return all values, use GetTop tofigure out how many got returned.
 		/// if an error gets cought, attaches a stack trace and then throws a LuaException.
-		/// <para>[-nargs+1,+nresults|0,-]</para>
+		/// <para>[-nargs+1,+nresults|0,t]</para>
 		/// </summary>
 		/// <param name="nargs">number of parameters</param>
 		/// <param name="nresults">number of return values</param>
@@ -1501,7 +1539,7 @@ namespace lua51 {
 		/// to restart a thread push the values yield should return onto the stack and call resume with the number of arguments.
 		/// this call returns when the thread finishes execution or calls yield.
 		/// in case of an error, the stack contains the error message, otherwise the return values of the thread (or parameters passed to yield).
-		/// <para>[-?,+?,-]</para>
+		/// <para>[-?,+?,t]</para>
 		/// </summary>
 		/// <param name="narg">number of arguments</param>
 		/// <returns>error code</returns>
@@ -1509,7 +1547,7 @@ namespace lua51 {
 		/// <summary>
 		/// yields a thread and returns to resume. first pass the return values and then call yield with the number of return values.
 		/// this function may never return, it is not possible to yield through C boundaries in lua 5.0.
-		/// <para>[-?,+?,-]</para>
+		/// <para>[-?,+?,t]</para>
 		/// </summary>
 		/// <param name="nret"></param>
 		[[noreturn]] void YieldThread(int nret);
@@ -1517,7 +1555,7 @@ namespace lua51 {
 		/// pops num values from this and pushes them onto to.
 		/// may only be used to move values between threads of the same gobal state, not between global states.
 		/// (otherwise breaks GC).
-		/// <para>[-num,+0,-] on this</para>
+		/// <para>[-num,+0,t] on this</para>
 		/// <para>[-0,+num,-] on to</para>
 		/// </summary>
 		/// <param name="to">transfer values to</param>
@@ -1856,6 +1894,13 @@ namespace lua51 {
 		/// <exception cref="lua::LuaException">on lua error</exception>
 		bool CallMeta(int obj, MetaEvent ev);
 
+		/// <summary>
+		/// checks if the stack contains at least n enements.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="n">n</param>
+		/// <exception cref="lua::LuaException">on stack too small</exception>
+		void CheckStackHasElements(int n);
 		/// <summary>
 		/// checks if there is any argument including nil) at idx
 		/// <para>[-0,+0,v]</para>
