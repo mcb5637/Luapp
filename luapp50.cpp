@@ -764,6 +764,10 @@ namespace lua50 {
 		}
 		lua_xmove(L, to.L, num);
 	}
+	Number State::Version()
+	{
+		return std::strtod(lua_version() + 4, nullptr);
+	}
 	bool State::Debug_GetStack(int level, DebugInfo& Info, DebugInfoOptions opt, bool pushFunc)
 	{
 		lua_Debug d;
