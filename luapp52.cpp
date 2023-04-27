@@ -770,6 +770,9 @@ namespace lua52 {
 		}
 		lua_xmove(L, to.L, num);
 	}
+	Number State::Version() {
+		return *lua_version(nullptr);
+	}
 	bool State::Debug_GetStack(int level, DebugInfo& Info, DebugInfoOptions opt, bool pushFunc)
 	{
 		lua_Debug d;

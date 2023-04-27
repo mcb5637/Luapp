@@ -1804,6 +1804,11 @@ namespace lua53 {
 		/// </summary>
 		/// <returns>yieldable</returns>
 		bool IsYieldable();
+		/// <summary>
+		/// returns the lua version number
+		/// </summary>
+		/// <returns>version</returns>
+		static Number Version();
 
 	private:
 		constexpr const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)

@@ -797,6 +797,9 @@ namespace lua53 {
 	{
 		return lua_isyieldable(L);
 	}
+	Number State::Version() {
+		return *lua_version(nullptr);
+	}
 	bool State::Debug_GetStack(int level, DebugInfo& Info, DebugInfoOptions opt, bool pushFunc)
 	{
 		lua_Debug d;

@@ -1561,6 +1561,11 @@ namespace lua51 {
 		/// <param name="to">transfer values to</param>
 		/// <param name="num">number ov values to transfer</param>
 		void XMove(State to, int num);
+		/// <summary>
+		/// returns the lua version number
+		/// </summary>
+		/// <returns>version</returns>
+		static Number Version();
 
 	private:
 		constexpr const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
