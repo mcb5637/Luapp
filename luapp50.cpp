@@ -922,6 +922,26 @@ namespace lua50 {
 		const char* s = OptString(idx, def.c_str(), &l);
 		return { s, l };
 	}
+	std::string_view State::ToStringView(int idx)
+	{
+		const char* s = lua_tostring(L, idx);
+		if (!s)
+			throw lua::LuaException("no string");
+		size_t l = lua_strlen(L, idx);
+		return { s, l };
+	}
+	std::string_view State::CheckStringView(int idx)
+	{
+		size_t l;
+		const char* s = CheckString(idx, &l);
+		return { s, l };
+	}
+	std::string_view State::OptStringView(int idx, std::string_view def)
+	{
+		size_t l;
+		const char* s = OptString(idx, def.data(), &l);
+		return { s, l };
+	}
 	const char* State::ConvertToString(int idx, size_t* len)
 	{
 		idx = ToAbsoluteIndex(idx);
@@ -1191,9 +1211,9 @@ namespace lua50 {
 	{
 		GetTableRaw(t, r.r);
 	}
-	void State::Push(const std::string& s)
+	void State::Push(std::string_view s)
 	{
-		lua_pushlstring(L, s.c_str(), s.size());
+		lua_pushlstring(L, s.data(), s.size());
 	}
 	std::string State::ToStdString(int idx)
 	{

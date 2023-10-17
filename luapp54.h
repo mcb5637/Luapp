@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdarg>
 #include <string>
+#include <string_view>
 #include <compare>
 #include <exception>
 #include <stdexcept>
@@ -2722,11 +2723,11 @@ namespace lua54 {
 		constexpr static Reference RefNil{ Reference::REFNIL };
 
 		/// <summary>
-		/// pushes a std::string.
+		/// pushes a std::string_view.
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">string to push</param>
-		void Push(const std::string& s);
+		void Push(std::string_view s);
 		/// <summary>
 		/// converts to a std::string.
 		/// <para>[-0,+0,-]</para>
@@ -2752,6 +2753,31 @@ namespace lua54 {
 		/// <returns>string</returns>
 		/// <exception cref="lua::LuaException">if invalid</exception>
 		std::string OptStdString(int idx, const std::string& def);
+		/// <summary>
+		/// converts to a std::string_view.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="idx">valid index to convert.</param>
+		/// <returns>string</returns>
+		/// <exception cref="lua::LuaException">if not a string</exception>
+		std::string_view ToStringView(int idx);
+		/// <summary>
+		/// checks if idx is a string and returns it.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="idx">acceptable index to check</param>
+		/// <returns>string</returns>
+		/// <exception cref="lua::LuaException">if not a string</exception>
+		std::string_view CheckStringView(int idx);
+		/// <summary>
+		/// if idx is a string, returns it. if it is nil or none, returns a copy of def. otherwise throws.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="idx">acceptable index to check</param>
+		/// <param name="def">default value</param>
+		/// <returns>string</returns>
+		/// <exception cref="lua::LuaException">if invalid</exception>
+		std::string_view OptStringView(int idx, std::string_view def);
 		/// <summary>
 		/// converts idx to a string, pushes it and returns it.
 		/// calls ToString metamethod, if possible.
