@@ -621,16 +621,7 @@ namespace lua50 {
 		}
 	};
 
-	/// <summary>
-	/// activation record of a lua hook.
-	/// just a pointer, so pass by vale prefered.
-	/// </summary>
-	class ActivationRecord {
-		friend class State;
-		lua_Debug* ar;
-		ActivationRecord(lua_Debug* ar);
-	};
-
+	class ActivationRecord;
 	/// <summary>
 	/// aka lua_Hook. no type conversion/exception handling. use CppHook if in doubt.
 	/// </summary>
@@ -648,6 +639,17 @@ namespace lua50 {
 	/// <see cref='lua50::State::Debug_SetHook'/>
 	using CppHook = void(*) (State L, ActivationRecord ar);
 
+	/// <summary>
+	/// activation record of a lua hook.
+	/// just a pointer, so pass by vale prefered.
+	/// </summary>
+	class ActivationRecord {
+		friend class State;
+		template<CppHook F>
+		friend void CppToCHook(lua_State* l, lua_Debug* ar);
+		lua_Debug* ar;
+		ActivationRecord(lua_Debug* ar);
+	};
 
 	/// <summary>
 	/// adapts a CppHook to a CHook, doing all the type conversion and exception handling.
