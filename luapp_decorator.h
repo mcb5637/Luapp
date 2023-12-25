@@ -26,6 +26,8 @@ namespace lua::decorator {
 		constexpr static const char* TypeNameName = "TypeName";
 		constexpr static const char* BaseTypeNameName = "BaseTypeName";
 
+		template<class State, class T> requires userdata::IndexCpp<State, T>
+		friend int userdata::IndexOperator(State L);
 	public:
 		/// <summary>
 		/// <para>normal function to interface with lua.</para>
@@ -177,6 +179,9 @@ namespace lua::decorator {
 		void Push(int i) {
 			B::Push(static_cast<lua::Integer>(i));
 		}
+		void Push(B::MetaEvent ev) {
+			Push(B::GetMetaEventName(ev));
+		}
 		using B::Push;
 
 		/// <summary>
@@ -232,6 +237,49 @@ namespace lua::decorator {
 			B::Push(B::SetTable_Unprotected);
 			B::Insert(-4);
 			TCall(3, 0);
+		}
+		/// <summary>
+		/// assigns the value at the top of the stack to the key just below the top in the global table. pops both key and value from the stack.
+		/// may not call metamethods.
+		/// <para>[-2,+0,m]</para>
+		/// </summary>
+		void SetGlobal() {
+			B::PushGlobalTable();
+			B::Insert(-3);
+			B::SetTableRaw(-3);
+			B::Pop(1);
+		}
+		/// <summary>
+		/// assigns the value at the top of the stack to the key k in the global table. pops the value from the stack.
+		/// may not call metamethods.
+		/// <para>[-1,+0,m]</para>
+		/// </summary>
+		/// <param name="k">key</param>
+		void SetGlobal(std::string_view k) {
+			Push(k);
+			B::Insert(-2);
+			SetGlobal();
+		}
+		/// <summary>
+		/// pops a key from the stack, and pushes the associated value in the global table onto the stack.
+		/// may not call metamethods.
+		/// <para>[-1,+1,-]</para>
+		/// </summary>
+		void GetGlobal() {
+			B::PushGlobalTable();
+			B::Insert(-2);
+			B::GetTableRaw(-2);
+			B::Remove(-2);
+		}
+		/// <summary>
+		/// pushes the with k associated value in the global table onto the stack.
+		/// may not call metamethods.
+		/// <para>[-0,+1,-]</para>
+		/// </summary>
+		/// <param name="k"></param>
+		void GetGlobal(std::string_view k) {
+			Push(k);
+			GetGlobal();
 		}
 		/// <summary>
 		/// compares 2 lua values. returns true, if the value at i1 satisfies op when compared with the value at i2.
@@ -525,9 +573,9 @@ namespace lua::decorator {
 		/// <param name="name">key to register</param>
 		/// <param name="f">function to register</param>
 		/// <param name="index">valid index where to register</param>
-		void RegisterFunc(const char* name, CFunction f, int index)
+		void RegisterFunc(std::string_view name, CFunction f, int index)
 		{
-			B::Push(name);
+			Push(name);
 			B::Push(f);
 			B::SetTableRaw(index);
 		}
@@ -537,10 +585,10 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="name">key to register</param>
 		/// <param name="f">function to register</param>
-		void RegisterFunc(const char* name, CFunction f)
+		void RegisterFunc(std::string_view name, CFunction f)
 		{
-			B::Push(f);
-			B::SetGlobal(name);
+			Push(f);
+			SetGlobal(name);
 		}
 		/// <summary>
 		/// registers the function f via the key name in index.
@@ -551,7 +599,7 @@ namespace lua::decorator {
 		/// <param name="F">function to register</param>
 		/// <param name="index">valid index where to register</param>
 		template<CFunction F>
-		void RegisterFunc(const char* name, int index) {
+		void RegisterFunc(std::string_view name, int index) {
 			RegisterFunc(name, F, index);
 		}
 		/// <summary>
@@ -561,7 +609,7 @@ namespace lua::decorator {
 		/// <param name="name">key to register</param>
 		/// <param name="F">function to register</param>
 		template<CFunction F>
-		void RegisterFunc(const char* name) {
+		void RegisterFunc(std::string_view name) {
 			RegisterFunc(name, F);
 		}
 		/// <summary>
@@ -573,7 +621,7 @@ namespace lua::decorator {
 		/// <param name="F">function to register</param>
 		/// <param name="index">valid index where to register</param>
 		template<CppFunction F>
-		void RegisterFunc(const char* name, int index)
+		void RegisterFunc(std::string_view name, int index)
 		{
 			RegisterFunc(name, &CppToCFunction<F>, index);
 		}
@@ -584,7 +632,7 @@ namespace lua::decorator {
 		/// <param name="name">key to register</param>
 		/// <param name="F">function to register</param>
 		template<CppFunction F>
-		void RegisterFunc(const char* name)
+		void RegisterFunc(std::string_view name)
 		{
 			RegisterFunc(name, &CppToCFunction<F>);
 		}
@@ -662,7 +710,7 @@ namespace lua::decorator {
 			typename B::DebugInfo i{};
 			if (!B::Debug_GetStack(0, i, B::DebugInfoOptions::Name, false))
 				ErrorOrThrow(std::format("bad argument #{} ({})", arg, msg));
-			if (i.NameWhat == std::string_view{ "method" }) {
+			if (i.NameWhat != nullptr && i.NameWhat == std::string_view{ "method" }) {
 				--arg;
 				if (arg == 0)
 					ErrorOrThrow(std::format("calling `{}' on bad self ({})", i.Name, msg));
@@ -800,8 +848,8 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="name">metatable name</param>
 		void GetMetaTableFromRegistry(std::string_view tname) {
-			B::Push(tname);
-			B::GetTable(B::REGISTRYINDEX);
+			Push(tname);
+			GetTable(B::REGISTRYINDEX);
 		}
 		/// <summary>
 		/// if the registry already has a value associated with name, returns 0. otherwise creates a new table, adds it and returns 1.
@@ -813,16 +861,17 @@ namespace lua::decorator {
 		bool NewMetaTable(std::string_view tname) {
 			GetMetaTableFromRegistry(tname);
 			if (!B::IsNil(-1)) {
-				return 0;
+				return false;
 			}
 			B::Pop(1);
 			B::NewTable();
-			B::Push(B::MetaEvent::Name);
+			Push(B::MetaEvent::Name);
 			Push(tname);
 			B::SetTableRaw(-3);
 			Push(tname);
-			B::PushValue(-1);
+			B::PushValue(-2);
 			B::SetTableRaw(B::REGISTRYINDEX);
+			return true;
 		}
 		/// <summary>
 		/// checks for an userdata type. (via its metatable).
@@ -1460,6 +1509,354 @@ namespace lua::decorator {
 				return std::default_sentinel;
 			}
 		};
+
+		/// <summary>
+		/// checks if i is an userdata of type T (or able to be cast to T) and returns it. returns nullptr if not.
+		/// </summary>
+		/// <typeparam name="T">class type</typeparam>
+		/// <param name="i">acceptable index to check</param>
+		/// <returns>obj</returns>
+		template<class T>
+		T* OptionalUserData(int i) {
+			if constexpr (userdata::BaseDefined<T>) {
+				if (B::Type(i) != LType::Userdata)
+					return nullptr;
+				if (!B::GetMetatable(i))
+					return nullptr;
+				Push(BaseTypeNameName);
+				B::GetTableRaw(-2);
+				if (B::Type(-1) != LType::String) {
+					B::Pop(2);
+					return nullptr;
+				}
+				auto n = ToStringView(-1);
+				if (typename_details::type_name<typename T::BaseClass>() == n) {
+					B::Pop(2);
+					return nullptr;
+				}
+				B::Pop(2);
+				// do not acces ActualObj here, this might be of a different type alltogether
+				using base = T::BaseClass;
+				struct Holder {
+					base* const BaseObj;
+				};
+				Holder* u = static_cast<Holder*>(B::ToUserdata(i));
+				return dynamic_cast<T*>(u->BaseObj);
+			}
+			else {
+				return static_cast<T*>(TestUserdata(i, typename_details::type_name<T>()));
+			}
+		}
+		/// <summary>
+		/// checks if i is an userdata of type T (or able to be cast to T) abd returns it. throws if not.
+		/// </summary>
+		/// <typeparam name="T">class type</typeparam>
+		/// <param name="i">acceptable index to check</param>
+		/// <returns>obj</returns>
+		/// <exception cref="lua::LuaException">if type does not match</exception>
+		template<class T>
+		T* GetUserData(int i) {
+			T* t = OptionalUserData<T>(i);
+			if (t == nullptr)
+				ErrorOrThrow(std::format("no {} at argument {}", typename_details::type_name<T>(), i));
+			return t;
+		}
+		/// <summary>
+		/// gets the metatable for type T.
+		/// <para>lua class generation:</para>
+		/// <para>if T::LuaMethods is iterable over LuaReference, registers them all as userdata methods (__index).</para>
+		/// <para></para>
+		/// <para>if T is not trivially destructable, generates a finalizer (__gc) that calls its destructor.</para>
+		/// <para></para>
+		/// <para>metatable operator definition:</para>
+		/// <para>- by CFunction or CppFunction: you provide an implementation as a static class member (used, if both provided).</para>
+		/// <para>- or automatically by C++ operator overloads (this requires a nothrow move constructor for operators).</para>
+		/// <para></para>
+		/// <para>== comparator (also ~= comparator) (__eq):</para>
+		/// <para>- Equals static member.</para>
+		/// <para>- == operator overload (or &lt;==&gt; overload) (checks type, then operator).</para>
+		/// <para></para>
+		/// <para>&lt; comparator (also &gt; comparator) (__lt):</para>
+		/// <para>- LessThan static member.</para>
+		/// <para>- &lt; operator overload (or &lt;==&gt; overload) (checks type, then operator).</para>
+		/// <para></para>
+		/// <para>&lt;= comparator (also &lt;= comparator) (__le):</para>
+		/// <para>- LessOrEquals static member.</para>
+		/// <para>- &lt;= operator overload (or &lt;==&gt; overload) (checks type, then operator).</para>
+		/// <para></para>
+		/// <para>+ operator (__add):</para>
+		/// <para>- Add static member.</para>
+		/// <para>- + operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>- operator (__sub):</para>
+		/// <para>- Substract static member.</para>
+		/// <para>- - operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>* operator (__mul):</para>
+		/// <para>- Multiply static member.</para>
+		/// <para>- * operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>/ operator (__div):</para>
+		/// <para>- Divide static member.</para>
+		/// <para>- / operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>// operator (__idiv):</para>
+		/// <para>- IntegerDivide static member.</para>
+		/// <para>(no operator in c++).</para>
+		/// <para></para>
+		/// <para>% operator (__mod):</para>
+		/// <para>- Modulo static member.</para>
+		/// <para>(no operator in c++).</para>
+		/// <para></para>
+		/// <para>^ operator (__pow):</para>
+		/// <para>- Pow static member.</para>
+		/// <para>(no operator in c++).</para>
+		/// <para></para>
+		/// <para>unary - operator (__unm):</para>
+		/// <para>- UnaryMinus static member.</para>
+		/// <para>- (unary) - operator overload.</para>
+		/// <para></para>
+		/// <para>&amp; operator (__band):</para>
+		/// <para>- BitwiseAnd static member.</para>
+		/// <para>- &amp; operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>| operator (__bor):</para>
+		/// <para>- BitwiseOr static member.</para>
+		/// <para>- | operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>~ operator (__bxor):</para>
+		/// <para>- BitwiseXOr static member.</para>
+		/// <para>- ^ operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>unary ~ operator (__bnot):</para>
+		/// <para>- BitwiseNot static member.</para>
+		/// <para>- (unary) ~ operator overload.</para>
+		/// <para></para>
+		/// <para>&lt;&lt; operator (__shl):</para>
+		/// <para>- ShiftLeft static member.</para>
+		/// <para>- &lt;&lt; operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para>&gt;&gt; operator (__shr):</para>
+		/// <para>- ShiftRight static member.</para>
+		/// <para>- &gt;&gt; operator overload (only works for both operands of type T).</para>
+		/// <para></para>
+		/// <para># operator (__len):</para>
+		/// <para>- Length static member.</para>
+		/// <para>(no operator in c++).</para>
+		/// <para></para>
+		/// <para>.. operator (__concat):</para>
+		/// <para>- Concat static member.</para>
+		/// <para>(no operator in c++).</para>
+		/// <para></para>
+		/// <para>[x]=1 operator (__newindex):</para>
+		/// <para>- NewIndex static member.</para>
+		/// <para></para>
+		/// <para>(...) operator (__call)</para>
+		/// <para>- Call static member.</para>
+		/// <para></para>
+		/// <para>=[x] operator (__index):</para>
+		/// <para>- Index static member.</para>
+		/// <para></para>
+		/// <para>if T has both LuaMethods and Index defined, first LuaMethods is searched, and if nothing is found, Index is called.</para>
+		/// <para></para>
+		/// <para>if T::LuaMetaMethods is iterable over LuaReference, registers them all into the metatable as additional metamethods (possibly overriding the default generaded)</para>
+		/// <para></para>
+		/// <para>to handle inheritance, define T::BaseClass as T in the base class and do not change the typedef in the derived classes.</para>
+		/// <para>a call to GetUserData&lt;T::BaseClass&gt; on an userdata of type T will then return a correctly cast pointer to T::BaseClass.</para>
+		/// <para>all variables for class generation get used via normal overload resolution, meaning the most derived class wins.</para>
+		/// <para>make sure you include all methods from base classes in LuaMethods, or they will get lost.</para>
+		/// <para>as far as luapp is concerned a class may only have one base class (defined via T::BaseClass) but other inheritances that are not visible to luapp are allowed.</para>
+		/// </summary>
+		/// <typeparam name="T">type to generate metatable for</typeparam>
+		template<class T>
+		void GetUserDataMetatable() {
+			if (NewMetaTable(typename_details::type_name<T>())) {
+				if constexpr (userdata::IndexCpp<State<B>, T>) {
+					RegisterFunc<userdata::IndexOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::Index), -3);
+					if constexpr (userdata::HasLuaMethods<T>) {
+						Push(MethodsName);
+						B::NewTable();
+						RegisterFuncs(T::LuaMethods, -3);
+						B::SetTableRaw(-3);
+					}
+				}
+				else if constexpr (userdata::HasLuaMethods<T>) {
+					Push(B::GetMetaEventName(B::MetaEvent::Index));
+					B::NewTable();
+					RegisterFuncs(T::LuaMethods, -3);
+					B::SetTableRaw(-3);
+				}
+
+				if constexpr (!std::is_trivially_destructible_v<T>)
+					RegisterFunc<userdata::Finalizer<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::Finalizer), -3);
+
+				if constexpr (userdata::EquatableCpp<State<B>, T>)
+					RegisterFunc<T::Equals>(B::GetMetaEventName(B::MetaEvent::Equals), -3);
+				else if constexpr (userdata::EquatableOp<T>)
+					RegisterFunc<userdata::EqualsOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::Equals), -3);
+
+				if constexpr (userdata::LessThanCpp<State<B>, T>)
+					RegisterFunc<T::LessThan>(B::GetMetaEventName(B::MetaEvent::LessThan), -3);
+				else if constexpr (userdata::LessThanOp<T>)
+					RegisterFunc<userdata::LessThanOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::LessThan), -3);
+
+				if constexpr (userdata::LessThanEqualsCpp<State<B>, T>)
+					RegisterFunc<T::LessOrEquals>(B::GetMetaEventName(B::MetaEvent::LessOrEquals), -3);
+				else if constexpr (userdata::LessThanEqualsOp<T>)
+					RegisterFunc<userdata::LessThanEqualsOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::LessOrEquals), -3);
+
+				if constexpr (userdata::AddCpp<State<B>, T>)
+					RegisterFunc<T::Add>(B::GetMetaEventName(B::MetaEvent::Add), -3);
+				else if constexpr (userdata::AddOp<T>)
+					RegisterFunc<userdata::AddOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::Add), -3);
+
+				if constexpr (userdata::SubtractCpp<State<B>, T>)
+					RegisterFunc<T::Substract>(B::GetMetaEventName(B::MetaEvent::Subtract), -3);
+				else if constexpr (userdata::SubtractOp<T>)
+					RegisterFunc<userdata::SubtractOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::Subtract), -3);
+
+				if constexpr (userdata::MultiplyCpp<State<B>, T>)
+					RegisterFunc<T::Multiply>(B::GetMetaEventName(B::MetaEvent::Multiply), -3);
+				else if constexpr (userdata::MultiplyOp<T>)
+					RegisterFunc<userdata::MultiplyOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::Multiply), -3);
+
+				if constexpr (userdata::DivideCpp<State<B>, T>)
+					RegisterFunc<T::Divide>(B::GetMetaEventName(B::MetaEvent::Divide), -3);
+				else if constexpr (userdata::DivideOp<T>)
+					RegisterFunc<userdata::DivideOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::Divide), -3);
+
+				if constexpr (userdata::IntegerDivideCpp<State<B>, T>)
+					RegisterFunc<T::IntegerDivide>(B::GetMetaEventName(B::MetaEvent::IntegerDivide), -3);
+
+				if constexpr (userdata::ModuloCpp<State<B>, T>)
+					RegisterFunc<T::Modulo>(B::GetMetaEventName(B::MetaEvent::Modulo), -3);
+
+				if constexpr (userdata::PowCpp<State<B>, T>)
+					RegisterFunc<T::Pow>(B::GetMetaEventName(B::MetaEvent::Pow), -3);
+
+				if constexpr (userdata::UnaryMinusCpp<State<B>, T>)
+					RegisterFunc<T::UnaryMinus>(B::GetMetaEventName(B::MetaEvent::UnaryMinus), -3);
+				else if constexpr (userdata::UnaryMinusOp<T>)
+					RegisterFunc<userdata::UnaryMinusOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::UnaryMinus), -3);
+
+				if constexpr (userdata::BitwiseAndCpp<State<B>, T>)
+					RegisterFunc<T::BitwiseAnd>(B::GetMetaEventName(B::MetaEvent::BitwiseAnd), -3);
+				else if constexpr (userdata::BitwiseAndOp<T>)
+					RegisterFunc<userdata::BitwiseAndOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseAnd), -3);
+
+				if constexpr (userdata::BitwiseOrCpp<State<B>, T>)
+					RegisterFunc<T::BitwiseOr>(B::GetMetaEventName(B::MetaEvent::BitwiseOr), -3);
+				else if constexpr (userdata::BitwiseOrOp<T>)
+					RegisterFunc<userdata::BitwiseOrOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseOr), -3);
+
+				if constexpr (userdata::BitwiseXOrCpp<State<B>, T>)
+					RegisterFunc<T::BitwiseXOr>(B::GetMetaEventName(B::MetaEvent::BitwiseXOr), -3);
+				else if constexpr (userdata::BitwiseXOrOp<T>)
+					RegisterFunc<userdata::BitwiseXOrOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseXOr), -3);
+
+				if constexpr (userdata::BitwiseNotCpp<State<B>, T>)
+					RegisterFunc<T::BitwiseNot>(B::GetMetaEventName(B::MetaEvent::BitwiseNot), -3);
+				else if constexpr (userdata::BitwiseNotOp<T>)
+					RegisterFunc<userdata::BitwiseNotOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseNot), -3);
+
+				if constexpr (userdata::ShiftLeftCpp<State<B>, T>)
+					RegisterFunc<T::ShiftLeft>(B::GetMetaEventName(B::MetaEvent::ShiftLeft), -3);
+				else if constexpr (userdata::ShiftLeftOp<T>)
+					RegisterFunc<userdata::ShiftLeftOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::ShiftLeft), -3);
+
+				if constexpr (userdata::ShiftRightCpp<State<B>, T>)
+					RegisterFunc<T::ShiftRight>(B::GetMetaEventName(B::MetaEvent::ShiftRight), -3);
+				else if constexpr (userdata::ShiftRightOp<T>)
+					RegisterFunc<userdata::ShiftRightOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::ShiftRight), -3);
+
+				if constexpr (userdata::LengthCpp<State<B>, T>)
+					RegisterFunc<T::Length>(B::GetMetaEventName(B::MetaEvent::Length), -3);
+
+				if constexpr (userdata::ConcatCpp<State<B>, T>)
+					RegisterFunc<T::Concat>(B::GetMetaEventName(B::MetaEvent::Concat), -3);
+
+				if constexpr (userdata::NewIndexCpp<State<B>, T>)
+					RegisterFunc<T::NewIndex>(B::GetMetaEventName(B::MetaEvent::NewIndex), -3);
+
+				if constexpr (userdata::CallCpp<State<B>, T>)
+					RegisterFunc<T::Call>(B::GetMetaEventName(B::MetaEvent::Call), -3);
+
+				if constexpr (userdata::HasLuaMetaMethods<T>)
+					RegisterFuncs(T::LuaMetaMethods, -3);
+
+				Push(B::GetMetaEventName(B::MetaEvent::Name));
+				Push(typename_details::type_name<T>());
+				B::SetTableRaw(-3);
+				Push(TypeNameName);
+				Push(typename_details::type_name<T>());
+				B::SetTableRaw(-3);
+				Push(BaseTypeNameName);
+				if constexpr (userdata::BaseDefined<T>) {
+					static_assert(std::derived_from<T, typename T::BaseClass>);
+					Push(typename_details::type_name<typename T::BaseClass>());
+				}
+				else
+					Push(typename_details::type_name<T>());
+				B::SetTableRaw(-3);
+			}
+		}
+		template<class T>
+		void PrepareUserDataType() {
+			GetUserDataMetatable<T>();
+			B::Pop(1);
+		}
+
+		/// <summary>
+		/// <para>converts a c++ class to a lua userdata. creates a new full userdata and calls the constructor of T, forwarding all arguments.</para>
+		/// <para>a class (metatable) for a userdata type is only generated once, and then reused for all userdata of the same type.</para>
+		/// <para></para>
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <typeparam name="T">type to create</typeparam>
+		/// <typeparam name="...Args">parameters for constructor</typeparam>
+		/// <param name="...args">parameters for constructor</param>
+		/// <returns>obj</returns>
+		template<class T, class ... Args>
+		T* NewUserData(Args&& ... args) {
+			if constexpr (userdata::BaseDefined<T>) {
+				userdata::UserDataBaseHolder<T, typename T::BaseClass>* t = new (B::NewUserdata(sizeof(userdata::UserDataBaseHolder<T, typename T::BaseClass>))) userdata::UserDataBaseHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
+				GetUserDataMetatable<T>();
+				B::SetMetatable(-2);
+				return &t->ActualObj;
+			}
+			else {
+				T* t = new (B::NewUserdata(sizeof(T))) T(std::forward<Args>(args)...);
+				GetUserDataMetatable<T>();
+				B::SetMetatable(-2);
+				return t;
+			}
+		}
+		/// <summary>
+		/// <para>converts a c++ class to a lua userdata. creates a new full userdata and calls the constructor of T, forwarding all arguments.</para>
+		/// <para>a class (metatable) for a userdata type is only generated once, and then reused for all userdata of the same type.</para>
+		/// <para></para>
+		/// <para>lua class generation: see lua::State::NewUserData</para>
+		/// </summary>
+		/// <typeparam name="T">type to create</typeparam>
+		/// <typeparam name="...Args">parameters for constructor</typeparam>
+		/// <param name="nuvalues">number of user values</param>
+		/// <param name="...args">parameters for constructor</param>
+		/// <returns>obj</returns>
+		template<class T, class ... Args>
+		T* NewUserDataWithUserValues(int nuvalues, Args&& ... args) {
+			if constexpr (userdata::BaseDefined<T>) {
+				userdata::UserDataBaseHolder<T, typename T::BaseClass>* t = new (B::NewUserdata(sizeof(userdata::UserDataBaseHolder<T, typename T::BaseClass>), nuvalues)) userdata::UserDataBaseHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
+				GetUserDataMetatable<T>();
+				B::SetMetatable(-2);
+				return &t->ActualObj;
+			}
+			else {
+				T* t = new (B::NewUserdata(sizeof(T))) T(std::forward<Args>(args)...);
+				GetUserDataMetatable<T>();
+				B::SetMetatable(-2);
+				return t;
+			}
+		}
 	};
 
 	template<class B>

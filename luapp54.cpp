@@ -12,10 +12,6 @@ extern "C" {
 }
 #endif
 
-#include <cstdlib>
-#include <type_traits>
-#include <sstream>
-
 namespace lua::v54 {
 	// make sure all the constants match
 	// i do define them new to avoid having to include the c lua files and having all their funcs/defines in global namespace
@@ -468,31 +464,6 @@ namespace lua::v54 {
 			CheckStackHasElements(IsPseudoIndex(index) ? 1 : 2);
 		}
 		lua_rawseti(L, index, n);
-	}
-	void State::SetGlobal()
-	{
-		PushGlobalTable();
-		Insert(-3);
-		SetTableRaw(-3);
-		Pop(1);
-	}
-	void State::SetGlobal(const char* k)
-	{
-		Push(k);
-		Insert(-2);
-		SetGlobal();
-	}
-	void State::GetGlobal()
-	{
-		PushGlobalTable();
-		Insert(-2);
-		GetTableRaw(-2);
-		Remove(-2);
-	}
-	void State::GetGlobal(const char* k)
-	{
-		Push(k);
-		GetGlobal();
 	}
 	void State::PushGlobalTable()
 	{

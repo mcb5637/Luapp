@@ -415,12 +415,6 @@ namespace lua::v54 {
 		}
 	}
 
-	class PairsHolder;
-	class PairsIter;
-	class PairsSentinel;
-	class IPairsHolder;
-	class IPairsIter;
-
 	class State {
 	protected:
 		lua_State* L;
@@ -990,32 +984,6 @@ namespace lua::v54 {
 		/// <param name="n">key</param>
 		void SetTableRaw(int index, int n);
 		/// <summary>
-		/// assigns the value at the top of the stack to the key just below the top in the global table. pops both key and value from the stack.
-		/// may not call metamethods.
-		/// <para>[-2,+0,m]</para>
-		/// </summary>
-		void SetGlobal();
-		/// <summary>
-		/// assigns the value at the top of the stack to the key k in the global table. pops the value from the stack.
-		/// may not call metamethods.
-		/// <para>[-1,+0,m]</para>
-		/// </summary>
-		/// <param name="k">key</param>
-		void SetGlobal(const char* k);
-		/// <summary>
-		/// pops a key from the stack, and pushes the associated value in the global table onto the stack.
-		/// may not call metamethods.
-		/// <para>[-1,+1,-]</para>
-		/// </summary>
-		void GetGlobal();
-		/// <summary>
-		/// pushes the with k associated value in the global table onto the stack.
-		/// may not call metamethods.
-		/// <para>[-0,+1,-]</para>
-		/// </summary>
-		/// <param name="k"></param>
-		void GetGlobal(const char* k);
-		/// <summary>
 		/// pushes the global environment (table).
 		/// <para>[-0,+1,-]</para>
 		/// </summary>
@@ -1208,7 +1176,7 @@ namespace lua::v54 {
 		/// <param name="funcTar">valid index to target the upvalue of</param>
 		/// <param name="upTar">number of upvalue to target, needs to be valid</param>
 		void Debug_UpvalueJoin(int funcMod, int upMod, int funcTar, int upTar);
-	private:
+	protected:
 		void Debug_SetHook(CHook hook, HookEvent mask, int count);
 	public:
 		/// <summary>
@@ -1393,9 +1361,6 @@ namespace lua::v54 {
 		/// <param name="name">code name</param>
 		/// <returns>error code</returns>
 		ErrorCode DoString(const std::string& code, const char* name);
-
-	private:
-		static std::string int2Str(int i);
 	};
 }
 
