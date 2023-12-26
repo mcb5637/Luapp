@@ -216,7 +216,7 @@ namespace lua::v54 {
 		Count = 8,
 		/// <summary>
 		/// calling a function via a tail return
-		/// (meaning lua will skipp the return of this function)
+		/// (meaning lua will skip the return of this function)
 		/// (requested via Call)
 		/// </summary>
 		TailCall = 16,
@@ -347,83 +347,27 @@ namespace lua::v54 {
 		BitwiseNot = 13,
 	};
 
-	class ActivationRecord;
-	class State;
-
-	/// <summary>
-	/// lua hook function (when registered, gets called durng lua code execution).
-	/// </summary>
-	/// <param name="L">lua state</param>
-	/// <param name="ar">activation record</param>
-	/// <see cref='lua50::CppToCHook'/>
-	/// <see cref='lua50::State::Debug_SetHook'/>
-	using CppHook = void(*) (State L, ActivationRecord ar);
-
 	/// <summary>
 	/// activation record of a lua hook.
-	/// just a pointer, so pass by vale prefered.
+	/// just a pointer, so pass by value prefered.
 	/// </summary>
 	class ActivationRecord {
+		template<class B>
+		friend class decorator::State;
 		friend class State;
-		template<CppHook F>
-		friend void CppToCHook(lua_State* l, lua_Debug* ar);
 		lua_Debug* ar;
 		ActivationRecord(lua_Debug* ar);
 	};
-
-	/// <summary>
-	/// adapts a CppHook to a CHook, doing all the type conversion and exception handling.
-	/// </summary>
-	/// <param name="l">lua state</param>
-	/// <param name="ar">activation record</param>
-	/// <see cref='lua50::CppHook'/>
-	/// <see cref='lua50::State::Debug_SetHook'/>
-	template<CppHook F>
-	void CppToCHook(lua_State* l, lua_Debug* ar) {
-		if constexpr (CatchExceptions) {
-			bool err = false;
-			State L{ l }; // trivial, no destructor to call, so its save
-			{ // make sure all c++ objects gets their destructor called
-				try {
-					F(L, ActivationRecord{ ar });
-				}
-				catch (const std::exception& e) {
-					L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
-					err = true;
-				}
-				catch (...) {
-					if (ExceptionConverter) {
-						try {
-							auto s = ExceptionConverter(std::current_exception(), __FUNCSIG__);
-							L.Push(s);
-							err = true;
-						}
-						catch (...) {}
-					}
-					if (!err) {
-						L.PushFString("unknown exception caught in %s", __FUNCSIG__);
-						err = true;
-					}
-				}
-			}
-			if (err)
-				L.Error();
-		}
-		else {
-			State L{ l };
-			F(L, ActivationRecord{ ar });
-		}
-	}
 
 	class State {
 	protected:
 		lua_State* L;
 
-		static ExConverterT GetExConv() {
+	public:
+		static inline ExConverterT& GetExConv() {
 			return ExceptionConverter;
 		}
 
-	public:
 		struct Capabilities {
 			static constexpr bool NativeIntegers = true, UpvalueId = true, GlobalsIndex = false, Length = true, Uservalues = true;
 		};
@@ -460,6 +404,7 @@ namespace lua::v54 {
 		/// </summary>
 		void Close();
 
+	public:
 		/// <summary>
 		/// minimum amount of stack space you have available when entering a function. does not include parameters.
 		/// </summary>
@@ -470,14 +415,13 @@ namespace lua::v54 {
 		/// use light userdata with adresses of something in your code, or strings prefixed with your library name as keys.
 		/// integer keys are reserved for the Reference mechanism.
 		/// </summary>
-		/// <see cref="lua::State::Ref"/>
 		constexpr static int REGISTRYINDEX = -1000000-1000;
 		/// <summary>
 		/// passing this to call signals to return all values.
 		/// </summary>
 		constexpr static int MULTIRET = -1;
 		/// <summary>
-		/// index in the registry, where the main thread of a state is stored (the threac created with the state).
+		/// index in the registry, where the main thread of a state is stored (the thread created with the state).
 		/// </summary>
 		constexpr static int REGISTRY_MAINTHREAD = 1;
 		/// <summary>
@@ -493,6 +437,14 @@ namespace lua::v54 {
 		{
 			return REGISTRYINDEX - i;
 		}
+		/// <summary>
+		/// key in the registry, where the loaded table is stored (used by require)
+		/// </summary>
+		constexpr static std::string_view REGISTRY_LOADED_TABLE = "_LOADED";
+		/// <summary>
+		/// key in the registry, where the preloaded table is stored (used by require)
+		/// </summary>
+		constexpr static std::string_view REGISTRY_PRELOADED_TABLE = "_PRELOAD";
 
 		/// <summary>
 		/// gets the top of the stack (the highest valid stack position).
@@ -594,7 +546,7 @@ namespace lua::v54 {
 		/// <returns>is nil</returns>
 		bool IsNil(int index);
 		/// <summary>
-		/// returns if the value at index is none (outside the stack)..
+		/// returns if the value at index is none (outside the stack).
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">acceptable index to check</param>
@@ -1179,18 +1131,6 @@ namespace lua::v54 {
 	protected:
 		void Debug_SetHook(CHook hook, HookEvent mask, int count);
 	public:
-		/// <summary>
-		/// sets the hook. the hook function gets called every time one of the conditions mask is met.
-		/// removes any previous hooks.
-		/// <para>[-0,+0,-]</para>
-		/// </summary>
-		/// <param name="F">hook function</param>
-		/// <param name="mask">conditions when to call</param>
-		/// <param name="count">count parameter for count condition</param>
-		template<CppHook F>
-		void Debug_SetHook(HookEvent mask, int count) {
-			Debug_SetHook(&CppToCHook<F>, mask, count);
-		}
 		/// <summary>
 		/// removes the currently set hook.
 		/// <para>[-0,+0,-]</para>

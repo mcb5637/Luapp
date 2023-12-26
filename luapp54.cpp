@@ -52,6 +52,8 @@ namespace lua::v54 {
 	static_assert(ComparisonOperator::LessThanOrEquals == static_cast<ComparisonOperator>(LUA_OPLE));
 	static_assert(State::REGISTRY_MAINTHREAD == LUA_RIDX_MAINTHREAD);
 	static_assert(State::REGISTRY_GLOBALS == LUA_RIDX_GLOBALS);
+	static_assert(State::REGISTRY_LOADED_TABLE == LUA_LOADED_TABLE);
+	static_assert(State::REGISTRY_PRELOADED_TABLE == LUA_PRELOAD_TABLE);
 	static_assert(ArihmeticOperator::Add == static_cast<ArihmeticOperator>(LUA_OPADD));
 	static_assert(ArihmeticOperator::Subtract == static_cast<ArihmeticOperator>(LUA_OPSUB));
 	static_assert(ArihmeticOperator::Multiply == static_cast<ArihmeticOperator>(LUA_OPMUL));
@@ -157,7 +159,8 @@ namespace lua::v54 {
 
 	void State::Close()
 	{
-		lua_close(L);
+		if (L != nullptr)
+			lua_close(L);
 		L = nullptr;
 	}
 

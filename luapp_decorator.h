@@ -129,6 +129,56 @@ namespace lua::decorator {
 			auto operator<=>(const Reference&) const = default;
 		};
 
+		/// <summary>
+		/// lua hook function (when registered, gets called durng lua code execution).
+		/// </summary>
+		/// <param name="L">lua state</param>
+		/// <param name="ar">activation record</param>
+		using CppHook = void(*) (State L, B::ActivationRecord ar);
+
+		/// <summary>
+		/// adapts a CppHook to a CHook, doing all the type conversion and exception handling.
+		/// </summary>
+		/// <param name="l">lua state</param>
+		/// <param name="ar">activation record</param>
+		template<CppHook F>
+		static void CppToCHook(lua_State* l, lua_Debug* ar) {
+			if constexpr (CatchExceptions) {
+				bool err = false;
+				State L{ l }; // trivial, no destructor to call, so its save
+				{ // make sure all c++ objects gets their destructor called
+					try {
+						F(L, typename B::ActivationRecord{ ar });
+					}
+					catch (const std::exception& e) {
+						L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
+						err = true;
+					}
+					catch (...) {
+						auto ExceptionConverter = B::GetExConv();
+						if (ExceptionConverter) {
+							try {
+								auto s = ExceptionConverter(std::current_exception(), __FUNCSIG__);
+								L.Push(s);
+								err = true;
+							}
+							catch (...) {}
+						}
+						if (!err) {
+							L.PushFString("unknown exception caught in %s", __FUNCSIG__);
+							err = true;
+						}
+					}
+				}
+				if (err)
+					L.Error();
+			}
+			else {
+				State L{ l };
+				F(L, typename B::ActivationRecord{ ar });
+			}
+		}
+
 
 
 		/// <summary>
@@ -238,6 +288,33 @@ namespace lua::decorator {
 			B::Insert(-4);
 			TCall(3, 0);
 		}
+		/// <summary>
+		/// pushes the with s associated value in the table at index onto the stack.
+		/// may not call metamethods.
+		/// <para>[-0,+1,t]</para>
+		/// </summary>
+		/// <param name="index">valid index for table access</param>
+		/// <param name="n">key</param>
+		void GetTableRaw(int index, std::string_view s) {
+			index = B::ToAbsoluteIndex(index);
+			Push(s);
+			B::GetTableRaw(index);
+		}
+		using B::GetTableRaw;
+		/// <summary>
+		/// assigns the value at the top of the stack to the key s in the table at index. pops the value from the stack.
+		/// may not call metamethods.
+		/// <para>[-1,+0,mt]</para>
+		/// </summary>
+		/// <param name="index">valid index for table acccess</param>
+		/// <param name="n">key</param>
+		void SetTableRaw(int index, std::string_view s) {
+			index = B::ToAbsoluteIndex(index);
+			Push(s);
+			B::Insert(-2);
+			B::SetTableRaw(index);
+		}
+		using B::SetTableRaw;
 		/// <summary>
 		/// assigns the value at the top of the stack to the key just below the top in the global table. pops both key and value from the stack.
 		/// may not call metamethods.
@@ -422,6 +499,18 @@ namespace lua::decorator {
 			return IPairsHolder(*this, index);
 		}
 
+		/// <summary>
+		/// sets the hook. the hook function gets called every time one of the conditions mask is met.
+		/// removes any previous hooks.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="F">hook function</param>
+		/// <param name="mask">conditions when to call</param>
+		/// <param name="count">count parameter for count condition</param>
+		template<CppHook F>
+		void Debug_SetHook(B::HookEvent mask, int count) {
+			B::Debug_SetHook(&CppToCHook<F>, mask, count);
+		}
 
 		/// <summary>
 		/// turns the value at index to a debug string.
@@ -541,15 +630,17 @@ namespace lua::decorator {
 		/// calls a function. does catch lua exceptions, and throws an LuaException.
 		/// first push the function, then the arguments in order, then call.
 		/// pops the function and its arguments, then pushes its results.
-		/// use MULTIRET to return all values, use GetTop tofigure out how many got returned.
+		/// use MULTIRET to return all values.
 		/// if an error gets cought, attaches a stack trace and then throws a LuaException.
 		/// <para>[-nargs+1,+nresults|0,t]</para>
 		/// </summary>
 		/// <param name="nargs">number of parameters</param>
 		/// <param name="nresults">number of return values</param>
+		/// <returns>number of return values</returns>
 		/// <exception cref="lua::LuaException">on lua error</exception>
-		void TCall(int nargs, int nresults)
+		int TCall(int nargs, int nresults)
 		{
+			int t = B::GetTop() - nargs - 1;
 			Push<DefaultErrorDecorator>();
 			int ehsi = B::ToAbsoluteIndex(-nargs - 2); // just under the func to be called
 			B::Insert(ehsi);
@@ -562,6 +653,7 @@ namespace lua::decorator {
 				throw LuaException{ msg };
 			}
 			B::Remove(ehsi); // DefaultErrorDecorator
+			return B::GetTop() - t;
 		}
 
 
@@ -697,6 +789,63 @@ namespace lua::decorator {
 			}
 		}
 
+	private:
+		std::string GetNameForFunc_FindField(int i, int level) {
+			if (i <= 0 || !B::IsTable(-1))
+				return "";
+			for (auto kt : Pairs(-1)) {
+				if (kt != lua::LType::String)
+					continue;
+				if (B::RawEqual(-1, i)) {
+					auto r = ToStdString(-2);
+					B::Pop(2);
+					return r;
+				}
+				std::string l = GetNameForFunc_FindField(i, level - 1);
+				if (!l.empty()) {
+					auto r = ToStdString(-2);
+					B::Pop(2);
+					return r + "." + l;
+				}
+			}
+			return "";
+		}
+
+	public:
+		/// <summary>
+		/// tries to find a suitable name for a given function at the top of the stack.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <returns></returns>
+		std::string GetNameForFunc() {
+			int i = B::GetTop();
+			GetTableRaw(B::REGISTRYINDEX, B::REGISTRY_LOADED_TABLE);
+			std::string r = GetNameForFunc_FindField(i, 3);
+			if (r.starts_with("_G.")) {
+				r = r.substr(3);
+			}
+			B::SetTop(i);
+			return r;
+		}
+
+		/// <summary>
+		/// tries to find a suitable name for the function in the call stack at a given level.
+		/// </summary>
+		/// <param name="lvl"></param>
+		/// <returns></returns>
+		std::string Debug_GetNameForStackFunc(int lvl) {
+			typename B::DebugInfo i{};
+			if (!B::Debug_GetStack(lvl, i, B::DebugInfoOptions::Name, true))
+				return "";
+			if (i.Name != nullptr && *i.Name != '\0') {
+				B::Pop(1);
+				return i.Name;
+			}
+			auto r = GetNameForFunc();
+			B::Pop(1);
+			return r;
+		}
+
 		/// <summary>
 		/// generates an error message of the form
 		/// 'bad argument #&lt;arg&gt; to &lt;func&gt; (&lt;extramsg&gt;)'
@@ -715,10 +864,8 @@ namespace lua::decorator {
 				if (arg == 0)
 					ErrorOrThrow(std::format("calling `{}' on bad self ({})", i.Name, msg));
 			}
-			if (i.Name == nullptr) {
-				i.Name = "?";
-			}
-			ErrorOrThrow(std::format("bad argument #{} to `{}' ({})", arg, i.Name, msg));
+			auto n = Debug_GetNameForStackFunc(0);
+			ErrorOrThrow(std::format("bad argument #{} to `{}' ({})", arg, n, msg));
 		}
 		/// <summary>
 		/// calls ArgError if b is not satisfied.
@@ -1859,6 +2006,10 @@ namespace lua::decorator {
 		}
 	};
 
+	/// <summary>
+	/// holds a lua state and automatically closes it, if it goes out of scope.
+	/// </summary>
+	/// <typeparam name="B"></typeparam>
 	template<class B>
 	class UniqueState : public State<B> {
 	public:
@@ -1875,7 +2026,32 @@ namespace lua::decorator {
 		UniqueState(bool io = true, bool debug = false) : State<B>(io, debug) {}
 
 		UniqueState(const UniqueState&) = delete;
-		UniqueState(UniqueState&& s) : State<B>(s.GetState()) { B = nullptr; }
+		UniqueState(UniqueState&& s) noexcept : State<B>(s.GetState()) { s.L = nullptr; }
+		UniqueState(const State<B>& s) noexcept : State<B>(s) {}
+		UniqueState(State<B>&& s) noexcept : State<B>(s) {}
+
+		UniqueState& operator=(const UniqueState&) = delete;
+		UniqueState& operator=(UniqueState&& s) noexcept {
+			if (this->L == s.L)
+				return;
+			State<B>::Close();
+			this->L = s.L;
+			s.L = nullptr;
+		}
+		UniqueState& operator=(const State<B>& s) noexcept {
+			if (this->L == s.L)
+				return;
+			State<B>::Close();
+			this->L = s.L;
+			s.L = nullptr;
+		};
+		UniqueState& operator=(State<B>&& s) noexcept {
+			if (this->L == s.L)
+				return;
+			State<B>::Close();
+			this->L = s.L;
+			s.L = nullptr;
+		}
 
 		~UniqueState() {
 			State<B>::Close();
