@@ -409,16 +409,6 @@ namespace lua::v54 {
 	{
 		lua_dump(L, writer, ud, false);
 	}
-	std::string State::Dump()
-	{
-		std::stringstream str{};
-		Dump([](lua_State* L, const void* data, size_t s, void* ud) {
-			auto* st = static_cast<std::stringstream*>(ud);
-			st->write(static_cast<const char*>(data), s);
-			return 0;
-			}, &str);
-		return str.str();
-	}
 	void State::NewTable()
 	{
 		lua_newtable(L);
@@ -972,10 +962,6 @@ namespace lua::v54 {
 		int t = GetTop();
 		if (t < n)
 			throw lua::LuaException{ "stack contains not enough elements" };
-	}
-	ErrorCode State::DoString(const std::string& code, const char* name)
-	{
-		return DoString(code.c_str(), code.length(), name);
 	}
 	ErrorCode State::DoFile(const char* filename)
 	{

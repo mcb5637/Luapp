@@ -369,7 +369,7 @@ namespace lua::v54 {
 		}
 
 		struct Capabilities {
-			static constexpr bool NativeIntegers = true, UpvalueId = true, GlobalsIndex = false, Length = true, Uservalues = true;
+			static constexpr bool NativeIntegers = true, UpvalueId = true, GlobalsIndex = false, Length = true, Uservalues = true, CloseSlots = true;
 		};
 		using ErrorCode = ErrorCode;
 		using ComparisonOperator = ComparisonOperator;
@@ -784,18 +784,6 @@ namespace lua::v54 {
 		/// <param name="nups">number of upvalues</param>
 		void Push(CFunction f, int nups = 0);
 		/// <summary>
-		/// pushes a CFunction or CClosure (function with upvalues) onto the stack.
-		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
-		/// <para>[-nups,+1,m]</para>
-		/// </summary>
-		/// <param name="F">function</param>
-		/// <param name="nups">number of upvalues</param>
-		template<CFunction F>
-		void Push(int nups = 0)
-		{
-			Push(F, nups);
-		}
-		/// <summary>
 		/// pushes a light userdata onto the stack.
 		/// <para>[-0,+1,-]</para>
 		/// </summary>
@@ -889,12 +877,6 @@ namespace lua::v54 {
 		/// <param name="writer">writer function</param>
 		/// <param name="ud">data, passed to writer</param>
 		void Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud);
-		/// <summary>
-		/// dumps a lua function at the top of the stack to binary, which can be loaded again via Load.
-		/// <para>[-0,+0,m]</para>
-		/// </summary>
-		/// <returns>binary data of the function</returns>
-		std::string Dump();
 
 		/// <summary>
 		/// creates a new table and pushes it onto the stack.
@@ -1290,17 +1272,6 @@ namespace lua::v54 {
 		void UnRefI(int r, int t);
 		constexpr static int NOREFI = -2;
 		constexpr static int REFNILI = -1;
-
-
-	public:
-		/// <summary>
-		/// loads a std::string and executes it. returns an error code.
-		/// <para>[-0,+?,m]</para>
-		/// </summary>
-		/// <param name="code">code</param>
-		/// <param name="name">code name</param>
-		/// <returns>error code</returns>
-		ErrorCode DoString(const std::string& code, const char* name);
 	};
 }
 

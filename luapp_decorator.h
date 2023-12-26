@@ -201,6 +201,18 @@ namespace lua::decorator {
 		static State Create(bool io = true, bool debug = false) { return State(io, debug); }
 
 		/// <summary>
+		/// pushes a CFunction or CClosure (function with upvalues) onto the stack.
+		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
+		/// <para>[-nups,+1,m]</para>
+		/// </summary>
+		/// <param name="F">function</param>
+		/// <param name="nups">number of upvalues</param>
+		template<CFunction F>
+		void Push(int nups = 0)
+		{
+			Push(F, nups);
+		}
+		/// <summary>
 		/// pushes a CppFunction or CppClosure (function with upvalues) onto the stack.
 		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
 		/// <para>[-nups,+1,m]</para>
@@ -233,6 +245,22 @@ namespace lua::decorator {
 			Push(B::GetMetaEventName(ev));
 		}
 		using B::Push;
+
+		/// <summary>
+		/// dumps a lua function at the top of the stack to binary, which can be loaded again via Load.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <returns>binary data of the function</returns>
+		std::string Dump() {
+			std::stringstream str{};
+			B::Dump([](lua_State* L, const void* data, size_t s, void* ud) {
+				auto* st = static_cast<std::stringstream*>(ud);
+				st->write(static_cast<const char*>(data), s);
+				return 0;
+				}, &str);
+			return str.str();
+		}
+		using B::Dump;
 
 		/// <summary>
 		/// converts to a std::string_view.
@@ -1203,20 +1231,19 @@ namespace lua::decorator {
 		/// <param name="code">code</param>
 		/// <param name="len">code lenght</param>
 		/// <param name="name">code name</param>
+		/// <returns>number of return values</returns>
 		/// <exception cref="lua::LuaException">on lua exceptions</exception>
-		void DoStringT(const char* code, size_t len = 0, const char* name = nullptr) {
+		int DoStringT(std::string_view code, const char* name = nullptr) {
 			if (!name)
-				name = code;
-			if (len == 0)
-				len = strlen(code);
-			auto e = B::LoadBuffer(code, len, name);
+				name = code.data();
+			auto e = B::LoadBuffer(code.data(), code.length(), name);
 			if (e != B::ErrorCode::Success) {
 				std::string msg = B::ErrorCodeFormat(e);
 				msg += B::ToString(-1);
 				B::Pop(1); // error msg
 				throw LuaException{ msg };
 			}
-			TCall(0, B::MULTIRET);
+			return TCall(0, B::MULTIRET);
 		}
 
 		/// <summary>
