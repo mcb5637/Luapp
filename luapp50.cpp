@@ -20,7 +20,7 @@ extern "C" {
 #include <sstream>
 #include <format>
 
-namespace lua50 {
+namespace lua::v50 {
 	// make sure all the constants match
 	// i do define them new to avoid having to include the c lua files and having all their funcs/defines in global namespace
 	static_assert(State::MINSTACK == LUA_MINSTACK);
@@ -99,12 +99,12 @@ namespace lua50 {
 
 	State::State(lua_State* L)
 	{
-		static_assert(Reference::REFNIL == LUA_REFNIL);
-		static_assert(Reference::NOREF == LUA_NOREF);
+		static_assert(REFNILI == LUA_REFNIL);
+		static_assert(NOREFI == LUA_NOREF);
 		this->L = L;
 	}
 
-	lua50::State::State(bool io, bool debug)
+	State::State(bool io, bool debug)
 	{
 		L = lua_open();
 		luaopen_base(L);
@@ -130,7 +130,8 @@ namespace lua50 {
 
 	void State::Close()
 	{
-		lua_close(L);
+		if (L != nullptr)
+			lua_close(L);
 		L = nullptr;
 	}
 
@@ -216,63 +217,31 @@ namespace lua50 {
 	{
 		return lua_typename(L, static_cast<int>(t));
 	}
-	int equal_protected(lua_State* L)
-	{
-		bool r = lua_equal(L, 1, 2);
-		*static_cast<bool*>(lua_touserdata(L, 3)) = r;
-		return 0;
-	}
-	bool State::Equal(int i1, int i2)
-	{
-		if (!IsValidIndex(i1) || !IsValidIndex(i2))
-			return false;
-		bool ret = false;
-		i1 = ToAbsoluteIndex(i1);
-		i2 = ToAbsoluteIndex(i2);
-		lua_pushcfunction(L, &equal_protected);
-		lua_pushvalue(L, i1);
-		lua_pushvalue(L, i2);
-		lua_pushlightuserdata(L, &ret);
-		TCall(3, 0);
-		return ret;
-	}
 	bool State::RawEqual(int i1, int i2)
 	{
 		return lua_rawequal(L, i1, i2);
 	}
-	int lessthan_protected(lua_State* L)
+	int State::Compare_Unprotected(lua_State* L)
 	{
-		bool r = lua_lessthan(L, 1, 2);
-		*static_cast<bool*>(lua_touserdata(L, 3)) = r;
-		return 0;
-	}
-	bool State::LessThan(int i1, int i2)
-	{
-		if (!IsValidIndex(i1) || !IsValidIndex(i2))
-			return false;
-		bool ret = false;
-		i1 = ToAbsoluteIndex(i1);
-		i2 = ToAbsoluteIndex(i2);
-		lua_pushcfunction(L, &lessthan_protected);
-		lua_pushvalue(L, i1);
-		lua_pushvalue(L, i2);
-		lua_pushlightuserdata(L, &ret);
-		TCall(3, 0);
-		return ret;
-	}
-	bool State::Compare(int i1, int i2, ComparisonOperator op)
-	{
+		auto op = static_cast<ComparisonOperator>(static_cast<int>(lua_tonumber(L, 4)));
+		bool r;
 		switch (op)
 		{
 		case ComparisonOperator::Equals:
-			return Equal(i1, i2);
+			r = lua_equal(L, 1, 2);
+			break;
 		case ComparisonOperator::LessThan:
-			return LessThan(i1, i2);
+			r = lua_lessthan(L, 1, 2);
+			break;
 		case ComparisonOperator::LessThanOrEquals:
-			return LessThan(i1, i2) || Equal(i1, i2);
+			r = lua_equal(L, 1, 2) || lua_lessthan(L, 1, 2);
+			break;
 		default:
-			return false;
+			r = false;
+			break;
 		}
+		*static_cast<bool*>(lua_touserdata(L, 3)) = r;
+		return 0;
 	}
 	bool State::IsNoneOrNil(int idx)
 	{
@@ -282,13 +251,19 @@ namespace lua50 {
 	{
 		return lua_toboolean(L, index);
 	}
-	Number State::ToNumber(int index)
+	std::optional<Number> State::ToNumber(int index)
 	{
-		return lua_tonumber(L, index);
+		Number n = lua_tonumber(L, index);
+		if (n == 0 && !lua_isnumber(L, index))
+			return std::nullopt;
+		return n;
 	}
-	Integer State::ToInteger(int index)
+	std::optional<Integer> State::ToInteger(int index)
 	{
-		return static_cast<Integer>(lua_tonumber(L, index));
+		Number n = lua_tonumber(L, index);
+		if (n == 0 && !lua_isnumber(L, index))
+			return std::nullopt;
+		return static_cast<Integer>(n);
 	}
 	const char* State::ToString(int index, size_t* len)
 	{
@@ -372,50 +347,46 @@ namespace lua50 {
 		va_end(args);
 		return r;
 	}
-	int concat_protected(lua_State* L)
+	int State::Concat_Unprotected(lua_State* L)
 	{
 		int n = static_cast<int>(lua_tonumber(L, -1));
 		lua_pop(L, 1);
 		lua_concat(L, n);
 		return 1;
 	}
-	void State::Concat(int num)
+	int State::Arithmetic_Unprotected(lua_State* L)
 	{
-		lua_pushcfunction(L, &concat_protected);
-		lua_insert(L, -num-1);
-		lua_pushnumber(L, num);
-		TCall(num + 1, 1);
-	}
-	void State::Arithmetic(ArihmeticOperator op)
-	{
+		ArihmeticOperator op = static_cast<ArihmeticOperator>(static_cast<int>(lua_tonumber(L, -1)));
+		lua_pop(L, 1);
 		switch (op)
 		{
 		case ArihmeticOperator::Add:
-			DoString("return function(a, b) return a + b; end");
+			lua_dostring(L, "return function(a, b) return a + b; end");
 			break;
 		case ArihmeticOperator::Subtract:
-			DoString("return function(a, b) return a - b; end");
+			lua_dostring(L, "return function(a, b) return a - b; end");
 			break;
 		case ArihmeticOperator::Multiply:
-			DoString("return function(a, b) return a * b; end");
+			lua_dostring(L, "return function(a, b) return a * b; end");
 			break;
 		case ArihmeticOperator::Divide:
-			DoString("return function(a, b) return a / b; end");
+			lua_dostring(L, "return function(a, b) return a / b; end");
 			break;
 		case ArihmeticOperator::Modulo:
-			DoString("return function(a, b) return math.mod(a, b); end");
+			lua_dostring(L, "return function(a, b) return math.mod(a, b); end");
 			break;
 		case ArihmeticOperator::Pow:
-			DoString("return function(a, b) return a ^ b; end");
+			lua_dostring(L, "return function(a, b) return a ^ b; end");
 			break;
 		case ArihmeticOperator::UnaryNegation:
-			DoString("return function(a) return -a; end");
+			lua_dostring(L, "return function(a) return -a; end");
 			break;
 		default:
-			Push();
+			lua_pushnil(L);
 		}
 		lua_insert(L, op == ArihmeticOperator::UnaryNegation ? -2 : -3);
-		TCall(op == ArihmeticOperator::UnaryNegation ? 1 : 2, 1);
+		lua_call(L, op == ArihmeticOperator::UnaryNegation ? 1 : 2, 1);
+		return 1;
 	}
 	bool State::GetMetatable(int index)
 	{
@@ -437,32 +408,14 @@ namespace lua50 {
 	{
 		lua_dump(L, writer, ud);
 	}
-	std::string State::Dump()
-	{
-		std::stringstream str{};
-		Dump([](lua_State* L, const void* data, size_t s, void* ud) {
-			auto* st = static_cast<std::stringstream*>(ud);
-			st->write(static_cast<const char*>(data), s);
-			return 0;
-			}, &str);
-		return str.str();
-	}
 	void State::NewTable()
 	{
 		lua_newtable(L);
 	}
-	int gettable_protected(lua_State* L)
+	int State::GetTable_Unprotected(lua_State* L)
 	{
 		lua_gettable(L, 1);
 		return 1;
-	}
-	void State::GetTable(int index)
-	{
-		lua_pushvalue(L, index);
-		lua_insert(L, -2);
-		lua_pushcfunction(L, &gettable_protected);
-		lua_insert(L, -3);
-		TCall(2, 1);
 	}
 	void State::GetTableRaw(int index)
 	{
@@ -481,18 +434,10 @@ namespace lua50 {
 		}
 		lua_rawgeti(L, index, n);
 	}
-	int settable_protected(lua_State* L)
+	int State::SetTable_Unprotected(lua_State* L)
 	{
 		lua_settable(L, 1);
 		return 0;
-	}
-	void State::SetTable(int index)
-	{
-		lua_pushvalue(L, index);
-		lua_insert(L, -3);
-		lua_pushcfunction(L, &settable_protected);
-		lua_insert(L, -4);
-		TCall(3, 0);
 	}
 	void State::SetTableRaw(int index)
 	{
@@ -512,54 +457,15 @@ namespace lua50 {
 		}
 		lua_rawseti(L, index, n);
 	}
-	void State::SetGlobal()
-	{
-		SetTableRaw(GLOBALSINDEX);
-	}
-	void State::SetGlobal(const char* k)
-	{
-		Push(k);
-		Insert(-2);
-		SetGlobal();
-	}
-	void State::GetGlobal()
-	{
-		GetTableRaw(GLOBALSINDEX);
-	}
-	void State::GetGlobal(const char* k)
-	{
-		Push(k);
-		GetGlobal();
-	}
 	void State::PushGlobalTable()
 	{
 		PushValue(GLOBALSINDEX);
 	}
-	int next_protected(lua_State* L)
+	int State::Next_Unproteced(lua_State* L)
 	{
 		bool has = lua_next(L, 2);
 		*static_cast<bool*>(lua_touserdata(L, 1)) = has;
 		return has ? 2 : 0;
-	}
-	bool State::Next(int index)
-	{
-		bool r = false;
-		lua_pushvalue(L, index);
-		lua_insert(L, -2);
-		lua_pushlightuserdata(L, &r);
-		lua_insert(L, -3);
-		lua_pushcfunction(L, &next_protected);
-		lua_insert(L, -4);
-		TCall(3, MULTIRET);
-		return r;
-	}
-	PairsHolder State::Pairs(int index)
-	{
-		return PairsHolder(*this, index);
-	}
-	IPairsHolder State::IPairs(int index)
-	{
-		return IPairsHolder(*this, index);
 	}
 	void State::Call(int nargs, int nresults)
 	{
@@ -575,164 +481,25 @@ namespace lua50 {
 		}
 		return static_cast<ErrorCode>(lua_pcall(L, nargs, nresults, errfunc));
 	}
-	void State::TCall(int nargs, int nresults)
-	{
-		Push<DefaultErrorDecorator>();
-		int ehsi = ToAbsoluteIndex(-nargs - 2); // just under the func to be called
-		Insert(ehsi);
-		ErrorCode c = PCall(nargs, nresults, ehsi);
-		if (c != ErrorCode::Success) {
-			std::string msg = ErrorCodeFormat(c);
-			msg += ToString(-1);
-			Pop(1); // error msg
-			Remove(ehsi); // DefaultErrorDecorator
-			throw LuaException{ msg };
-		}
-		Remove(ehsi); // DefaultErrorDecorator
-	}
-	std::string State::int2Str(int i) {
-		return std::format("{0:X}", i);
-		//return std::to_string(i);
-	}
-	std::string State::ToDebugString(int index)
-	{
-		LType t = Type(index);
-		switch (t)
-		{
-		case lua50::LType::Nil:
-			return "nil";
-		case lua50::LType::Boolean:
-			return ToBoolean(index) ? "true" : "false";
-		case lua50::LType::LightUserdata:
-			return "<LightUserdata 0x" + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
-		case lua50::LType::Number:
-			return std::to_string(ToNumber(index));
-		case lua50::LType::String:
-			return "\"" + ToStdString(index) + "\"";
-		case lua50::LType::Table:
-			return "<table 0x" + int2Str(reinterpret_cast<int>(lua_topointer(L, index))) + ">";
-		case lua50::LType::Function:
-			{
-				PushValue(index);
-				DebugInfo d = Debug_GetInfoForFunc(DebugInfoOptions::Name | DebugInfoOptions::Source | DebugInfoOptions::Line);
-				std::ostringstream name{};
-				name << "<function ";
-				name << d.What << " ";
-				name << d.NameWhat << " ";
-				name << (d.Name ? d.Name : "null") << " (defined in:";
-				name << d.ShortSrc << ":";
-				if (IsCFunction(index))
-					name << "0x" << int2Str(reinterpret_cast<int>(ToCFunction(index)));
-				else
-					name << d.LineDefined;
-				name << ")>";
-				return name.str();
-			}
-		case lua50::LType::Userdata:
-			{
-				std::string ud = "";
-				if (GetMetaField(-1, TypeNameName)) {
-					ud = ToString(-1);
-					Pop(1);
-				}
-				return "<Userdata " + ud + + " 0x" + int2Str(reinterpret_cast<int>(ToUserdata(index))) + ">";
-			}
-		case lua50::LType::Thread:
-			return "<thread 0x" + int2Str(reinterpret_cast<int>(lua_tothread(L, index))) + ">";
-		case lua50::LType::None:
-			return "<none>";
-		default:
-			return "<unknown>";
-		}
-	}
-	std::string State::GenerateStackTrace(int levelStart, int levelEnd, bool upvalues, bool locals)
-	{
-		int lvl = levelStart;
-		lua_Debug ar;
-		std::ostringstream trace{};
-		while (levelEnd != lvl && lua_getstack(L, lvl, &ar)) {
-			if (lua_getinfo(L, "nSl", &ar)) {
-				trace << "\t";
-				trace << ar.what << " ";
-				trace << ar.namewhat << " ";
-				trace << (ar.name ? ar.name : "null") << " (defined in:";
-				trace << ar.short_src << ":";
-				trace << ar.currentline << ")";
-				if (locals) {
-					const char* localname;
-					int lnum = 1;
-					while (localname = lua_getlocal(L, &ar, lnum)) {
-						trace << "\r\n\t\tlocal " << localname << " = " << ToDebugString(-1);
-						Pop(1);
-						lnum++;
-					}
-				}
-				if (upvalues) {
-					lua_getinfo(L, "f", &ar);
-					const char* upname;
-					int unum = 1;
-					while (upname = lua_getupvalue(L, -1, unum)) {
-						trace << "\r\n\t\tupvalue " << upname << " = " << ToDebugString(-1);
-						Pop(1);
-						unum++;
-					}
-					Pop(1);
-				}
-				trace << "\r\n";
-			}
-			lvl++;
-		}
-		return trace.str();
-	}
-	int State::DefaultErrorDecorator(State L)
-	{
-		std::ostringstream trace{};
-		trace << L.ToString(-1);
-		L.Pop(1);
-		trace << "\r\nStacktrace:\r\n";
-		trace << L.GenerateStackTrace(1, -1, true, true);
-		L.Push(trace.str());
-		return 1;
-	}
 	const char* State::ErrorCodeFormat(ErrorCode c)
 	{
 		switch (c)
 		{
-		case lua50::ErrorCode::Success:
+		case ErrorCode::Success:
 			return "Lua_Success: ";
-		case lua50::ErrorCode::Runtime:
+		case ErrorCode::Runtime:
 			return "Lua_RuntimeError: ";
-		case lua50::ErrorCode::File:
+		case ErrorCode::File:
 			return "Lua_FileError: ";
-		case lua50::ErrorCode::Syntax:
+		case ErrorCode::Syntax:
 			return "Lua_SyntaxError: ";
-		case lua50::ErrorCode::Memory:
+		case ErrorCode::Memory:
 			return "Lua_MemoryError: ";
-		case lua50::ErrorCode::ErrorHandler:
+		case ErrorCode::ErrorHandler:
 			return "Lua_HandlerError: ";
 		default:
 			return "Lua_UnknownErrorCode: ";
 		}
-	}
-	void State::ProtectedAPI(APIProtector* p)
-	{
-		if (!CheckStack(3))
-			throw LuaException("ProtectedAPI: Stack Overflow!");
-		Push<ProtectedAPIExecutor>();
-		PushLightUserdata(p);
-		TCall(1, 0);
-	}
-	int State::ProtectedAPIExecutor(State L)
-	{
-		APIProtector* p = static_cast<APIProtector*>(L.ToUserdata(-1));
-		p->Work(L);
-		return 0;
-	}
-	void State::RegisterFunc(const char* name, CFunction f, int index)
-	{
-		Push(name);
-		Push(f);
-		SetTableRaw(index);
 	}
 	void State::Error()
 	{
@@ -767,6 +534,124 @@ namespace lua50 {
 	Number State::Version()
 	{
 		return std::strtod(lua_version() + 4, nullptr);
+	}
+	constexpr const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
+	{
+		if (fromStack) {
+			switch (opt) {
+			case DebugInfoOptions::None:
+				return ">";
+			case DebugInfoOptions::Name:
+				return ">n";
+			case DebugInfoOptions::Source:
+				return ">S";
+			case DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return ">Sn";
+			case DebugInfoOptions::Line:
+				return ">l";
+			case DebugInfoOptions::Line | DebugInfoOptions::Name:
+				return ">ln";
+			case DebugInfoOptions::Line | DebugInfoOptions::Source:
+				return ">lS";
+			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return ">lSn";
+			case DebugInfoOptions::Upvalues:
+				return ">u";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name:
+				return ">un";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source:
+				return ">uS";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return ">uSn";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line:
+				return ">ul";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name:
+				return ">uln";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source:
+				return ">ulS";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return ">ulSn";
+			default:
+				return "";
+			}
+		}
+		else if (pushFunc) {
+			switch (opt) {
+			case DebugInfoOptions::None:
+				return "f";
+			case DebugInfoOptions::Name:
+				return "fn";
+			case DebugInfoOptions::Source:
+				return "fS";
+			case DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return "fSn";
+			case DebugInfoOptions::Line:
+				return "fl";
+			case DebugInfoOptions::Line | DebugInfoOptions::Name:
+				return "fln";
+			case DebugInfoOptions::Line | DebugInfoOptions::Source:
+				return "flS";
+			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return "flSn";
+			case DebugInfoOptions::Upvalues:
+				return "fu";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name:
+				return "fun";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source:
+				return "fuS";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return "fuSn";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line:
+				return "ful";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name:
+				return "fuln";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source:
+				return "fulS";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return "fulSn";
+			default:
+				return "";
+			}
+		}
+		else {
+
+			switch (opt) {
+			case DebugInfoOptions::None:
+				return "";
+			case DebugInfoOptions::Name:
+				return "n";
+			case DebugInfoOptions::Source:
+				return "S";
+			case DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return "Sn";
+			case DebugInfoOptions::Line:
+				return "l";
+			case DebugInfoOptions::Line | DebugInfoOptions::Name:
+				return "ln";
+			case DebugInfoOptions::Line | DebugInfoOptions::Source:
+				return "lS";
+			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return "lSn";
+			case DebugInfoOptions::Upvalues:
+				return "u";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name:
+				return "un";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source:
+				return "uS";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return "uSn";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line:
+				return "ul";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name:
+				return "uln";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source:
+				return "ulS";
+			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
+				return "ulSn";
+			default:
+				return "";
+			}
+		}
 	}
 	bool State::Debug_GetStack(int level, DebugInfo& Info, DebugInfoOptions opt, bool pushFunc)
 	{
@@ -843,235 +728,23 @@ namespace lua50 {
 	{
 		return lua_gethookcount(L);
 	}
-	void State::ArgError(int arg, const char* msg)
-	{
-		if constexpr (CatchExceptions) {
-			lua_Debug ar;
-			lua_getstack(L, 0, &ar);
-			lua_getinfo(L, "n", &ar);
-			if (strcmp(ar.namewhat, "method") == 0) {
-				arg--;  /* do not count `self' */
-				if (arg == 0)  /* error is in the self argument itself? */
-					ThrowLuaFormatted("calling `%s' on bad self (%s)", ar.name, msg);
-			}
-			if (ar.name == NULL)
-				ar.name = "?";
-			ThrowLuaFormatted("bad argument #%d to `%s' (%s)", arg, ar.name, msg);
-		}
-		else {
-			luaL_argerror(L, arg, msg);
-		}
-	}
-	void State::ArgCheck(bool b, int arg, const char* msg)
-	{
-		if (!b)
-			ArgError(arg, msg);
-	}
-	bool State::CallMeta(int obj, const char* ev)
-	{
-		obj = ToAbsoluteIndex(obj);
-		if (!GetMetaField(obj, ev)) {
-			return false;
-		}
-		PushValue(obj);
-		TCall(1, 1);
-		return true;
-	}
-	bool State::CallMeta(int obj, MetaEvent ev)
-	{
-		return CallMeta(obj, GetMetaEventName(ev));
-	}
-	void lua50::State::CheckStackHasElements(int n)
+	void State::CheckStackHasElements(int n)
 	{
 		int t = GetTop();
 		if (t < n)
 			throw lua::LuaException{ "not enough stack elements" };
 	}
-	void State::CheckAny(int idx)
-	{
-		if (Type(idx) == LType::None)
-			ArgError(idx, "value expected");
-	}
-	Integer State::CheckInt(int idx)
-	{
-		return static_cast<Integer>(CheckNumber(idx));
-	}
-	const char* State::CheckString(int idx, size_t* len)
-	{
-		if constexpr (CatchExceptions) {
-			const char* s = ToString(idx);
-			if (!s)
-				TypeError(idx, LType::String);
-			if (len)
-				*len = lua_strlen(L, idx);
-			return s;
-		}
-		else {
-			return luaL_checklstring(L, idx, len);
-		}
-	}
-	std::string State::CheckStdString(int idx)
-	{
-		size_t l;
-		const char* s = CheckString(idx, &l);
-		return { s, l };
-	}
-	std::string State::OptStdString(int idx, const std::string& def)
-	{
-		size_t l;
-		const char* s = OptString(idx, def.c_str(), &l);
-		return { s, l };
-	}
-	std::string_view State::ToStringView(int idx)
-	{
-		const char* s = lua_tostring(L, idx);
-		if (!s)
-			throw lua::LuaException("no string");
-		size_t l = lua_strlen(L, idx);
-		return { s, l };
-	}
-	std::string_view State::CheckStringView(int idx)
-	{
-		size_t l;
-		const char* s = CheckString(idx, &l);
-		return { s, l };
-	}
-	std::string_view State::OptStringView(int idx, std::string_view def)
-	{
-		size_t l;
-		const char* s = OptString(idx, def.data(), &l);
-		return { s, l };
-	}
-	const char* State::ConvertToString(int idx, size_t* len)
-	{
-		idx = ToAbsoluteIndex(idx);
-		if (CallMeta(idx, MetaEvent::ToString)) {  /* metafield? */
-			if (!IsString(-1))
-				throw lua::LuaException{ "'__tostring' must return a string" };
-		}
-		else {
-			switch (Type(idx)) {
-			case lua::LType::Number: {
-				PushFString("%f", lua_tonumber(L, idx));
-				break;
-			}
-			case lua::LType::String:
-				PushValue(idx);
-				break;
-			case lua::LType::Boolean:
-				Push((ToBoolean(idx) ? "true" : "false"));
-				break;
-			case lua::LType::Nil:
-				Push("nil");
-				break;
-			default: {
-				int top = GetTop();
-				if (GetMetaField(idx, MetaEvent::Name))  /* try name */
-				{
-					top = GetTop();
-					if (IsString(-1)) {
-						top = GetTop();
-						PushFString("%s: %d", ToString(-1), ToPointer(idx));
-						top = GetTop();
-						Remove(-2);
-						top = GetTop();
-						break;
-					}
-					Remove(-2);
-					top = GetTop();
-				}
-				PushFString("%s: %p", TypeName(Type(idx)), ToPointer(idx));
-				break;
-			}
-			}
-		}
-		int top = GetTop();
-		return ToString(-1, len);
-	}
-	std::string State::ConvertToStdString(int idx)
-	{
-		size_t len;
-		const char* s = ConvertToString(idx, &len);
-		return { s, len };
-	}
-	ErrorCode State::DoString(const std::string& code, const char* name)
-	{
-		return DoString(code.c_str(), code.length(), name);
-	}
-	std::string State::LuaVFormat(const char* s, va_list args)
-	{
-		const char* r = PushVFString(s, args);
-		std::string sr = ToStdString(-1);
-		Pop(1);
-		return sr;
-	}
-	std::string State::LuaFormat(const char* s, ...)
-	{
-		va_list args;
-		va_start(args, s);
-		std::string sr = LuaVFormat(s, args);
-		va_end(args);
-		return sr;
-	}
-	void State::ThrowLuaFormatted(const char* s, ...)
-	{
-		va_list args;
-		va_start(args, s);
-		std::string sr = LuaVFormat(s, args);
-		va_end(args);
-		throw LuaException{ sr };
-	}
-	Number State::CheckNumber(int idx)
-	{
-		if constexpr (CatchExceptions) {
-			Number n = ToNumber(idx);
-			if (n == 0 && !IsNumber(idx))
-				TypeError(idx, LType::Number);
-			return n;
-		}
-		else {
-			return luaL_checknumber(L, idx);
-		}
-	}
-	float State::CheckFloat(int idx)
-	{
-		return static_cast<float>(CheckNumber(idx));
-	}
-	bool State::CheckBool(int idx)
-	{
-		CheckType(idx, LType::Boolean);
-		return ToBoolean(idx);
-	}
-	void State::CheckStack(int extra, const char* msg)
-	{
-		if constexpr (CatchExceptions) {
-			if (!CheckStack(extra))
-				ThrowLuaFormatted("stack overflow (%s)", msg);
-		}
-		else {
-			luaL_checkstack(L, extra, msg);
-		}
-	}
-	void State::CheckType(int idx, LType t)
-	{
-		if (Type(idx) != t)
-			TypeError(idx, t);
-	}
-	void* State::CheckUserdata(int idx, const char* name)
-	{
-		return luaL_checkudata(L, idx, name);
-	}
 	ErrorCode State::DoFile(const char* filename)
 	{
-		return static_cast<ErrorCode>(lua_dofile(L, filename));
+		return static_cast<ErrorCode>(luaL_loadfile(L, filename) || lua_pcall(L, 0, LUA_MULTRET, 0));
 	}
 	ErrorCode State::DoString(const char* code)
 	{
-		return static_cast<ErrorCode>(lua_dostring(L, code));
+		return static_cast<ErrorCode>(luaL_loadbuffer(L, code, strlen(code), code) || lua_pcall(L, 0, LUA_MULTRET, 0));
 	}
 	ErrorCode State::DoString(const char* code, size_t l, const char* name)
 	{
-		return static_cast<ErrorCode>(lua_dobuffer(L, code, l, name));
+		return static_cast<ErrorCode>(luaL_loadbuffer(L, code, l, name) || lua_pcall(L, 0, LUA_MULTRET, 0));
 	}
 	ErrorCode State::LoadBuffer(const char* code, size_t len, const char* name)
 	{
@@ -1081,147 +754,13 @@ namespace lua50 {
 	{
 		return static_cast<ErrorCode>(luaL_loadfile(L, filename));
 	}
-	void State::DoStringT(const char* code, size_t len, const char* name)
+	int State::RefI(int t)
 	{
-		if (!name)
-			name = code;
-		if (len == 0)
-			len = strlen(code);
-		ErrorCode e = static_cast<ErrorCode>(luaL_loadbuffer(L, code, len, name));
-		if (e != ErrorCode::Success) {
-			std::string msg = ErrorCodeFormat(e);
-			msg += ToString(-1);
-			Pop(1); // error msg
-			throw LuaException{ msg };
-		}
-		TCall(0, MULTIRET);
+		return luaL_ref(L, t);
 	}
-	void State::Error(const char* fmt, ...)
+	void State::UnRefI(int r, int t)
 	{
-		va_list args;
-		va_start(args, fmt);
-		const char* r = PushVFString(fmt, args);
-		va_end(args);
-		Error();
-	}
-	void State::TypeError(int idx, LType t)
-	{
-		TypeError(idx, TypeName(t));
-	}
-	void State::TypeError(int idx, const char* t)
-	{
-		if constexpr (CatchExceptions) {
-			std::string s = LuaFormat("%s expected, got %s", t, TypeName(Type(idx)));
-			ArgError(idx, s.c_str());
-		}
-		else {
-			luaL_typerror(L, idx, t);
-		}
-	}
-	void State::Assert(bool a, const char* msg)
-	{
-		if constexpr (CatchExceptions) {
-			if (!a)
-				throw LuaException{ msg };
-		}
-		else {
-			if (!a)
-				Error(msg);
-		}
-	}
-	bool State::GetMetaField(int obj, const char* ev)
-	{
-		return luaL_getmetafield(L, obj, ev);
-	}
-	void State::Where(int lvl)
-	{
-		luaL_where(L, lvl);
-	}
-	bool State::GetMetaField(int obj, MetaEvent ev)
-	{
-		return GetMetaField(obj, GetMetaEventName(ev));
-	}
-	void State::GetMetaTableFromRegistry(const char* name)
-	{
-		luaL_getmetatable(L, name);
-	}
-	bool State::NewMetaTable(const char* name)
-	{
-		return luaL_newmetatable(L, name);
-	}
-	bool State::GetSubTable(const char* name, int index)
-	{
-		index = ToAbsoluteIndex(index);
-		Push(name);
-		GetTableRaw(index);
-		if (!IsTable(-1)) {
-			Pop(1);
-			NewTable();
-			Push(name);
-			PushValue(-2);
-			SetTableRaw(index);
-			return false;
-		}
-		return true;
-	}
-	Integer State::OptInteger(int idx, Integer def)
-	{
-		if (IsNoneOrNil(idx))
-			return def;
-		else
-			return CheckInt(idx);
-	}
-	const char* State::OptString(int idx, const char* def, size_t* l)
-	{
-		if (IsNoneOrNil(idx)) {
-			if (l)
-				*l = (def ? strlen(def) : 0);
-			return def;
-		}
-		else
-			return CheckString(idx, l);
-	}
-	Number State::OptNumber(int idx, Number def)
-	{
-		if (IsNoneOrNil(idx))
-			return def;
-		else
-			return CheckNumber(idx);
-	}
-	bool State::OptBool(int idx, bool def)
-	{
-		if (IsNoneOrNil(idx))
-			return def;
-		else
-			return ToBoolean(idx);
-	}
-	float State::OptFloat(int idx, float def)
-	{
-		return static_cast<float>(OptNumber(idx, def));
-	}
-	Reference State::Ref(int t)
-	{
-		return { luaL_ref(L, t) };
-	}
-	void State::UnRef(Reference r, int t)
-	{
-		luaL_unref(L, t, r.r);
-	}
-	void State::Push(Reference r, int t)
-	{
-		GetTableRaw(t, r.r);
-	}
-	void State::Push(std::string_view s)
-	{
-		lua_pushlstring(L, s.data(), s.size());
-	}
-	std::string State::ToStdString(int idx)
-	{
-		const char* s = lua_tostring(L, idx);
-		if (!s)
-			throw lua::LuaException("no string");
-		size_t l = lua_strlen(L, idx);
-		return { s, l };
+		luaL_unref(L, t, r);
 	}
 	bool State::CheckStack(int extra)
 	{
@@ -1239,136 +778,8 @@ namespace lua50 {
 			return i;
 		return GetTop() + i + 1;
 	}
-	LuaException::LuaException(const std::string& what) : std::runtime_error(what)
-	{
-	}
-	LuaException::LuaException(const char* what) : std::runtime_error(what)
-	{
-	}
-	LuaException::LuaException(const LuaException& other) noexcept : std::runtime_error(other)
-	{
-	}
 	ActivationRecord::ActivationRecord(lua_Debug* ar)
 	{
 		this->ar = ar;
-	}
-	StateCloser::StateCloser(State l)
-	{
-		L = l;
-	}
-	StateCloser::StateCloser(bool io, bool debug) : L{io, debug}
-	{
-	}
-	StateCloser::~StateCloser()
-	{
-		L.Close();
-	}
-	State StateCloser::GetState()
-	{
-		return L;
-	}
-	PairsHolder::PairsHolder(State l, int i)
-	{
-		L = l;
-		index = L.ToAbsoluteIndex(i);
-	}
-	PairsIter PairsHolder::begin()
-	{
-		L.Push();
-		PairsIter i{ L, index };
-		i.hasNext = L.Next(index);
-		return i;
-	}
-	PairsSentinel PairsHolder::end()
-	{
-		return PairsSentinel();
-	}
-	PairsIter::PairsIter(State l, int i)
-	{
-		L = l;
-		index = i;
-	}
-	PairsIter& PairsIter::operator++()
-	{
-		L.Pop(1); // value
-		hasNext = L.Next(index);
-		return *this;
-	}
-	PairsIter PairsIter::operator++(int)
-	{
-		PairsIter r = *this;
-		++(*this);
-		return r;
-	}
-	LType PairsIter::operator*()
-	{
-		return L.Type(-2);
-	}
-	bool operator==(const PairsIter& i, PairsSentinel s)
-	{
-		return !i.hasNext;
-	}
-	bool operator==(PairsSentinel s, const PairsIter& i)
-	{
-		return i == s;
-	}
-	bool operator==(const IPairsIter& i, PairsSentinel s)
-	{
-		return !i.hasNext;
-	}
-	bool operator==(PairsSentinel s, const IPairsIter& i)
-	{
-		return i == s;
-	}
-	IPairsHolder::IPairsHolder(State l, int i)
-	{
-		L = l;
-		index = L.ToAbsoluteIndex(i);
-	}
-	IPairsIter IPairsHolder::begin()
-	{
-		IPairsIter i{ L, index };
-		L.GetTableRaw(index, i.key);
-		if (L.Type(-1) == LType::Nil) {
-			i.hasNext = false;
-			L.Pop(1);
-		}
-		else {
-			i.hasNext = true;
-		}
-		return i;
-	}
-	PairsSentinel IPairsHolder::end()
-	{
-		return PairsSentinel();
-	}
-	IPairsIter::IPairsIter(State l, int i)
-	{
-		L = l;
-		index = i;
-	}
-	IPairsIter& IPairsIter::operator++()
-	{
-		L.Pop(1);
-		++key;
-		L.GetTableRaw(index, key);
-		if (L.Type(-1) == LType::Nil) {
-			hasNext = false;
-			L.Pop(1);
-		}
-		else {
-			hasNext = true;
-		}
-		return *this;
-	}
-	IPairsIter IPairsIter::operator++(int)
-	{
-		IPairsIter r = *this;
-		++(*this);
-		return r;
-	}
-	int IPairsIter::operator*()
-	{
-		return key;
 	}
 };

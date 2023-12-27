@@ -366,7 +366,7 @@ namespace lua::v53 {
 		}
 
 		struct Capabilities {
-			static constexpr bool NativeIntegers = true, UpvalueId = true, GlobalsIndex = false, Length = true, Uservalues = false, CloseSlots = false;
+			static constexpr bool NativeIntegers = true, UpvalueId = true, GlobalsIndex = false, MetatableLengthModulo = true, Uservalues = false, CloseSlots = false, LoadedTable = true;
 		};
 		using ErrorCode = ErrorCode;
 		using ComparisonOperator = ComparisonOperator;

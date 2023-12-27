@@ -349,10 +349,15 @@ namespace lua::decorator {
 		/// <para>[-2,+0,m]</para>
 		/// </summary>
 		void SetGlobal() {
-			B::PushGlobalTable();
-			B::Insert(-3);
-			B::SetTableRaw(-3);
-			B::Pop(1);
+			if constexpr (B::Capabilities::GlobalsIndex) {
+				B::SetTableRaw(B::GLOBALSINDEX);
+			}
+			else {
+				B::PushGlobalTable();
+				B::Insert(-3);
+				B::SetTableRaw(-3);
+				B::Pop(1);
+			}
 		}
 		/// <summary>
 		/// assigns the value at the top of the stack to the key k in the global table. pops the value from the stack.
@@ -371,10 +376,15 @@ namespace lua::decorator {
 		/// <para>[-1,+1,-]</para>
 		/// </summary>
 		void GetGlobal() {
-			B::PushGlobalTable();
-			B::Insert(-2);
-			B::GetTableRaw(-2);
-			B::Remove(-2);
+			if constexpr (B::Capabilities::GlobalsIndex) {
+				B::GetTableRaw(B::GLOBALSINDEX);
+			}
+			else {
+				B::PushGlobalTable();
+				B::Insert(-2);
+				B::GetTableRaw(-2);
+				B::Remove(-2);
+			}
 		}
 		/// <summary>
 		/// pushes the with k associated value in the global table onto the stack.
@@ -437,12 +447,13 @@ namespace lua::decorator {
 		}
 		/// <summary>
 		/// returns the length of an object. this is the same as applying the # operator (may call metamethods).
+		/// (in lua 5.1, does not call metamethods for tables.)
 		/// pushes the result onto the stack.
 		/// <para>[-0,+1,e]</para>
 		/// </summary>
 		/// <param name="index">index to query</param>
 		/// <exception cref="lua::LuaException">on lua error</exception>
-		void ObjLength(int index) {
+		void ObjLength(int index) requires (B::Capabilities::MetatableLengthModulo) {
 			index = B::ToAbsoluteIndex(index);
 			B::Push(&B::ObjLen_Unprotected);
 			B::PushValue(index);
@@ -469,7 +480,11 @@ namespace lua::decorator {
 		/// <param name="op">operator</param>
 		/// <exception cref="lua::LuaException">on lua error</exception>
 		void Arithmetic(B::ArihmeticOperator op) {
-			bool hasoneparam = op == B::ArihmeticOperator::UnaryNegation || op == B::ArihmeticOperator::BitwiseNot;
+			bool hasoneparam;
+			if constexpr (B::Capabilities::NativeIntegers) 
+				hasoneparam = op == B::ArihmeticOperator::UnaryNegation || op == B::ArihmeticOperator::BitwiseNot;
+			else
+				hasoneparam = op == B::ArihmeticOperator::UnaryNegation;
 			B::Push(&B::Arithmetic_Unprotected);
 			B::Insert(hasoneparam ? -2 : -3);
 			Push(static_cast<int>(op));
@@ -847,7 +862,10 @@ namespace lua::decorator {
 		/// <returns></returns>
 		std::string GetNameForFunc() {
 			int i = B::GetTop();
-			GetTableRaw(B::REGISTRYINDEX, B::REGISTRY_LOADED_TABLE);
+			if constexpr (B::Capabilities::LoadedTable)
+				GetTableRaw(B::REGISTRYINDEX, B::REGISTRY_LOADED_TABLE);
+			else
+				B::PushGlobalTable();
 			std::string r = GetNameForFunc_FindField(i, 3);
 			if (r.starts_with("_G.")) {
 				r = r.substr(3);
@@ -1899,11 +1917,15 @@ namespace lua::decorator {
 				else if constexpr (userdata::DivideOp<T>)
 					RegisterFunc<userdata::DivideOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::Divide), -3);
 
-				if constexpr (userdata::IntegerDivideCpp<State<B>, T>)
-					RegisterFunc<T::IntegerDivide>(B::GetMetaEventName(B::MetaEvent::IntegerDivide), -3);
+				if constexpr (B::Capabilities::NativeIntegers) {
+					if constexpr (userdata::IntegerDivideCpp<State<B>, T>)
+						RegisterFunc<T::IntegerDivide>(B::GetMetaEventName(B::MetaEvent::IntegerDivide), -3);
+				}
 
-				if constexpr (userdata::ModuloCpp<State<B>, T>)
-					RegisterFunc<T::Modulo>(B::GetMetaEventName(B::MetaEvent::Modulo), -3);
+				if constexpr (B::Capabilities::MetatableLengthModulo) {
+					if constexpr (userdata::ModuloCpp<State<B>, T>)
+						RegisterFunc<T::Modulo>(B::GetMetaEventName(B::MetaEvent::Modulo), -3);
+				}
 
 				if constexpr (userdata::PowCpp<State<B>, T>)
 					RegisterFunc<T::Pow>(B::GetMetaEventName(B::MetaEvent::Pow), -3);
@@ -1913,38 +1935,42 @@ namespace lua::decorator {
 				else if constexpr (userdata::UnaryMinusOp<T>)
 					RegisterFunc<userdata::UnaryMinusOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::UnaryMinus), -3);
 
-				if constexpr (userdata::BitwiseAndCpp<State<B>, T>)
-					RegisterFunc<T::BitwiseAnd>(B::GetMetaEventName(B::MetaEvent::BitwiseAnd), -3);
-				else if constexpr (userdata::BitwiseAndOp<T>)
-					RegisterFunc<userdata::BitwiseAndOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseAnd), -3);
+				if constexpr (B::Capabilities::NativeIntegers) {
+					if constexpr (userdata::BitwiseAndCpp<State<B>, T>)
+						RegisterFunc<T::BitwiseAnd>(B::GetMetaEventName(B::MetaEvent::BitwiseAnd), -3);
+					else if constexpr (userdata::BitwiseAndOp<T>)
+						RegisterFunc<userdata::BitwiseAndOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseAnd), -3);
 
-				if constexpr (userdata::BitwiseOrCpp<State<B>, T>)
-					RegisterFunc<T::BitwiseOr>(B::GetMetaEventName(B::MetaEvent::BitwiseOr), -3);
-				else if constexpr (userdata::BitwiseOrOp<T>)
-					RegisterFunc<userdata::BitwiseOrOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseOr), -3);
+					if constexpr (userdata::BitwiseOrCpp<State<B>, T>)
+						RegisterFunc<T::BitwiseOr>(B::GetMetaEventName(B::MetaEvent::BitwiseOr), -3);
+					else if constexpr (userdata::BitwiseOrOp<T>)
+						RegisterFunc<userdata::BitwiseOrOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseOr), -3);
 
-				if constexpr (userdata::BitwiseXOrCpp<State<B>, T>)
-					RegisterFunc<T::BitwiseXOr>(B::GetMetaEventName(B::MetaEvent::BitwiseXOr), -3);
-				else if constexpr (userdata::BitwiseXOrOp<T>)
-					RegisterFunc<userdata::BitwiseXOrOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseXOr), -3);
+					if constexpr (userdata::BitwiseXOrCpp<State<B>, T>)
+						RegisterFunc<T::BitwiseXOr>(B::GetMetaEventName(B::MetaEvent::BitwiseXOr), -3);
+					else if constexpr (userdata::BitwiseXOrOp<T>)
+						RegisterFunc<userdata::BitwiseXOrOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseXOr), -3);
 
-				if constexpr (userdata::BitwiseNotCpp<State<B>, T>)
-					RegisterFunc<T::BitwiseNot>(B::GetMetaEventName(B::MetaEvent::BitwiseNot), -3);
-				else if constexpr (userdata::BitwiseNotOp<T>)
-					RegisterFunc<userdata::BitwiseNotOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseNot), -3);
+					if constexpr (userdata::BitwiseNotCpp<State<B>, T>)
+						RegisterFunc<T::BitwiseNot>(B::GetMetaEventName(B::MetaEvent::BitwiseNot), -3);
+					else if constexpr (userdata::BitwiseNotOp<T>)
+						RegisterFunc<userdata::BitwiseNotOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseNot), -3);
 
-				if constexpr (userdata::ShiftLeftCpp<State<B>, T>)
-					RegisterFunc<T::ShiftLeft>(B::GetMetaEventName(B::MetaEvent::ShiftLeft), -3);
-				else if constexpr (userdata::ShiftLeftOp<T>)
-					RegisterFunc<userdata::ShiftLeftOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::ShiftLeft), -3);
+					if constexpr (userdata::ShiftLeftCpp<State<B>, T>)
+						RegisterFunc<T::ShiftLeft>(B::GetMetaEventName(B::MetaEvent::ShiftLeft), -3);
+					else if constexpr (userdata::ShiftLeftOp<T>)
+						RegisterFunc<userdata::ShiftLeftOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::ShiftLeft), -3);
 
-				if constexpr (userdata::ShiftRightCpp<State<B>, T>)
-					RegisterFunc<T::ShiftRight>(B::GetMetaEventName(B::MetaEvent::ShiftRight), -3);
-				else if constexpr (userdata::ShiftRightOp<T>)
-					RegisterFunc<userdata::ShiftRightOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::ShiftRight), -3);
+					if constexpr (userdata::ShiftRightCpp<State<B>, T>)
+						RegisterFunc<T::ShiftRight>(B::GetMetaEventName(B::MetaEvent::ShiftRight), -3);
+					else if constexpr (userdata::ShiftRightOp<T>)
+						RegisterFunc<userdata::ShiftRightOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::ShiftRight), -3);
+				}
 
-				if constexpr (userdata::LengthCpp<State<B>, T>)
-					RegisterFunc<T::Length>(B::GetMetaEventName(B::MetaEvent::Length), -3);
+				if constexpr (B::Capabilities::MetatableLengthModulo) {
+					if constexpr (userdata::LengthCpp<State<B>, T>)
+						RegisterFunc<T::Length>(B::GetMetaEventName(B::MetaEvent::Length), -3);
+				}
 
 				if constexpr (userdata::ConcatCpp<State<B>, T>)
 					RegisterFunc<T::Concat>(B::GetMetaEventName(B::MetaEvent::Concat), -3);
