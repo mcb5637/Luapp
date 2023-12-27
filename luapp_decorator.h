@@ -22,9 +22,9 @@ namespace lua::decorator {
 	/// </summary>
 	template<class B>
 	class State : public B {
-		constexpr static const char* MethodsName = "Methods";
-		constexpr static const char* TypeNameName = "TypeName";
-		constexpr static const char* BaseTypeNameName = "BaseTypeName";
+		constexpr static std::string_view MethodsName = "Methods";
+		constexpr static std::string_view TypeNameName = "TypeName";
+		constexpr static std::string_view BaseTypeNameName = "BaseTypeName";
 
 		template<class State, class T> requires userdata::IndexCpp<State, T>
 		friend int userdata::IndexOperator(State L);
@@ -239,7 +239,10 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="i">int</param>
 		void Push(int i) {
-			B::Push(static_cast<lua::Integer>(i));
+			if (B::Capabilities::NativeIntegers)
+				B::Push(static_cast<lua::Integer>(i));
+			else
+				B::Push(static_cast<lua::Number>(i));
 		}
 		void Push(B::MetaEvent ev) {
 			Push(B::GetMetaEventName(ev));
@@ -803,7 +806,7 @@ namespace lua::decorator {
 		/// <param name="funcs">iterable containing FuncReference to register</param>
 		/// <param name="name">name of the global table</param>
 		template<class T>
-		void RegisterGlobalLib(const T& funcs, const char* name) {
+		void RegisterGlobalLib(const T& funcs, std::string_view name) {
 			B::Push(name);
 			B::Push(name);
 			B::GetGlobal();
@@ -1099,7 +1102,7 @@ namespace lua::decorator {
 		/// <param name="extra">number of elements</param>
 		/// <param name="msg">extra error message</param>
 		/// <exception cref="lua::LuaException">if it cannot grow the stack</exception>
-		void CheckStack(int extra, const char* msg) {
+		void CheckStack(int extra, std::string_view msg) {
 			if (!B::CheckStack(extra))
 				ErrorOrThrow(std::format("stack overflow ({})", msg));
 		}
@@ -1272,7 +1275,7 @@ namespace lua::decorator {
 		/// <param name="name">key to query</param>
 		/// <param name="index">index of the table</param>
 		/// <returns>had table before the call</returns>
-		bool GetSubTable(const char* name, int index) {
+		bool GetSubTable(std::string_view name, int index) {
 			index = B::ToAbsoluteIndex(index);
 			Push(name);
 			B::GetTableRaw(index);
@@ -1294,7 +1297,7 @@ namespace lua::decorator {
 		/// <param name="name">key to query</param>
 		/// <param name="index">index of the table</param>
 		/// <returns>had table before the call</returns>
-		bool GetSubTable(const char* name) {
+		bool GetSubTable(std::string_view name) {
 			Push(name);
 			B::GetGlobal();
 			if (!B::IsTable(-1)) {
