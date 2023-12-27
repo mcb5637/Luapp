@@ -922,12 +922,6 @@ namespace lua::v52 {
 		/// </summary>
 		/// <returns>version</returns>
 		static Number Version();
-		static constexpr size_t EXTRASPACE = sizeof(void*);
-		/// <summary>
-		/// raw memory associated with each state, for application use. each new thread has it initialized with a copy of the main thread. Size is EXTRASPACE (can be changed in lua config).
-		/// </summary>
-		/// <returns></returns>
-		void* GetExtraSpace();
 
 		/// <summary>
 		/// gets the debug info for a stack level.

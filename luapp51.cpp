@@ -52,7 +52,6 @@ namespace lua::v51 {
 	static_assert(HookEvent::Return == static_cast<HookEvent>(LUA_MASKRET));
 	static_assert(HookEvent::Line == static_cast<HookEvent>(LUA_MASKLINE));
 	static_assert(HookEvent::Count == static_cast<HookEvent>(LUA_MASKCOUNT));
-	static_assert(State::EXTRASPACE == LUA_EXTRASPACE);
 
 	std::string(*ExceptionConverter)(std::exception_ptr ex, const char* funcsig) = nullptr;
 

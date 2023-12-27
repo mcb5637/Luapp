@@ -544,6 +544,10 @@ namespace lua::v53 {
 	Number State::Version() {
 		return *lua_version(nullptr);
 	}
+	void* State::GetExtraSpace()
+	{
+		return lua_getextraspace(L);
+	}
 	constexpr const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
 	{
 		if (fromStack) {
