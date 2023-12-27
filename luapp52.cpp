@@ -66,6 +66,7 @@ namespace lua::v52 {
 	static_assert(ArihmeticOperator::Modulo == static_cast<ArihmeticOperator>(LUA_OPMOD));
 	static_assert(ArihmeticOperator::Pow == static_cast<ArihmeticOperator>(LUA_OPPOW));
 	static_assert(ArihmeticOperator::UnaryNegation == static_cast<ArihmeticOperator>(LUA_OPUNM));
+	static_assert(State::EXTRASPACE == LUA_EXTRASPACE);
 
 	std::string(*ExceptionConverter)(std::exception_ptr ex, const char* funcsig) = nullptr;
 

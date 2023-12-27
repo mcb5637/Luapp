@@ -82,25 +82,37 @@ namespace lua::decorator {
 				return F(L);
 			}
 		}
+		/// <summary>
+		/// adapts a member function to a CppFunction by storing the object in upvalue 1.
+		/// </summary>
+		/// <typeparam name="O">object type</typeparam>
+		/// <typeparam name="F">member function pointer to push</typeparam>
+		/// <param name="L">state</param>
+		/// <returns>number of return values on the stack</returns>
+		template<class O, int(O::* F)(State L)>
+		static int MemberClosure(State L) {
+			auto* o = static_cast<O*>(L.ToUserdata(B::Upvalueindex(1)));
+			return std::invoke(F, o, L);
+		}
 
 		/// <summary>
 		/// info to register a function to lua.
 		/// </summary>
 		struct FuncReference {
-			const char* Name;
+			std::string_view Name;
 			CFunction Func;
 
-			constexpr FuncReference(const char* name, CFunction f) {
+			constexpr FuncReference(std::string_view name, CFunction f) {
 				Name = name;
 				Func = f;
 			}
 
 			template<CppFunction F>
-			constexpr static FuncReference GetRef(const char* name) {
+			constexpr static FuncReference GetRef(std::string_view name) {
 				return { name, &CppToCFunction<F> };
 			}
 			template<CFunction F>
-			constexpr static FuncReference GetRef(const char* name) {
+			constexpr static FuncReference GetRef(std::string_view name) {
 				return { name, F };
 			}
 
@@ -225,6 +237,24 @@ namespace lua::decorator {
 			B::Push(&CppToCFunction<F>, nups);
 		}
 		/// <summary>
+		/// pushes a member function pointer bound to a object onto the stack. the bound object takes up upvalue 1.
+		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
+		/// The object gets inserted as upvalue 1, and all others shifted up by 1.
+		/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
+		/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
+		/// <para>[-nups,+1,m]</para>
+		/// </summary>
+		/// <typeparam name="O">object type</typeparam>
+		/// <typeparam name="F">function</typeparam>
+		/// <param name="obj">object</param>
+		/// <param name="nups">number of upvalues</param>
+		template<class O, int(O::*F)(State L)>
+		void Push(O& obj, int nups = 0) {
+			B::PushLightUserdata(&obj);
+			B::Insert(-nups - 1);
+			Push<MemberClosure<O, F>>(nups + 1);
+		}
+		/// <summary>
 		/// pushes a std::string_view.
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
@@ -244,6 +274,10 @@ namespace lua::decorator {
 			else
 				B::Push(static_cast<lua::Number>(i));
 		}
+		/// <summary>
+		/// pushes the string representation of a MetaEvent onto the stack.
+		/// </summary>
+		/// <param name="ev">event</param>
 		void Push(B::MetaEvent ev) {
 			Push(B::GetMetaEventName(ev));
 		}

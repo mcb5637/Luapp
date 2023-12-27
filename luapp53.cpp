@@ -73,6 +73,7 @@ namespace lua::v53 {
 	static_assert(ArihmeticOperator::ShiftRight == static_cast<ArihmeticOperator>(LUA_OPSHR));
 	static_assert(ArihmeticOperator::UnaryNegation == static_cast<ArihmeticOperator>(LUA_OPUNM));
 	static_assert(ArihmeticOperator::BitwiseNot == static_cast<ArihmeticOperator>(LUA_OPBNOT));
+	static_assert(State::EXTRASPACE == LUA_EXTRASPACE);
 
 	ExConverterT ExceptionConverter = nullptr;
 

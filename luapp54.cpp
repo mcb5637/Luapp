@@ -68,6 +68,7 @@ namespace lua::v54 {
 	static_assert(ArihmeticOperator::ShiftRight == static_cast<ArihmeticOperator>(LUA_OPSHR));
 	static_assert(ArihmeticOperator::UnaryNegation == static_cast<ArihmeticOperator>(LUA_OPUNM));
 	static_assert(ArihmeticOperator::BitwiseNot == static_cast<ArihmeticOperator>(LUA_OPBNOT));
+	static_assert(State::EXTRASPACE == LUA_EXTRASPACE);
 
 	std::string(*ExceptionConverter)(std::exception_ptr ex, const char* funcsig) = nullptr;
 
@@ -546,6 +547,10 @@ namespace lua::v54 {
 	}
 	Number State::Version() {
 		return lua_version(nullptr);
+	}
+	void* State::GetExtraSpace()
+	{
+		return lua_getextraspace(L);
 	}
 
 	constexpr const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
