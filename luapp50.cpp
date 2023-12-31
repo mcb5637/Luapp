@@ -653,6 +653,11 @@ namespace lua::v50 {
 			}
 		}
 	}
+	bool State::Debug_IsStackLevelValid(int lvl)
+	{
+		lua_Debug d;
+		return lua_getstack(L, lvl, &d);
+	}
 	bool State::Debug_GetStack(int level, DebugInfo& Info, DebugInfoOptions opt, bool pushFunc)
 	{
 		lua_Debug d;

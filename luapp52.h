@@ -924,6 +924,13 @@ namespace lua::v52 {
 		static Number Version();
 
 		/// <summary>
+		/// checks if the stack level is valid (has a active function).
+		/// <para>[-0,+0|1,-]</para>
+		/// </summary>
+		/// <param name="lvl"></param>
+		/// <returns></returns>
+		bool Debug_IsStackLevelValid(int lvl);
+		/// <summary>
 		/// gets the debug info for a stack level.
 		/// stack level 0 is the current running function, n+1 is the function that called n.
 		/// <para>[-0,+0|1,-]</para>

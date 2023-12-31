@@ -591,6 +591,29 @@ namespace lua::decorator {
 		void Debug_SetHook(B::HookEvent mask, int count) {
 			B::Debug_SetHook(&CppToCHook<F>, mask, count);
 		}
+		/// <summary>
+		/// returns the depth of the call stack. valid calls to Debug_GetStack are in the range [0,Debug_GetStackDepth()-1].
+		/// returns 0, if nothing is on the call stack.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <returns></returns>
+		int Debug_GetStackDepth() {
+			if (!B::Debug_IsStackLevelValid(0))
+				return 0;
+			int li = 1, le = 1;
+			while (B::Debug_IsStackLevelValid(le)) {
+				li = le;
+				le *= 2;
+			}
+			while (li < le) {
+				int m = (li + le) / 2;
+				if (B::Debug_IsStackLevelValid(m))
+					li = m + 1;
+				else
+					le = m;
+			}
+			return le;
+		}
 
 		/// <summary>
 		/// turns the value at index to a debug string.
