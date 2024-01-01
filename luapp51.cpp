@@ -5,9 +5,15 @@
 #ifndef LUA_CPPLINKAGE
 extern "C" {
 #endif
+#if __has_include("..\lua51\lua.h")
 #include "..\lua51\lua.h"
 #include "..\lua51\lauxlib.h"
 #include "..\lua51\lualib.h"
+#else
+#include "..\luajit\lua.h"
+#include "..\luajit\lauxlib.h"
+#include "..\luajit\lualib.h"
+#endif
 #ifndef LUA_CPPLINKAGE
 }
 #endif
@@ -142,12 +148,6 @@ namespace lua::v51 {
 	{
 		return L;
 	}
-
-	State State::Create(bool io, bool debug)
-	{
-		return State(io, debug);
-	}
-
 	void State::Close()
 	{
 		if (L != nullptr)
@@ -389,7 +389,7 @@ namespace lua::v51 {
 			luaL_dostring(L, "return function(a, b) return a / b; end");
 			break;
 		case ArihmeticOperator::Modulo:
-			luaL_dostring(L, "return function(a, b) return math.mod(a, b); end");
+			luaL_dostring(L, "return function(a, b) return a % b; end");
 			break;
 		case ArihmeticOperator::Pow:
 			luaL_dostring(L, "return function(a, b) return a ^ b; end");

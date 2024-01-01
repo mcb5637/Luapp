@@ -369,7 +369,7 @@ namespace lua::v54 {
 		}
 
 		struct Capabilities {
-			static constexpr bool NativeIntegers = true, UpvalueId = true, GlobalsIndex = false, MetatableLengthModulo = true, Uservalues = true, CloseSlots = true, LoadedTable = true;
+			static constexpr bool NativeIntegers = true, UpvalueId = true, GlobalsIndex = false, MetatableLengthModulo = true, Uservalues = true, CloseSlots = true, LoadedTable = true, JIT = false;
 		};
 		using ErrorCode = ErrorCode;
 		using ComparisonOperator = ComparisonOperator;
@@ -397,7 +397,6 @@ namespace lua::v54 {
 		/// </summary>
 		/// <returns>lua state</returns>
 		lua_State* GetState();
-
 		/// <summary>
 		/// closes a lua state.
 		/// Do not use the state for anything else after calling Close.

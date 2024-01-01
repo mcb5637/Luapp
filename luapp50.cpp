@@ -122,12 +122,6 @@ namespace lua::v50 {
 	{
 		return L;
 	}
-
-	State State::Create(bool io, bool debug)
-	{
-		return State(io, debug);
-	}
-
 	void State::Close()
 	{
 		if (L != nullptr)
