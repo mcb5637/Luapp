@@ -631,9 +631,14 @@ namespace lua::decorator {
 			case LType::Boolean:
 				return B::ToBoolean(index) ? "true" : "false";
 			case LType::LightUserdata:
-				return std::format("<LightUserdata {}>", static_cast<void*>(B::ToUserdata(index)));
+				return std::format("<LightUserdata {}>", B::ToUserdata(index));
 			case LType::Number:
-				return std::to_string(*B::ToNumber(index));
+				if constexpr (B::Capabilities::NativeIntegers) {
+					if (B::IsInteger(index)) {
+						return std::format("{}",  *B::ToInteger(index));
+					}
+				}
+				return std::format("{}", *B::ToNumber(index));
 			case LType::String:
 				return "\"" + ToStdString(index) + "\"";
 			case LType::Table:
@@ -653,10 +658,13 @@ namespace lua::decorator {
 			}
 			case LType::Userdata:
 			{
-				std::string_view ud = "";
-				if (GetMetaField(-1, TypeNameName)) {
+				std::string_view ud;
+				if (GetMetaField(index, TypeNameName)) {
 					ud = ToStringView(-1);
 					B::Pop(1);
+				}
+				else {
+					ud = "unknown type";
 				}
 				return std::format("<Userdata {} {}>", ud, static_cast<void*>(B::ToUserdata(index)));
 			}
@@ -1356,13 +1364,13 @@ namespace lua::decorator {
 		/// <returns>had table before the call</returns>
 		bool GetSubTable(std::string_view name) {
 			Push(name);
-			B::GetGlobal();
+			GetGlobal();
 			if (!B::IsTable(-1)) {
 				B::Pop(1);
 				B::NewTable();
 				Push(name);
 				B::PushValue(-2);
-				B::SetGlobal();
+				SetGlobal();
 				return false;
 			}
 			return true;
@@ -1568,7 +1576,13 @@ namespace lua::decorator {
 			else {
 				switch (B::Type(idx)) {
 				case LType::Number: {
-					Push(std::format("{}", *B::Tonumber(idx)));
+					if constexpr (B::Capabilities::NativeIntegers) {
+						if (B::IsInteger(idx)) {
+							Push(std::format("{}", *B::ToInteger(idx)));
+							break;
+						}
+					}
+					Push(std::format("{}", *B::ToNumber(idx)));
 					break;
 				}
 				case LType::String:
@@ -1584,13 +1598,13 @@ namespace lua::decorator {
 					if (GetMetaField(idx, B::MetaEvent::Name))  /* try name */
 					{
 						if (B::IsString(-1)) {
-							PushFString("%s: %p", B::ToString(-1), B::ToPointer(idx));
+							Push(std::format("{}: {}", B::ToString(-1), B::ToPointer(idx)));
 							B::Remove(-2);
 							break;
 						}
 						B::Remove(-2);
 					}
-					PushFString("%s: %p", B::TypeName(B::Type(idx)), B::ToPointer(idx));
+					Push(std::format("{}: {}", B::TypeName(B::Type(idx)), B::ToPointer(idx)));
 					break;
 				}
 				}
@@ -1909,6 +1923,9 @@ namespace lua::decorator {
 		/// <para>=[x] operator (__index):</para>
 		/// <para>- Index static member.</para>
 		/// <para></para>
+		/// <para>tostring (lua) ConvertToString (c++):</para>
+		/// <para>- ToString static member.</para>
+		/// <para></para>
 		/// <para>if T has both LuaMethods and Index defined, first LuaMethods is searched, and if nothing is found, Index is called.</para>
 		/// <para></para>
 		/// <para>if T::LuaMetaMethods is iterable over LuaReference, registers them all into the metatable as additional metamethods (possibly overriding the default generaded)</para>
@@ -2040,6 +2057,9 @@ namespace lua::decorator {
 
 				if constexpr (userdata::CallCpp<State<B>, T>)
 					RegisterFunc<T::Call>(B::GetMetaEventName(B::MetaEvent::Call), -3);
+
+				if constexpr (userdata::ToStringCpp<State<B>, T>)
+					RegisterFunc<T::ToString>(B::GetMetaEventName(B::MetaEvent::ToString), -3);
 
 				if constexpr (userdata::HasLuaMetaMethods<T>)
 					RegisterFuncs(T::LuaMetaMethods, -3);

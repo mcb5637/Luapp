@@ -228,6 +228,11 @@ namespace lua::userdata {
 	template<class S, class T>
 	concept IndexCpp = std::is_same_v<CppFunction<S>, decltype(&T::Index)> || std::is_same_v<CFunction, decltype(&T::Index)>;
 	/// <summary>
+	/// checks if a type has a userdata tostring defined manually via ToString static member.
+	/// </summary>
+	template<class S, class T>
+	concept ToStringCpp = std::is_same_v<CppFunction<S>, decltype(&T::ToString)> || std::is_same_v<CFunction, decltype(&T::ToString)>;
+	/// <summary>
 	/// checks if a type has a base class defined for userdata type
 	/// </summary>
 	template<class T>
