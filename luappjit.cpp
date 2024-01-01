@@ -53,6 +53,9 @@ namespace lua::jit {
 	static_assert(HookEvent::Return == static_cast<HookEvent>(LUA_MASKRET));
 	static_assert(HookEvent::Line == static_cast<HookEvent>(LUA_MASKLINE));
 	static_assert(HookEvent::Count == static_cast<HookEvent>(LUA_MASKCOUNT));
+	static_assert(JITMode::Off == static_cast<JITMode>(LUAJIT_MODE_OFF));
+	static_assert(JITMode::On == static_cast<JITMode>(LUAJIT_MODE_ON));
+	static_assert(JITMode::Flush == static_cast<JITMode>(LUAJIT_MODE_FLUSH));
 
 
 	State::State(lua_State* L) : lua::v51::State(L) {
@@ -126,5 +129,26 @@ namespace lua::jit {
 	void State::Debug_UpvalueJoin(int funcMod, int upMod, int funcTar, int upTar)
 	{
 		lua_upvaluejoin(L, funcMod, upMod, funcTar, upTar);
+	}
+
+	void State::SetJITMode(JITMode m)
+	{
+		if (luaJIT_setmode(L, 0, LUAJIT_MODE_ENGINE | static_cast<int>(m)) == 0)
+			throw lua::LuaException{ "luaJIT_setmode failure" };
+	}
+	void State::SetJITModeForSingleFunc(int idx, JITMode m)
+	{
+		if (luaJIT_setmode(L, idx, LUAJIT_MODE_FUNC | static_cast<int>(m)) == 0)
+			throw lua::LuaException{ "luaJIT_setmode failure" };
+	}
+	void State::SetJITModeForFuncAndChildren(int idx, JITMode m)
+	{
+		if (luaJIT_setmode(L, idx, LUAJIT_MODE_ALLFUNC | static_cast<int>(m)) == 0)
+			throw lua::LuaException{ "luaJIT_setmode failure" };
+	}
+	void State::SetJITModeForChildrenOnly(int idx, JITMode m)
+	{
+		if (luaJIT_setmode(L, idx, LUAJIT_MODE_ALLSUBFUNC | static_cast<int>(m)) == 0)
+			throw lua::LuaException{ "luaJIT_setmode failure" };
 	}
 };

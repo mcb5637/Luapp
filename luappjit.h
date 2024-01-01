@@ -8,6 +8,11 @@
 #include "luapp51.h"
 
 namespace lua::jit {
+	enum class JITMode : int {
+		Off = 0,
+		On = 0x100,
+		Flush = 0x200,
+	};
 	class State : public lua::v51::State {
 	public:
 		struct Capabilities {
@@ -72,6 +77,35 @@ namespace lua::jit {
 		/// <param name="funcTar">valid index to target the upvalue of</param>
 		/// <param name="upTar">number of upvalue to target, needs to be valid</param>
 		void Debug_UpvalueJoin(int funcMod, int upMod, int funcTar, int upTar);
+
+		/// <summary>
+		/// sets the JIT mode for the whole engine.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="m"></param>
+		/// <exception cref="lua::LuaException">if failed</exception>
+		void SetJITMode(JITMode m);
+		/// <summary>
+		/// sets the JIT mode for the function at idx (or the parent of the caller if 0).
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="m"></param>
+		/// <exception cref="lua::LuaException">if failed</exception>
+		void SetJITModeForSingleFunc(int idx, JITMode m);
+		/// <summary>
+		/// sets the JIT mode for the function at idx (or the parent of the caller if 0) and everything called by it.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="m"></param>
+		/// <exception cref="lua::LuaException">if failed</exception>
+		void SetJITModeForFuncAndChildren(int idx, JITMode m);
+		/// <summary>
+		/// sets the JIT mode for the everything called by the function at idx (or the parent of the caller if 0).
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="m"></param>
+		/// <exception cref="lua::LuaException">if failed</exception>
+		void SetJITModeForChildrenOnly(int idx, JITMode m);
 	};
 }
 
