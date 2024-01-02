@@ -287,6 +287,24 @@ namespace lua::v51 {
 		friend class State;
 		lua_Debug* ar;
 		ActivationRecord(lua_Debug* ar);
+
+	public:
+		/// <summary>
+		/// returns the event that caused the hook call.
+		/// </summary>
+		/// <returns></returns>
+		HookEvent Event() const;
+		/// <summary>
+		/// returns the line of a line hook event.
+		/// </summary>
+		/// <returns></returns>
+		int Line() const;
+		/// <summary>
+		/// checks, if the event that caused the hook call is one of the specified events.
+		/// </summary>
+		/// <param name="e"></param>
+		/// <returns></returns>
+		bool Matches(HookEvent e) const;
 	};
 
 	class State {
@@ -874,7 +892,7 @@ namespace lua::v51 {
 		void GetEnvironment(int idx);
 		/// <summary>
 		/// sets the table at the top of the stack as the environment of the function/thread/userdata at idx and pops it.
-		/// if idx does not have an environment, returns 0.
+		/// if idx does not have an environment, returns false.
 		/// <para>[-1,+0,-]</para>
 		/// </summary>
 		/// <param name="idx"></param>
@@ -1033,13 +1051,6 @@ namespace lua::v51 {
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		void Debug_UnSetHook();
-		/// <summary>
-		/// gets the event that caused the hook to get called from the ar.
-		/// <para>[-0,+0,-]</para>
-		/// </summary>
-		/// <param name="ar">activation record</param>
-		/// <returns>event</returns>
-		HookEvent Debug_GetEventFromAR(ActivationRecord ar);
 		/// <summary>
 		/// gets the debug info for the ar.
 		/// <para>[-0,+0,-]</para>

@@ -58,20 +58,12 @@ namespace lua::v50 {
 	std::string(*ExceptionConverter)(std::exception_ptr ex, const char* funcsig) = nullptr;
 
 	HookEvent LuaHookToEvent(int ev) {
-		switch (ev) {
-		case LUA_HOOKCALL:
-			return HookEvent::Call;
-		case LUA_HOOKRET:
-			return HookEvent::Return;
-		case LUA_HOOKTAILRET:
-			return HookEvent::TailReturn;
-		case LUA_HOOKLINE:
-			return HookEvent::Line;
-		case LUA_HOOKCOUNT:
-			return HookEvent::Count;
-		default:
-			return HookEvent::None;
-		}
+		static_assert(static_cast<HookEvent>(1 << LUA_HOOKCALL) == HookEvent::Call);
+		static_assert(static_cast<HookEvent>(1 << LUA_HOOKRET) == HookEvent::Return);
+		static_assert(static_cast<HookEvent>(1 << LUA_HOOKTAILRET) == HookEvent::TailReturn);
+		static_assert(static_cast<HookEvent>(1 << LUA_HOOKLINE) == HookEvent::Line);
+		static_assert(static_cast<HookEvent>(1 << LUA_HOOKCOUNT) == HookEvent::Count);
+		return static_cast<HookEvent>(1 << ev);
 	}
 	void ClearDebug(lua_Debug& d) {
 		d.event = 0;
@@ -711,10 +703,6 @@ namespace lua::v50 {
 	{
 		lua_sethook(L, nullptr, 0, 0);
 	}
-	HookEvent State::Debug_GetEventFromAR(ActivationRecord ar)
-	{
-		return LuaHookToEvent(ar.ar->event);
-	}
 	DebugInfo State::Debug_GetInfoFromAR(ActivationRecord ar, DebugInfoOptions opt, bool pushFunc)
 	{
 		DebugInfo r{};
@@ -788,5 +776,17 @@ namespace lua::v50 {
 	ActivationRecord::ActivationRecord(lua_Debug* ar)
 	{
 		this->ar = ar;
+	}
+	HookEvent ActivationRecord::Event() const
+	{
+		return LuaHookToEvent(ar->event);
+	}
+	int ActivationRecord::Line() const
+	{
+		return ar->currentline;
+	}
+	bool ActivationRecord::Matches(HookEvent e) const
+	{
+		return (Event() & e) != HookEvent::None;
 	}
 };

@@ -70,20 +70,12 @@ namespace lua::v52 {
 	std::string(*ExceptionConverter)(std::exception_ptr ex, const char* funcsig) = nullptr;
 
 	HookEvent LuaHookToEvent(int ev) {
-		switch (ev) {
-		case LUA_HOOKCALL:
-			return HookEvent::Call;
-		case LUA_HOOKRET:
-			return HookEvent::Return;
-		case LUA_HOOKTAILCALL:
-			return HookEvent::TailCall;
-		case LUA_HOOKLINE:
-			return HookEvent::Line;
-		case LUA_HOOKCOUNT:
-			return HookEvent::Count;
-		default:
-			return HookEvent::None;
-		}
+		static_assert(static_cast<HookEvent>(1 << LUA_HOOKCALL) == HookEvent::Call);
+		static_assert(static_cast<HookEvent>(1 << LUA_HOOKRET) == HookEvent::Return);
+		static_assert(static_cast<HookEvent>(1 << LUA_HOOKTAILCALL) == HookEvent::TailCall);
+		static_assert(static_cast<HookEvent>(1 << LUA_HOOKLINE) == HookEvent::Line);
+		static_assert(static_cast<HookEvent>(1 << LUA_HOOKCOUNT) == HookEvent::Count);
+		return static_cast<HookEvent>(1 << ev);
 	}
 	void ClearDebug(lua_Debug& d) {
 		d.event = 0;
@@ -448,6 +440,40 @@ namespace lua::v52 {
 		*static_cast<bool*>(lua_touserdata(L, 1)) = has;
 		return has ? 2 : 0;
 	}
+	void State::GetEnvironment(int idx)
+	{
+		if (!lua_isfunction(L, idx) || lua_iscfunction(L, idx)) {
+			PushGlobalTable();
+			return;
+		}
+		int l = 1;
+		while (const char* n = lua_getupvalue(L, idx, l)) {
+			if (n == std::string_view{ "_ENV" })
+				return;
+			Pop(1);
+			++l;
+		}
+		Push();
+	}
+	bool State::SetEnvironment(int idx)
+	{
+		if (!lua_isfunction(L, idx) || lua_iscfunction(L, idx)) {
+			Pop(1);
+			return false;
+		}
+		int l = 1;
+		while (const char* n = lua_getupvalue(L, idx, l)) {
+			if (n == std::string_view{ "_ENV" }) {
+				Pop(1);
+				lua_setupvalue(L, idx, l);
+				return true;
+			}
+			Pop(1);
+			++l;
+		}
+		Pop(1);
+		return false;
+	}
 	void State::Call(int nargs, int nresults)
 	{
 		if constexpr (TypeChecks) {
@@ -787,10 +813,6 @@ namespace lua::v52 {
 	{
 		lua_sethook(L, nullptr, 0, 0);
 	}
-	HookEvent State::Debug_GetEventFromAR(ActivationRecord ar)
-	{
-		return LuaHookToEvent(ar.ar->event);
-	}
 	DebugInfo State::Debug_GetInfoFromAR(ActivationRecord ar, DebugInfoOptions opt, bool pushFunc)
 	{
 		DebugInfo r{};
@@ -864,5 +886,17 @@ namespace lua::v52 {
 	ActivationRecord::ActivationRecord(lua_Debug* ar)
 	{
 		this->ar = ar;
+	}
+	HookEvent ActivationRecord::Event() const
+	{
+		return LuaHookToEvent(ar->event);
+	}
+	int ActivationRecord::Line() const
+	{
+		return ar->currentline;
+	}
+	bool ActivationRecord::Matches(HookEvent e) const
+	{
+		return (Event() & e) != HookEvent::None;
 	}
 };

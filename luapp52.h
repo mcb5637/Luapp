@@ -298,6 +298,24 @@ namespace lua::v52 {
 		friend class State;
 		lua_Debug* ar;
 		ActivationRecord(lua_Debug* ar);
+
+	public:
+		/// <summary>
+		/// returns the event that caused the hook call.
+		/// </summary>
+		/// <returns></returns>
+		HookEvent Event() const;
+		/// <summary>
+		/// returns the line of a line hook event.
+		/// </summary>
+		/// <returns></returns>
+		int Line() const;
+		/// <summary>
+		/// checks, if the event that caused the hook call is one of the specified events.
+		/// </summary>
+		/// <param name="e"></param>
+		/// <returns></returns>
+		bool Matches(HookEvent e) const;
 	};
 
 	class State {
@@ -357,7 +375,7 @@ namespace lua::v52 {
 			/// <summary>
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for lua functions.
 			/// </summary>
-			static constexpr bool Environments = false;
+			static constexpr bool Environments = true;
 			/// <summary>
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for c functions, threads and userdata.
 			/// </summary>
@@ -887,6 +905,20 @@ namespace lua::v52 {
 
 	public:
 		/// <summary>
+		/// pushes the upvalue _ENV of the function at idx (the global if it is a C function).
+		/// <para>[-0,+1,-]</para>
+		/// </summary>
+		/// <param name="idx"></param>
+		void GetEnvironment(int idx);
+		/// <summary>
+		/// sets the table at the top of the stack as the upvalue _ENV of the function at idx and pops it.
+		/// if idx is not a lua func, returns false.
+		/// <para>[-1,+0,-]</para>
+		/// </summary>
+		/// <param name="idx"></param>
+		bool SetEnvironment(int idx);
+
+		/// <summary>
 		/// calls a function. does not catch exceptions, so better use pcall or tcall instead.
 		/// first push the function, then the arguments in order, then call.
 		/// pops the function and its arguments, then pushes its results.
@@ -1057,13 +1089,6 @@ namespace lua::v52 {
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		void Debug_UnSetHook();
-		/// <summary>
-		/// gets the event that caused the hook to get called from the ar.
-		/// <para>[-0,+0,-]</para>
-		/// </summary>
-		/// <param name="ar">activation record</param>
-		/// <returns>event</returns>
-		HookEvent Debug_GetEventFromAR(ActivationRecord ar);
 		/// <summary>
 		/// gets the debug info for the ar.
 		/// <para>[-0,+0,-]</para>
