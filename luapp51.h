@@ -298,8 +298,59 @@ namespace lua::v51 {
 			return ExceptionConverter;
 		}
 
+		/// <summary>
+		/// lists the capabilities of this lua version.
+		/// </summary>
 		struct Capabilities {
-			static constexpr bool NativeIntegers = false, UpvalueId = false, GlobalsIndex = true, MetatableLengthModulo = true, Uservalues = false, CloseSlots = false, LoadedTable = false, JIT = false;
+			/// <summary>
+			/// if true, supports lua::Integer natively (not converting them to lua::Number internally), as well as bit operators.
+			/// </summary>
+			static constexpr bool NativeIntegers = false;
+			/// <summary>
+			/// if true, supports Debug_UpvalueID and Debug_UpvalueJoin.
+			/// </summary>
+			static constexpr bool UpvalueId = false;
+			/// <summary>
+			/// if true, has State::GLOBALSINDEX to directly access globals. if false, it needs to be queried via State::REGISTRY_GLOBALS from the registry.
+			/// <para>note that in both cases, functions like State::SetGlobal are provided.</para>
+			/// </summary>
+			static constexpr bool GlobalsIndex = true;
+			/// <summary>
+			/// if true, lua::MetaEvent::Length and lua::MetaEvent::Modulo are available, as well as the % operator (instead of math.mod).
+			/// </summary>
+			static constexpr bool MetatableLengthModulo = true;
+			/// <summary>
+			/// if true, State::ObjLength calls lua::MetaEvent::Length for tables.
+			/// </summary>
+			static constexpr bool MetatableLengthOnTables = false;
+			/// <summary>
+			/// if true, supports at least one uservalue per userdata (might technically be a environment).
+			/// </summary>
+			static constexpr bool Uservalues = true;
+			/// <summary>
+			/// if true, supports a fixed number of uservalues per userdata, specified at userdata creation.
+			/// </summary>
+			static constexpr bool ArbitraryUservalues = false;
+			/// <summary>
+			/// if true, supports closable slots.
+			/// </summary>
+			static constexpr bool CloseSlots = false;
+			/// <summary>
+			/// if true, supports State::REGISTRY_LOADED_TABLE.
+			/// </summary>
+			static constexpr bool LoadedTable = false;
+			/// <summary>
+			/// if true, supports State::SetJITMode functions.
+			/// </summary>
+			static constexpr bool JIT = false;
+			/// <summary>
+			/// if true, supports State::SetEnvironment and State::GetEnvironment for lua functions.
+			/// </summary>
+			static constexpr bool Environments = true;
+			/// <summary>
+			/// if true, supports State::SetEnvironment and State::GetEnvironment for c functions, threads and userdata.
+			/// </summary>
+			static constexpr bool NonFunctionEnvironments = true;
 		};
 		using ErrorCode = ErrorCode;
 		using ComparisonOperator = ComparisonOperator;
@@ -732,6 +783,20 @@ namespace lua::v51 {
 		/// <see cref="lua::State:NewUserData"/>
 		/// <returns>userdata pointer</returns>
 		void* NewUserdata(size_t s);
+		/// <summary>
+		/// pushes the environment of an userdata and returns its type.
+		/// if the uservalue does not exist, pushes nil and returns None.
+		/// <para>[-0,+1,-]</para>
+		/// </summary>
+		/// <param name="index">valid index of the userdata</param>
+		/// <returns>type</returns>
+		LType GetUserValue(int index);
+		/// <summary>
+		/// pops a value from the stack and sets it as the environment of an userdata.
+		/// <para>[-1,+0,-]</para>
+		/// </summary>
+		/// <param name="index">valid index of the userdata</param>
+		void SetUserValue(int index);
 
 		/// <summary>
 		/// loads a lua chunk via a reader function.
@@ -801,8 +866,19 @@ namespace lua::v51 {
 		static int Next_Unproteced(lua_State* L);
 
 	public:
-
-		// no access to fenv
+		/// <summary>
+		/// pushes the environment of the function/thread/userdata at idx.
+		/// <para>[-0,+1,-]</para>
+		/// </summary>
+		/// <param name="idx"></param>
+		void GetEnvironment(int idx);
+		/// <summary>
+		/// sets the table at the top of the stack as the environment of the function/thread/userdata at idx and pops it.
+		/// if idx does not have an environment, returns 0.
+		/// <para>[-1,+0,-]</para>
+		/// </summary>
+		/// <param name="idx"></param>
+		bool SetEnvironment(int idx);
 
 		/// <summary>
 		/// calls a function. does not catch exceptions, so better use pcall or tcall instead.

@@ -658,13 +658,11 @@ namespace lua::decorator {
 			}
 			case LType::Userdata:
 			{
-				std::string_view ud;
+				std::string_view ud = "unknown type";
 				if (GetMetaField(index, TypeNameName)) {
-					ud = ToStringView(-1);
+					if (B::IsString(-1))
+						ud = ToStringView(-1);
 					B::Pop(1);
-				}
-				else {
-					ud = "unknown type";
 				}
 				return std::format("<Userdata {} {}>", ud, static_cast<void*>(B::ToUserdata(index)));
 			}
@@ -902,7 +900,7 @@ namespace lua::decorator {
 
 	private:
 		std::string GetNameForFunc_FindField(int i, int level) {
-			if (i <= 0 || !B::IsTable(-1))
+			if (level <= 0 || !B::IsTable(-1))
 				return "";
 			for (auto kt : Pairs(-1)) {
 				if (kt != lua::LType::String)

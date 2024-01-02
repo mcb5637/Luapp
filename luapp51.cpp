@@ -416,6 +416,15 @@ namespace lua::v51 {
 	{
 		return lua_newuserdata(L, s);
 	}
+	LType State::GetUserValue(int index)
+	{
+		lua_getfenv(L, index);
+		return Type(-1);
+	}
+	void State::SetUserValue(int index)
+	{
+		lua_setfenv(L, index);
+	}
 	ErrorCode State::Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
 	{
 		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname));
@@ -482,6 +491,14 @@ namespace lua::v51 {
 		bool has = lua_next(L, 2);
 		*static_cast<bool*>(lua_touserdata(L, 1)) = has;
 		return has ? 2 : 0;
+	}
+	void State::GetEnvironment(int idx)
+	{
+		lua_getfenv(L, idx);
+	}
+	bool State::SetEnvironment(int idx)
+	{
+		return lua_setfenv(L, idx);
 	}
 	void State::Call(int nargs, int nresults)
 	{

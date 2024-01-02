@@ -365,8 +365,59 @@ namespace lua::v53 {
 			return ExceptionConverter;
 		}
 
+		/// <summary>
+		/// lists the capabilities of this lua version.
+		/// </summary>
 		struct Capabilities {
-			static constexpr bool NativeIntegers = true, UpvalueId = true, GlobalsIndex = false, MetatableLengthModulo = true, Uservalues = false, CloseSlots = false, LoadedTable = true, JIT = false;
+			/// <summary>
+			/// if true, supports lua::Integer natively (not converting them to lua::Number internally), as well as bit operators.
+			/// </summary>
+			static constexpr bool NativeIntegers = true;
+			/// <summary>
+			/// if true, supports Debug_UpvalueID and Debug_UpvalueJoin.
+			/// </summary>
+			static constexpr bool UpvalueId = true;
+			/// <summary>
+			/// if true, has State::GLOBALSINDEX to directly access globals. if false, it needs to be queried via State::REGISTRY_GLOBALS from the registry.
+			/// <para>note that in both cases, functions like State::SetGlobal are provided.</para>
+			/// </summary>
+			static constexpr bool GlobalsIndex = false;
+			/// <summary>
+			/// if true, lua::MetaEvent::Length and lua::MetaEvent::Modulo are available, as well as the % operator (instead of math.mod).
+			/// </summary>
+			static constexpr bool MetatableLengthModulo = true;
+			/// <summary>
+			/// if true, State::ObjLength calls lua::MetaEvent::Length for tables.
+			/// </summary>
+			static constexpr bool MetatableLengthOnTables = true;
+			/// <summary>
+			/// if true, supports at least one uservalue per userdata (might technically be a environment).
+			/// </summary>
+			static constexpr bool Uservalues = true;
+			/// <summary>
+			/// if true, supports a fixed number of uservalues per userdata, specified at userdata creation.
+			/// </summary>
+			static constexpr bool ArbitraryUservalues = false;
+			/// <summary>
+			/// if true, supports closable slots.
+			/// </summary>
+			static constexpr bool CloseSlots = false;
+			/// <summary>
+			/// if true, supports State::REGISTRY_LOADED_TABLE.
+			/// </summary>
+			static constexpr bool LoadedTable = true;
+			/// <summary>
+			/// if true, supports State::SetJITMode functions.
+			/// </summary>
+			static constexpr bool JIT = false;
+			/// <summary>
+			/// if true, supports State::SetEnvironment and State::GetEnvironment for lua functions.
+			/// </summary>
+			static constexpr bool Environments = false;
+			/// <summary>
+			/// if true, supports State::SetEnvironment and State::GetEnvironment for c functions, threads and userdata.
+			/// </summary>
+			static constexpr bool NonFunctionEnvironments = false;
 		};
 		using ErrorCode = ErrorCode;
 		using ComparisonOperator = ComparisonOperator;
@@ -914,9 +965,6 @@ namespace lua::v53 {
 		static int Next_Unproteced(lua_State* L);
 
 	public:
-
-		// no access to fenv
-
 		/// <summary>
 		/// calls a function. does not catch exceptions, so better use pcall or tcall instead.
 		/// first push the function, then the arguments in order, then call.

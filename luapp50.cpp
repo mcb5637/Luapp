@@ -461,6 +461,14 @@ namespace lua::v50 {
 		*static_cast<bool*>(lua_touserdata(L, 1)) = has;
 		return has ? 2 : 0;
 	}
+	void State::GetEnvironment(int idx)
+	{
+		lua_getfenv(L, idx);
+	}
+	bool State::SetEnvironment(int idx)
+	{
+		return lua_setfenv(L, idx);
+	}
 	void State::Call(int nargs, int nresults)
 	{
 		if constexpr (TypeChecks) {
