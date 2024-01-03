@@ -94,6 +94,18 @@ namespace lua::decorator {
 			auto* o = static_cast<O*>(L.ToUserdata(B::Upvalueindex(1)));
 			return std::invoke(F, o, L);
 		}
+		/// <summary>
+		/// adapts a member function to a CppFunction by storing the object in upvalue 1.
+		/// </summary>
+		/// <typeparam name="O">object type</typeparam>
+		/// <typeparam name="F">member function pointer to push</typeparam>
+		/// <param name="L">state</param>
+		/// <returns>number of return values on the stack</returns>
+		template<class O, int(O::* F)(State L) const>
+		static int MemberClosure(State L) {
+			auto* o = static_cast<O*>(L.ToUserdata(B::Upvalueindex(1)));
+			return std::invoke(F, o, L);
+		}
 
 		/// <summary>
 		/// info to register a function to lua.
@@ -101,19 +113,59 @@ namespace lua::decorator {
 		struct FuncReference {
 			std::string_view Name;
 			CFunction Func;
+			void* Upvalue;
 
-			constexpr FuncReference(std::string_view name, CFunction f) {
-				Name = name;
-				Func = f;
+			constexpr FuncReference(std::string_view name, CFunction f, void* upvalue = nullptr) : Name(name), Func(f), Upvalue(upvalue) {
 			}
 
+			/// <summary>
+			/// A reference to a CppFunction.
+			/// </summary>
+			/// <typeparam name="F"></typeparam>
+			/// <param name="name"></param>
+			/// <returns></returns>
 			template<CppFunction F>
 			constexpr static FuncReference GetRef(std::string_view name) {
 				return { name, &CppToCFunction<F> };
 			}
+			/// <summary>
+			/// A Reference to a CFunction.
+			/// </summary>
+			/// <typeparam name="F"></typeparam>
+			/// <param name="name"></param>
+			/// <returns></returns>
 			template<CFunction F>
 			constexpr static FuncReference GetRef(std::string_view name) {
 				return { name, F };
+			}
+			/// <summary>
+			/// A reference to a Member function bound as CppFunction.
+			/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
+			/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
+			/// </summary>
+			/// <typeparam name="O"></typeparam>
+			/// <typeparam name="F"></typeparam>
+			/// <param name="obj"></param>
+			/// <param name="name"></param>
+			/// <returns></returns>
+			template<class O, int(O::* F)(State L)>
+			constexpr static FuncReference GetRef(O& obj, std::string_view name) {
+				return { name, &CppToCFunction<MemberClosure<O, F>>, &obj };
+			}
+			/// <summary>
+			/// A reference to a Member function bound as CppFunction.
+			/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
+			/// <para>needs a non const object, because lua does not have const userdata.</para>
+			/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
+			/// </summary>
+			/// <typeparam name="O"></typeparam>
+			/// <typeparam name="F"></typeparam>
+			/// <param name="obj"></param>
+			/// <param name="name"></param>
+			/// <returns></returns>
+			template<class O, int(O::* F)(State L) const>
+			constexpr static FuncReference GetRef(O& obj, std::string_view name) {
+				return { name, &CppToCFunction<MemberClosure<O, F>>, &obj };
 			}
 
 			auto operator<=>(const FuncReference&) const = default;
@@ -249,6 +301,25 @@ namespace lua::decorator {
 		/// <param name="obj">object</param>
 		/// <param name="nups">number of upvalues</param>
 		template<class O, int(O::*F)(State L)>
+		void Push(O& obj, int nups = 0) {
+			B::PushLightUserdata(&obj);
+			B::Insert(-nups - 1);
+			Push<MemberClosure<O, F>>(nups + 1);
+		}
+		/// <summary>
+		/// pushes a member function pointer bound to a object onto the stack. the bound object takes up upvalue 1.
+		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
+		/// The object gets inserted as upvalue 1, and all others shifted up by 1.
+		/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
+		/// <para>needs a non const object, because lua does not have const userdata.</para>
+		/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
+		/// <para>[-nups,+1,m]</para>
+		/// </summary>
+		/// <typeparam name="O">object type</typeparam>
+		/// <typeparam name="F">function</typeparam>
+		/// <param name="obj">object</param>
+		/// <param name="nups">number of upvalues</param>
+		template<class O, int(O::* F)(State L) const>
 		void Push(O& obj, int nups = 0) {
 			B::PushLightUserdata(&obj);
 			B::Insert(-nups - 1);
@@ -774,10 +845,13 @@ namespace lua::decorator {
 		/// <param name="name">key to register</param>
 		/// <param name="f">function to register</param>
 		/// <param name="index">valid index where to register</param>
-		void RegisterFunc(std::string_view name, CFunction f, int index)
+		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
+		void RegisterFunc(std::string_view name, CFunction f, int index, void* upval = nullptr)
 		{
 			Push(name);
-			B::Push(f);
+			if (upval)
+				B::PushLightUserdata(upval);
+			B::Push(f, upval == nullptr ? 0 : 1);
 			B::SetTableRaw(index);
 		}
 		/// <summary>
@@ -786,9 +860,12 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="name">key to register</param>
 		/// <param name="f">function to register</param>
-		void RegisterFunc(std::string_view name, CFunction f)
+		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
+		void RegisterFunc(std::string_view name, CFunction f, void* upval = nullptr)
 		{
-			Push(f);
+			if (upval)
+				B::PushLightUserdata(upval);
+			B::Push(f, upval == nullptr ? 0 : 1);
 			SetGlobal(name);
 		}
 		/// <summary>
@@ -799,9 +876,10 @@ namespace lua::decorator {
 		/// <param name="name">key to register</param>
 		/// <param name="F">function to register</param>
 		/// <param name="index">valid index where to register</param>
+		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
 		template<CFunction F>
-		void RegisterFunc(std::string_view name, int index) {
-			RegisterFunc(name, F, index);
+		void RegisterFunc(std::string_view name, int index, void* upval = nullptr) {
+			RegisterFunc(name, F, index, upval);
 		}
 		/// <summary>
 		/// registers the function f via the key name in the global environment.
@@ -809,9 +887,10 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="name">key to register</param>
 		/// <param name="F">function to register</param>
+		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
 		template<CFunction F>
-		void RegisterFunc(std::string_view name) {
-			RegisterFunc(name, F);
+		void RegisterFunc(std::string_view name, void* upval = nullptr) {
+			RegisterFunc(name, F, upval);
 		}
 		/// <summary>
 		/// registers the function f via the key name in index.
@@ -821,10 +900,11 @@ namespace lua::decorator {
 		/// <param name="name">key to register</param>
 		/// <param name="F">function to register</param>
 		/// <param name="index">valid index where to register</param>
+		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
 		template<CppFunction F>
-		void RegisterFunc(std::string_view name, int index)
+		void RegisterFunc(std::string_view name, int index, void* upval = nullptr)
 		{
-			RegisterFunc(name, &CppToCFunction<F>, index);
+			RegisterFunc(name, &CppToCFunction<F>, index, upval);
 		}
 		/// <summary>
 		/// registers the function f via the key name in the global environment.
@@ -832,10 +912,42 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="name">key to register</param>
 		/// <param name="F">function to register</param>
+		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
 		template<CppFunction F>
-		void RegisterFunc(std::string_view name)
+		void RegisterFunc(std::string_view name, void* upval = nullptr)
 		{
-			RegisterFunc(name, &CppToCFunction<F>);
+			RegisterFunc(name, &CppToCFunction<F>, upval);
+		}
+		/// <summary>
+		/// registers the member function F via the key name in the global environment. The object will take up upvalue 1.
+		/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
+		/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <typeparam name="O">object type</typeparam>
+		/// <typeparam name="F">member function to register</typeparam>
+		/// <param name="obj">object</param>
+		/// <param name="name">key to register</param>
+		template<class O, int(O::* F)(State L)>
+		void RegisterFunc(O& obj, std::string_view name)
+		{
+			RegisterFunc(name, &CppToCFunction<MemberClosure<O, F>>, &obj);
+		}
+		/// <summary>
+		/// registers the member function F via the key name in the global environment. The object will take up upvalue 1.
+		/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
+		/// <para>needs a non const object, because lua does not have const userdata.</para>
+		/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <typeparam name="O">object type</typeparam>
+		/// <typeparam name="F">member function to register</typeparam>
+		/// <param name="obj">object</param>
+		/// <param name="name">key to register</param>
+		template<class O, int(O::* F)(State L) const>
+		void RegisterFunc(O& obj, std::string_view name)
+		{
+			RegisterFunc(name, &CppToCFunction<MemberClosure<O, F>>, &obj);
 		}
 		/// <summary>
 		/// registers all functions in funcs into index.
@@ -847,7 +959,7 @@ namespace lua::decorator {
 		template<class T>
 		void RegisterFuncs(const T& funcs, int index) {
 			for (const FuncReference& f : funcs) {
-				RegisterFunc(f.Name, f.Func, index);
+				RegisterFunc(f.Name, f.Func, index, f.Upvalue);
 			}
 		}
 		/// <summary>
@@ -858,7 +970,7 @@ namespace lua::decorator {
 		template<class T>
 		void RegisterFuncs(const T& funcs) {
 			for (const FuncReference& f : funcs) {
-				RegisterFunc(f.Name, f.Func);
+				RegisterFunc(f.Name, f.Func, f.Upvalue);
 			}
 		}
 		/// <summary>
@@ -870,15 +982,15 @@ namespace lua::decorator {
 		/// <param name="name">name of the global table</param>
 		template<class T>
 		void RegisterGlobalLib(const T& funcs, std::string_view name) {
-			B::Push(name);
-			B::Push(name);
-			B::GetGlobal();
+			Push(name);
+			Push(name);
+			GetGlobal();
 			if (!B::IsTable(-1)) {
 				B::Pop(1);
 				B::NewTable();
 			}
 			RegisterFuncs(funcs, -3);
-			B::SetGlobal();
+			SetGlobal();
 		}
 
 		/// <summary>
