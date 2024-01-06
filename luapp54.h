@@ -243,6 +243,11 @@ namespace lua::v54 {
 		unsigned short FirstValueTransferred = 0;
 		unsigned short NumberTransferred = 0;
 		char ShortSrc[SHORTSRC_SIZE] = {};
+	private:
+		void* CallInfo = nullptr;
+
+		friend class State;
+		friend void CopyDebugInfo(const lua_Debug& src, DebugInfo& trg);
 	};
 	constexpr DebugInfoOptions operator|(DebugInfoOptions a, DebugInfoOptions b) {
 		using under = std::underlying_type<DebugInfoOptions>::type;
@@ -1141,6 +1146,13 @@ namespace lua::v54 {
 		/// <param name="opt">what to query</param>
 		/// <returns>debug info</returns>
 		DebugInfo Debug_GetInfoForFunc(DebugInfoOptions opt);
+		/// <summary>
+		/// pushes the function associated with a DebugInfo onto the stack.
+		/// does not work with Debug_GetInfoForFunc.
+		/// <para>[+1,+0,-]</para>
+		/// </summary>
+		/// <param name="info"></param>
+		void Debug_PushDebugInfoFunc(const DebugInfo& info);
 		/// <summary>
 		/// gets the local value number localnum of the function at the stack level level.
 		/// returns the local name and pushes the current value.

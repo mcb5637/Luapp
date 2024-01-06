@@ -107,6 +107,7 @@ namespace lua::v52 {
 		trg.IsTailCall = src.istailcall;
 		memcpy(trg.ShortSrc, src.short_src, DebugInfo::SHORTSRC_SIZE);
 		trg.ShortSrc[DebugInfo::SHORTSRC_SIZE - 1] = '\0';
+		trg.CallInfo = src.i_ci;
 	}
 
 	State::State(lua_State* L)
@@ -772,8 +773,18 @@ namespace lua::v52 {
 		DebugInfo r{};
 		if (!lua_getinfo(L, Debug_GetOptionString(opt, false, true), &d))
 			throw std::runtime_error("somehow the debug option string got messed up");
+		d.i_ci = nullptr;
 		CopyDebugInfo(d, r);
 		return r;
+	}
+	void State::Debug_PushDebugInfoFunc(const DebugInfo& info)
+	{
+		lua_Debug d;
+		if (info.CallInfo == nullptr)
+			throw LuaException{ "invalid DebugInfo" };
+		d.i_ci = static_cast<CallInfo*>(info.CallInfo);
+		if (!lua_getinfo(L, Debug_GetOptionString(DebugInfoOptions::None, true, false), &d))
+			throw std::runtime_error("somehow the debug option string got messed up");
 	}
 	const char* State::Debug_GetLocal(int level, int localnum)
 	{

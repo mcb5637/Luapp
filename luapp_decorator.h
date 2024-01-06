@@ -2,6 +2,7 @@
 #include <format>
 #include <string_view>
 #include <sstream>
+#include <set>
 
 #include "constexprTypename.h"
 #include "luapp_common.h"
@@ -686,13 +687,8 @@ namespace lua::decorator {
 			return le;
 		}
 
-		/// <summary>
-		/// turns the value at index to a debug string.
-		/// <para>[-0,+0,-]</para>
-		/// </summary>
-		/// <param name="index">acceptable index to check</param>
-		/// <returns>debug string</returns>
-		std::string ToDebugString(int index)
+	private:
+		std::string ToDebugString_Recursive(int index, int tableExpandLevels, size_t indent, std::set<const void*>& tablesDone)
 		{
 			LType t = B::Type(index);
 			switch (t)
@@ -713,19 +709,37 @@ namespace lua::decorator {
 			case LType::String:
 				return "\"" + ToStdString(index) + "\"";
 			case LType::Table:
-				return std::format("<table {}>", B::ToPointer(index));
+			{
+				auto tp = B::ToPointer(index);
+				if (tablesDone.find(tp) != tablesDone.end()) {
+					return std::format("<table, recursion {}>", tp);
+				}
+				if (tableExpandLevels > 0 && B::CheckStack(3)) {
+					tablesDone.insert(tp);
+					std::stringstream str{};
+					str << "{\n";
+					for (auto t : Pairs(index)) {
+						str << std::string(indent + 1, '\t') << '[' << ToDebugString_Recursive(-2, tableExpandLevels - 1, indent + 1, tablesDone)
+							<< "] = " << ToDebugString_Recursive(-1, tableExpandLevels - 1, indent + 1, tablesDone) << ",\n";
+					}
+					str << std::string(indent, '\t') << "}";
+					return str.str();
+				}
+				return std::format("<table {}>", tp);
+			}
 			case LType::Function:
 			{
 				B::PushValue(index);
 				typename B::DebugInfo d = B::Debug_GetInfoForFunc(B::DebugInfoOptions::Name | B::DebugInfoOptions::Source | B::DebugInfoOptions::Line);
-				std::ostringstream name{};
-				name << "<function ";
-				name << d.What << " ";
-				name << d.NameWhat << " ";
-				name << (d.Name ? d.Name : "null") << " (defined in:";
-				name << d.ShortSrc << ":";
-				name << d.CurrentLine << ")>";
-				return name.str();
+				std::string name = GetNameForFunc(d);
+				std::string def;
+				if (B::IsCFunction(index)) {
+					def = std::format("C:0x{:X}", reinterpret_cast<unsigned int>(B::ToCFunction(index)));
+				}
+				else {
+					def = std::format("{}:{}", d.ShortSrc, d.CurrentLine);
+				}
+				return std::format("<function {} {} {} (defined in:{})>", d.What, d.NameWhat, name, def);
 			}
 			case LType::Userdata:
 			{
@@ -744,6 +758,17 @@ namespace lua::decorator {
 			default:
 				return "<unknown>";
 			}
+		}
+	public:
+		/// <summary>
+		/// turns the value at index to a debug string.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="index">acceptable index to check</param>
+		/// <returns>debug string</returns>
+		std::string ToDebugString(int index, int maxTableExpandLevels = 0, size_t indent = 0) {
+			std::set<const void*> tablesDone{};
+			return ToDebugString_Recursive(index, maxTableExpandLevels, indent, tablesDone);
 		}
 		/// <summary>
 		/// generates a stack trace from levelStart to levelEnd (or the end of the stack).
@@ -764,7 +789,7 @@ namespace lua::decorator {
 				trace << "\t";
 				trace << ar.What << " ";
 				trace << ar.NameWhat << " ";
-				trace << (ar.Name ? ar.Name : "null") << " (defined in:";
+				trace << Debug_GetNameForStackFunc(ar) << " (defined in:";
 				trace << ar.ShortSrc << ":";
 				trace << ar.CurrentLine << ")";
 				if (locals) {
@@ -1014,6 +1039,8 @@ namespace lua::decorator {
 		std::string GetNameForFunc_FindField(int i, int level) {
 			if (level <= 0 || !B::IsTable(-1))
 				return "";
+			if (!B::CheckStack(2))
+				return "";
 			for (auto kt : Pairs(-1)) {
 				if (kt != lua::LType::String)
 					continue;
@@ -1051,7 +1078,35 @@ namespace lua::decorator {
 			B::SetTop(i);
 			return r;
 		}
+		/// <summary>
+		/// tries to find a suitable name for a given function at the top of the stack, with a given DebugInfo.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="info"></param>
+		/// <returns></returns>
+		std::string GetNameForFunc(const typename B::DebugInfo& info) {
+			if (info.Name != nullptr && *info.Name != '\0') {
+				return info.Name;
+			}
+			return GetNameForFunc();
+		}
 
+		/// <summary>
+		/// tries to find a suitable name for the function in the call stack with a given DebugInfo.
+		/// requires the DebugInfo to be created with DebugInfoOptions::Name information.
+		/// <para>[-0,+0,-]</para>
+		/// </summary>
+		/// <param name="info"></param>
+		/// <returns></returns>
+		std::string Debug_GetNameForStackFunc(const typename B::DebugInfo& info) {
+			if (info.Name != nullptr && *info.Name != '\0') {
+				return info.Name;
+			}
+			B::Debug_PushDebugInfoFunc(info);
+			auto r = GetNameForFunc();
+			B::Pop(1);
+			return r;
+		}
 		/// <summary>
 		/// tries to find a suitable name for the function in the call stack at a given level.
 		/// </summary>
@@ -1061,13 +1116,7 @@ namespace lua::decorator {
 			typename B::DebugInfo i{};
 			if (!B::Debug_GetStack(lvl, i, B::DebugInfoOptions::Name, true))
 				return "";
-			if (i.Name != nullptr && *i.Name != '\0') {
-				B::Pop(1);
-				return i.Name;
-			}
-			auto r = GetNameForFunc();
-			B::Pop(1);
-			return r;
+			return Debug_GetNameForStackFunc(i);
 		}
 
 		/// <summary>
