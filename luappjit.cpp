@@ -1,6 +1,6 @@
 #include "../pch.h"
 
-#include "luappjit.h"
+#include "luappjit_d.h"
 
 #ifndef LUA_CPPLINKAGE
 extern "C" {
@@ -37,22 +37,22 @@ namespace lua::jit {
 	static_assert(State::GLOBALSINDEX == LUA_GLOBALSINDEX);
 	static_assert(State::ENVIRONINDEX == LUA_ENVIRONINDEX);
 	static_assert(State::MULTIRET == LUA_MULTRET);
-	static_assert(ErrorCode::Success == static_cast<ErrorCode>(0));
-	static_assert(ErrorCode::Runtime == static_cast<ErrorCode>(LUA_ERRRUN));
-	static_assert(ErrorCode::Memory == static_cast<ErrorCode>(LUA_ERRMEM));
-	static_assert(ErrorCode::ErrorHandler == static_cast<ErrorCode>(LUA_ERRERR));
-	static_assert(ErrorCode::Syntax == static_cast<ErrorCode>(LUA_ERRSYNTAX));
-	static_assert(ErrorCode::File == static_cast<ErrorCode>(LUA_ERRFILE));
-	static_assert(ErrorCode::Yield == static_cast<ErrorCode>(LUA_YIELD));
+	static_assert(lua::v51::ErrorCode::Success == static_cast<lua::v51::ErrorCode>(0));
+	static_assert(lua::v51::ErrorCode::Runtime == static_cast<lua::v51::ErrorCode>(LUA_ERRRUN));
+	static_assert(lua::v51::ErrorCode::Memory == static_cast<lua::v51::ErrorCode>(LUA_ERRMEM));
+	static_assert(lua::v51::ErrorCode::ErrorHandler == static_cast<lua::v51::ErrorCode>(LUA_ERRERR));
+	static_assert(lua::v51::ErrorCode::Syntax == static_cast<lua::v51::ErrorCode>(LUA_ERRSYNTAX));
+	static_assert(lua::v51::ErrorCode::File == static_cast<lua::v51::ErrorCode>(LUA_ERRFILE));
+	static_assert(lua::v51::ErrorCode::Yield == static_cast<lua::v51::ErrorCode>(LUA_YIELD));
 	static_assert(State::Upvalueindex(1) == lua_upvalueindex(1));
 	static_assert(State::Upvalueindex(500) == lua_upvalueindex(500));
 	static_assert(State::REGISTRYINDEX == LUA_REGISTRYINDEX);
-	static_assert(DebugInfo::SHORTSRC_SIZE == LUA_IDSIZE);
-	static_assert(HookEvent::None == static_cast<HookEvent>(0));
-	static_assert(HookEvent::Call == static_cast<HookEvent>(LUA_MASKCALL));
-	static_assert(HookEvent::Return == static_cast<HookEvent>(LUA_MASKRET));
-	static_assert(HookEvent::Line == static_cast<HookEvent>(LUA_MASKLINE));
-	static_assert(HookEvent::Count == static_cast<HookEvent>(LUA_MASKCOUNT));
+	static_assert(lua::v51::DebugInfo::SHORTSRC_SIZE == LUA_IDSIZE);
+	static_assert(lua::v51::HookEvent::None == static_cast<lua::v51::HookEvent>(0));
+	static_assert(lua::v51::HookEvent::Call == static_cast<lua::v51::HookEvent>(LUA_MASKCALL));
+	static_assert(lua::v51::HookEvent::Return == static_cast<lua::v51::HookEvent>(LUA_MASKRET));
+	static_assert(lua::v51::HookEvent::Line == static_cast<lua::v51::HookEvent>(LUA_MASKLINE));
+	static_assert(lua::v51::HookEvent::Count == static_cast<lua::v51::HookEvent>(LUA_MASKCOUNT));
 	static_assert(JITMode::Off == static_cast<JITMode>(LUAJIT_MODE_OFF));
 	static_assert(JITMode::On == static_cast<JITMode>(LUAJIT_MODE_ON));
 	static_assert(JITMode::Flush == static_cast<JITMode>(LUAJIT_MODE_FLUSH));

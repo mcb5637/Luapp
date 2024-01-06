@@ -1,6 +1,6 @@
 #include "../pch.h"
 
-#include "luapp50.h"
+#include "luapp50_d.h"
 
 #ifdef LUA_BUILD_AS_DLL
 #define LUA_API __declspec(dllimport)

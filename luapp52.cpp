@@ -1,6 +1,6 @@
 #include "../pch.h"
 
-#include "luapp52.h"
+#include "luapp52_d.h"
 
 #ifndef LUA_CPPLINKAGE
 extern "C" {
@@ -782,7 +782,7 @@ namespace lua::v52 {
 		lua_Debug d;
 		if (info.CallInfo == nullptr)
 			throw LuaException{ "invalid DebugInfo" };
-		d.i_ci = static_cast<CallInfo*>(info.CallInfo);
+		d.i_ci = static_cast<decltype(d.i_ci)>(info.CallInfo);
 		if (!lua_getinfo(L, Debug_GetOptionString(DebugInfoOptions::None, true, false), &d))
 			throw std::runtime_error("somehow the debug option string got messed up");
 	}

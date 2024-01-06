@@ -1,6 +1,6 @@
 #include "../pch.h"
 
-#include "luapp51.h"
+#include "luapp51_d.h"
 
 #ifndef LUA_CPPLINKAGE
 extern "C" {
