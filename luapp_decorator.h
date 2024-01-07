@@ -769,12 +769,12 @@ namespace lua::decorator {
 				std::string name = GetNameForFunc(d);
 				std::string def;
 				if (B::IsCFunction(index)) {
-					def = std::format("C:0x{:X}", reinterpret_cast<unsigned int>(B::ToCFunction(index)));
+					def = std::format("C:{}", static_cast<void*>(B::ToCFunction(index)));
 				}
 				else {
-					def = std::format("{}:{}", d.ShortSrc, d.CurrentLine);
+					def = std::format("{}:{}", d.ShortSrc, d.LineDefined);
 				}
-				return std::format("<function {} {} {} (defined in:{})>", d.What, d.NameWhat, name, def);
+				return std::format("<function {} {} {} (defined in: {})>", d.What, d.NameWhat, name, def);
 			}
 			case LType::Userdata:
 			{
@@ -1071,11 +1071,15 @@ namespace lua::decorator {
 		}
 
 	private:
-		std::string GetNameForFunc_FindField(int i, int level) {
+		std::string GetNameForFunc_FindField(int i, int level, std::set<const void*>& searched) {
 			if (level <= 0 || !B::IsTable(-1))
 				return "";
 			if (!B::CheckStack(2))
 				return "";
+			const void* p = B::ToPointer(-1);
+			if (searched.find(p) != searched.end())
+				return "";
+			searched.insert(p);
 			for (auto kt : Pairs(-1)) {
 				if (kt != lua::LType::String)
 					continue;
@@ -1084,7 +1088,7 @@ namespace lua::decorator {
 					B::Pop(2);
 					return r;
 				}
-				std::string l = GetNameForFunc_FindField(i, level - 1);
+				std::string l = GetNameForFunc_FindField(i, level - 1, searched);
 				if (!l.empty()) {
 					auto r = ToStdString(-2);
 					B::Pop(2);
@@ -1106,7 +1110,8 @@ namespace lua::decorator {
 				GetTableRaw(B::REGISTRYINDEX, B::REGISTRY_LOADED_TABLE);
 			else
 				B::PushGlobalTable();
-			std::string r = GetNameForFunc_FindField(i, 3);
+			std::set<const void*> searched{};
+			std::string r = GetNameForFunc_FindField(i, 3, searched);
 			if (r.starts_with("_G.")) {
 				r = r.substr(3);
 			}
