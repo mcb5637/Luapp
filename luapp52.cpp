@@ -800,6 +800,22 @@ namespace lua::v52 {
 			return nullptr;
 		return lua_setlocal(L, &ar, localnum);
 	}
+	const char* State::Debug_GetLocal(const DebugInfo& info, int localnum)
+	{
+		lua_Debug d;
+		if (info.CallInfo == nullptr)
+			throw LuaException{ "invalid DebugInfo" };
+		d.i_ci = static_cast<decltype(d.i_ci)>(info.CallInfo);
+		return lua_getlocal(L, &d, localnum);
+	}
+	const char* State::Debug_SetLocal(const DebugInfo& info, int localnum)
+	{
+		lua_Debug d;
+		if (info.CallInfo == nullptr)
+			throw LuaException{ "invalid DebugInfo" };
+		d.i_ci = static_cast<decltype(d.i_ci)>(info.CallInfo);
+		return lua_setlocal(L, &d, localnum);
+	}
 	const char* State::Debug_GetUpvalue(int index, int upnum)
 	{
 		return lua_getupvalue(L, index, upnum);

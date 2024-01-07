@@ -1037,6 +1037,26 @@ namespace lua::v51 {
 		/// <returns>local name</returns>
 		const char* Debug_SetLocal(int level, int localnum);
 		/// <summary>
+		/// gets the local value number localnum of the function at the stack level level.
+		/// returns the local name and pushes the current value.
+		/// returns nullptr and pushes nothing if level or localnum are invalid.
+		/// <para>[-0,+1|0,-]</para>
+		/// </summary>
+		/// <param name="info">stack level</param>
+		/// <param name="localnum">number of local (1 based)</param>
+		/// <returns>local name</returns>
+		const char* Debug_GetLocal(const DebugInfo& info, int localnum);
+		/// <summary>
+		/// sets the local value number localnum of the function at the stack level level.
+		/// returns the local name and pops the set value.
+		/// returns nullptr and pops nothing if level or localnum are invalid.
+		/// <para>[-1|0,+0,-]</para>
+		/// </summary>
+		/// <param name="info">stack level</param>
+		/// <param name="localnum">number of local (1 based)</param>
+		/// <returns>local name</returns>
+		const char* Debug_SetLocal(const DebugInfo& info, int localnum);
+		/// <summary>
 		/// gets the upvalue upnum of the function at index.
 		/// returns the upvalue name and pushes the current value.
 		/// returns nullptr and pushes nothing, if upnum is invalid.

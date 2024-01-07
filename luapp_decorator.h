@@ -686,6 +686,41 @@ namespace lua::decorator {
 			}
 			return le;
 		}
+		class LocalsHolder;
+		/// <summary>
+		/// allows to iterate over the locals of a DebugInfo. (only if from the current call stack).
+		/// each iteration pushes the current value, it needs to be popped by the user.
+		/// the iterator contains the locals name and its number (usefull for SetLocal).
+		/// </summary>
+		/// <param name="i"></param>
+		/// <returns></returns>
+		LocalsHolder Debug_Locals(typename const B::DebugInfo& i) {
+			return LocalsHolder{ *this, i };
+		}
+		/// <summary>
+		/// allows to iterate over the locals of level of the current call stack.
+		/// each iteration pushes the current value, it needs to be popped by the user.
+		/// the iterator contains the locals name and its number (usefull for SetLocal).
+		/// </summary>
+		/// <param name="lvl"></param>
+		/// <returns></returns>
+		LocalsHolder Debug_Locals(int lvl) {
+			typename B::DebugInfo i{};
+			if (!B::Debug_GetStack(lvl, i, B::DebugInfoOptions::None, false))
+				throw lua::LuaException{ "invalid stack level" };
+			return Debug_Locals(i);
+		}
+		class UpvaluesHolder;
+		/// <summary>
+		/// allows to iterate over the upvalues of a function.
+		/// each iteration pushes the current value, it needs to be popped by the user.
+		/// the iterator contains the upvalues name and its number (usefull for SetUpvalue).
+		/// </summary>
+		/// <param name="func"></param>
+		/// <returns></returns>
+		UpvaluesHolder Debug_Upvalues(int func) {
+			return UpvaluesHolder{ *this, func };
+		}
 
 	private:
 		std::string ToDebugString_Recursive(int index, int tableExpandLevels, size_t indent, std::set<const void*>& tablesDone)
@@ -1780,6 +1815,8 @@ namespace lua::decorator {
 			int Index;
 			bool HasNext = false;
 
+			PairsIter(State L, int i) : L(L), Index(i) {}
+		public:
 			friend class State;
 			friend class PairsHolder;
 			inline friend bool operator==(const PairsIter& i, std::default_sentinel_t s) {
@@ -1789,8 +1826,6 @@ namespace lua::decorator {
 				return !i.HasNext;
 			}
 
-			PairsIter(State L, int i) : L(L), Index(i) {}
-		public:
 			/// <summary>
 			/// advances the iterator to the next key/value pair.
 			/// </summary>
@@ -1856,6 +1891,8 @@ namespace lua::decorator {
 			int Key = 1;
 			bool HasNext = false;
 
+			IPairsIter(State l, int i) : L(l), Index(i) {}
+		public:
 			friend class State;
 			friend class IPairsHolder;
 			inline friend bool operator==(const IPairsIter& i, std::default_sentinel_t) {
@@ -1865,8 +1902,6 @@ namespace lua::decorator {
 				return !i.HasNext;
 			}
 
-			IPairsIter(State l, int i) : L(l), Index(i) {}
-		public:
 			/// <summary>
 			/// advances the iterator to the next key.
 			/// </summary>
@@ -1902,7 +1937,7 @@ namespace lua::decorator {
 			}
 		};
 		/// <summary>
-		///  holds information to iterate over an array style table. provides begin and end.
+		/// holds information to iterate over an array style table. provides begin and end.
 		/// </summary>
 		class IPairsHolder {
 			friend class State;
@@ -1930,6 +1965,124 @@ namespace lua::decorator {
 			/// marks the end of table.
 			/// </summary>
 			/// <returns>iterator sentinel</returns>
+			std::default_sentinel_t end() {
+				return std::default_sentinel;
+			}
+		};
+		/// <summary>
+		/// iterator over the locals of a DebugInfo.
+		/// </summary>
+		class LocalsIter {
+			friend class State;
+			State L;
+			const typename B::DebugInfo& Inf;
+
+		public:
+			/// <summary>
+			/// local name and number.
+			/// </summary>
+			struct Local {
+				int LocalNum;
+				const char* Name;
+			};
+		private:
+			Local Loc;
+			LocalsIter(State l, const typename B::DebugInfo& i, int n) : L(l), Inf(i), Loc(n, nullptr) {
+			}
+		public:
+			inline friend bool operator==(const LocalsIter& i, std::default_sentinel_t s) {
+				return i.Loc.Name == nullptr;
+			}
+			inline friend bool operator==(std::default_sentinel_t s, const LocalsIter& i) {
+				return i.Loc.Name == nullptr;
+			}
+
+			LocalsIter& operator++() {
+				Loc.Name = L.Debug_GetLocal(Inf, ++Loc.LocalNum);
+				return *this;
+			}
+			LocalsIter operator++(int) {
+				LocalsIter r = *this;
+				++(*this);
+				return r;
+			}
+			const Local& operator*() {
+				return Loc;
+			}
+		};
+		/// <summary>
+		/// holds information to iterate over the locals of a DebugInfo. provides begin and end.
+		/// </summary>
+		class LocalsHolder {
+			friend class State;
+			State L;
+			typename B::DebugInfo Inf;
+
+			LocalsHolder(State l, typename B::DebugInfo i) : L(l), Inf(i) {}
+		public:
+			LocalsIter begin() {
+				LocalsIter r{ L, Inf, 0 };
+				return ++r;
+			}
+			std::default_sentinel_t end() {
+				return std::default_sentinel;
+			}
+		};
+		/// <summary>
+		/// iterator over the upvalues of a function.
+		/// </summary>
+		class UpvaluesIter {
+			friend class State;
+			State L;
+			int Func;
+
+		public:
+			/// <summary>
+			/// local name and number.
+			/// </summary>
+			struct Upval {
+				int UpvalNum;
+				const char* Name;
+			};
+		private:
+			Upval Upv;
+			UpvaluesIter(State l, int f, int n) : L(l), Func(f), Upv(n, nullptr) {
+			}
+		public:
+			inline friend bool operator==(const UpvaluesIter& i, std::default_sentinel_t s) {
+				return i.Upv.Name == nullptr;
+			}
+			inline friend bool operator==(std::default_sentinel_t s, const UpvaluesIter& i) {
+				return i.Upv.Name == nullptr;
+			}
+
+			UpvaluesIter& operator++() {
+				Upv.Name = L.Debug_GetUpvalue(Func, ++Upv.UpvalNum);
+				return *this;
+			}
+			UpvaluesIter operator++(int) {
+				UpvaluesIter r = *this;
+				++(*this);
+				return r;
+			}
+			const Upval& operator*() {
+				return Upv;
+			}
+		};
+		/// <summary>
+		/// holds information to iterate over the upvalues of a function. provides begin and end.
+		/// </summary>
+		class UpvaluesHolder {
+			friend class State;
+			State L;
+			int Func;
+
+			UpvaluesHolder(State l, int f) : L(l), Func(l.ToAbsoluteIndex(f)) {}
+		public:
+			UpvaluesIter begin() {
+				UpvaluesIter r{ L, Func, 0 };
+				return ++r;
+			}
 			std::default_sentinel_t end() {
 				return std::default_sentinel;
 			}
