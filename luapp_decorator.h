@@ -723,6 +723,11 @@ namespace lua::decorator {
 		}
 
 	private:
+		using ToDebugString_FuncMod = void(*)(State L, int index, typename B::DebugInfo& d, std::string& name, std::string& def);
+		static void ToDebugString_DefaultFuncMod(State L, int index, typename B::DebugInfo& d, std::string& name, std::string& def) {
+
+		}
+		template<ToDebugString_FuncMod FuncMod>
 		std::string ToDebugString_Recursive(int index, int tableExpandLevels, size_t indent, std::set<const void*>& tablesDone)
 		{
 			LType t = B::Type(index);
@@ -754,8 +759,8 @@ namespace lua::decorator {
 					std::stringstream str{};
 					str << "{\n";
 					for (auto t : Pairs(index)) {
-						str << std::string(indent + 1, '\t') << '[' << ToDebugString_Recursive(-2, tableExpandLevels - 1, indent + 1, tablesDone)
-							<< "] = " << ToDebugString_Recursive(-1, tableExpandLevels - 1, indent + 1, tablesDone) << ",\n";
+						str << std::string(indent + 1, '\t') << '[' << ToDebugString_Recursive<FuncMod>(-2, tableExpandLevels - 1, indent + 1, tablesDone)
+							<< "] = " << ToDebugString_Recursive<FuncMod>(-1, tableExpandLevels - 1, indent + 1, tablesDone) << ",\n";
 					}
 					str << std::string(indent, '\t') << "}";
 					return str.str();
@@ -774,6 +779,7 @@ namespace lua::decorator {
 				else {
 					def = std::format("{}:{}", d.ShortSrc, d.LineDefined);
 				}
+				FuncMod(*this, index, d, name, def);
 				return std::format("<function {} {} {} (defined in: {})>", d.What, d.NameWhat, name, def);
 			}
 			case LType::Userdata:
@@ -801,9 +807,10 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="index">acceptable index to check</param>
 		/// <returns>debug string</returns>
+		template<ToDebugString_FuncMod FuncMod = ToDebugString_DefaultFuncMod>
 		std::string ToDebugString(int index, int maxTableExpandLevels = 0, size_t indent = 0) {
 			std::set<const void*> tablesDone{};
-			return ToDebugString_Recursive(index, maxTableExpandLevels, indent, tablesDone);
+			return ToDebugString_Recursive<FuncMod>(index, maxTableExpandLevels, indent, tablesDone);
 		}
 		/// <summary>
 		/// generates a stack trace from levelStart to levelEnd (or the end of the stack).
