@@ -722,12 +722,45 @@ namespace lua::decorator {
 			return UpvaluesHolder{ *this, func };
 		}
 
+		/// <summary>
+		/// default formatting for debug string.
+		/// </summary>
+		struct ToDebugString_Format {
+			/// <summary>
+			/// formats the source part of a c func.
+			/// </summary>
+			/// <param name="L"></param>
+			/// <param name="index"></param>
+			/// <param name="d"></param>
+			/// <returns></returns>
+			static std::string CFuncSourceFormat(State L, int index, const typename B::DebugInfo& d) {
+				return std::format("C:{}", static_cast<void*>(L.ToCFunction(index)));;
+			}
+			/// <summary>
+			/// formats the source part of a lua func.
+			/// </summary>
+			/// <param name="L"></param>
+			/// <param name="index"></param>
+			/// <param name="d"></param>
+			/// <returns></returns>
+			static std::string LuaFuncSourceFormat(State L, int index, const typename B::DebugInfo& d) {
+				return std::format("{}:{}", d.ShortSrc, d.LineDefined);;
+			}
+			/// <summary>
+			/// formats a function.
+			/// </summary>
+			/// <param name="L"></param>
+			/// <param name="index"></param>
+			/// <param name="d"></param>
+			/// <param name="name"></param>
+			/// <param name="src"></param>
+			/// <returns></returns>
+			static std::string FuncFormat(State L, int index, const typename B::DebugInfo& d, std::string_view name, std::string_view src, std::string_view pre, std::string_view post) {
+				return std::format("{}{} {} {} (defined in: {}){}", pre, d.What, d.NameWhat, name, src, post);
+			}
+		};
 	private:
-		using ToDebugString_FuncMod = void(*)(State L, int index, typename B::DebugInfo& d, std::string& name, std::string& def);
-		static void ToDebugString_DefaultFuncMod(State L, int index, typename B::DebugInfo& d, std::string& name, std::string& def) {
-
-		}
-		template<ToDebugString_FuncMod FuncMod>
+		template<class Fmt>
 		std::string ToDebugString_Recursive(int index, int tableExpandLevels, size_t indent, std::set<const void*>& tablesDone)
 		{
 			LType t = B::Type(index);
@@ -759,8 +792,8 @@ namespace lua::decorator {
 					std::stringstream str{};
 					str << "{\n";
 					for (auto t : Pairs(index)) {
-						str << std::string(indent + 1, '\t') << '[' << ToDebugString_Recursive<FuncMod>(-2, tableExpandLevels - 1, indent + 1, tablesDone)
-							<< "] = " << ToDebugString_Recursive<FuncMod>(-1, tableExpandLevels - 1, indent + 1, tablesDone) << ",\n";
+						str << std::string(indent + 1, '\t') << '[' << ToDebugString_Recursive<Fmt>(-2, tableExpandLevels - 1, indent + 1, tablesDone)
+							<< "] = " << ToDebugString_Recursive<Fmt>(-1, tableExpandLevels - 1, indent + 1, tablesDone) << ",\n";
 					}
 					str << std::string(indent, '\t') << "}";
 					return str.str();
@@ -771,16 +804,9 @@ namespace lua::decorator {
 			{
 				B::PushValue(index);
 				typename B::DebugInfo d = B::Debug_GetInfoForFunc(B::DebugInfoOptions::Name | B::DebugInfoOptions::Source | B::DebugInfoOptions::Line);
-				std::string name = GetNameForFunc(d);
-				std::string def;
-				if (B::IsCFunction(index)) {
-					def = std::format("C:{}", static_cast<void*>(B::ToCFunction(index)));
-				}
-				else {
-					def = std::format("{}:{}", d.ShortSrc, d.LineDefined);
-				}
-				FuncMod(*this, index, d, name, def);
-				return std::format("<function {} {} {} (defined in: {})>", d.What, d.NameWhat, name, def);
+				auto name = GetNameForFunc(d);
+				auto src = B::IsCFunction(index) ? Fmt::CFuncSourceFormat(*this, index, d) : Fmt::LuaFuncSourceFormat(*this, index, d);
+				return Fmt::FuncFormat(*this, index, d, name, src, "<function ", ">");
 			}
 			case LType::Userdata:
 			{
@@ -807,10 +833,10 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="index">acceptable index to check</param>
 		/// <returns>debug string</returns>
-		template<ToDebugString_FuncMod FuncMod = ToDebugString_DefaultFuncMod>
+		template<class Fmt = ToDebugString_Format>
 		std::string ToDebugString(int index, int maxTableExpandLevels = 0, size_t indent = 0) {
 			std::set<const void*> tablesDone{};
-			return ToDebugString_Recursive<FuncMod>(index, maxTableExpandLevels, indent, tablesDone);
+			return ToDebugString_Recursive<Fmt>(index, maxTableExpandLevels, indent, tablesDone);
 		}
 		/// <summary>
 		/// generates a stack trace from levelStart to levelEnd (or the end of the stack).
@@ -822,18 +848,17 @@ namespace lua::decorator {
 		/// <param name="upvalues">include a ToDebugString of upvalues</param>
 		/// <param name="locals">include a ToDebugString of locals</param>
 		/// <returns>stack trace</returns>
+		template<class Fmt = ToDebugString_Format>
 		std::string GenerateStackTrace(int levelStart = 0, int levelEnd = -1, bool upvalues = false, bool locals = false)
 		{
 			int lvl = levelStart;
 			typename B::DebugInfo ar{};
 			std::ostringstream trace{};
-			while (levelEnd != lvl && B::Debug_GetStack(lvl, ar, B::DebugInfoOptions::Name | B::DebugInfoOptions::Source | B::DebugInfoOptions::Line, upvalues)) {
+			while (levelEnd != lvl && B::Debug_GetStack(lvl, ar, B::DebugInfoOptions::Name | B::DebugInfoOptions::Source | B::DebugInfoOptions::Line, true)) {
+				auto name = Debug_GetNameForStackFunc(ar);
+				auto src = B::IsCFunction(-1) ? Fmt::CFuncSourceFormat(*this, -1, ar) : Fmt::LuaFuncSourceFormat(*this, -1, ar);
 				trace << "\t";
-				trace << ar.What << " ";
-				trace << ar.NameWhat << " ";
-				trace << Debug_GetNameForStackFunc(ar) << " (defined in:";
-				trace << ar.ShortSrc << ":";
-				trace << ar.CurrentLine << ")";
+				trace << Fmt::FuncFormat(*this, -1, ar, name, src, "", "");
 				if (locals) {
 					const char* localname;
 					int lnum = 1;
@@ -851,8 +876,8 @@ namespace lua::decorator {
 						B::Pop(1);
 						unum++;
 					}
-					B::Pop(1);
 				}
+				B::Pop(1);
 				trace << "\r\n";
 				lvl++;
 			}
