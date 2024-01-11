@@ -24,7 +24,6 @@ namespace lua::decorator {
 	template<class B>
 	class State : public B {
 		constexpr static std::string_view MethodsName = "Methods";
-		constexpr static std::string_view TypeNameName = "TypeName";
 		constexpr static std::string_view BaseTypeNameName = "BaseTypeName";
 
 		template<class State, class T> requires userdata::IndexCpp<State, T>
@@ -341,7 +340,7 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="i">int</param>
 		void Push(int i) {
-			if (B::Capabilities::NativeIntegers)
+			if constexpr (B::Capabilities::NativeIntegers)
 				B::Push(static_cast<lua::Integer>(i));
 			else
 				B::Push(static_cast<lua::Number>(i));
@@ -811,7 +810,7 @@ namespace lua::decorator {
 			case LType::Userdata:
 			{
 				std::string_view ud = "unknown type";
-				if (GetMetaField(index, TypeNameName)) {
+				if (GetMetaField(index, B::MetaEvent::Name)) {
 					if (B::IsString(-1))
 						ud = ToStringView(-1);
 					B::Pop(1);
@@ -2132,7 +2131,7 @@ namespace lua::decorator {
 		/// <param name="i">acceptable index to check</param>
 		/// <returns>obj</returns>
 		template<class T>
-		T* OptionalUserData(int i) {
+		T* OptionalUserClass(int i) {
 			if constexpr (userdata::BaseDefined<T>) {
 				if (B::Type(i) != LType::Userdata)
 					return nullptr;
@@ -2144,18 +2143,13 @@ namespace lua::decorator {
 					B::Pop(2);
 					return nullptr;
 				}
-				auto n = ToStringView(-1);
-				if (typename_details::type_name<typename T::BaseClass>() == n) {
+				if (typename_details::type_name<typename T::BaseClass>() != ToStringView(-1)) {
 					B::Pop(2);
 					return nullptr;
 				}
 				B::Pop(2);
 				// do not acces ActualObj here, this might be of a different type alltogether
-				using base = T::BaseClass;
-				struct Holder {
-					base* const BaseObj;
-				};
-				Holder* u = static_cast<Holder*>(B::ToUserdata(i));
+				auto* u = static_cast<userdata::UserClassBase<typename T::BaseClass>*>(B::ToUserdata(i));
 				return dynamic_cast<T*>(u->BaseObj);
 			}
 			else {
@@ -2170,8 +2164,8 @@ namespace lua::decorator {
 		/// <returns>obj</returns>
 		/// <exception cref="lua::LuaException">if type does not match</exception>
 		template<class T>
-		T* GetUserData(int i) {
-			T* t = OptionalUserData<T>(i);
+		T* CheckUserClass(int i) {
+			T* t = OptionalUserClass<T>(i);
 			if (t == nullptr)
 				ErrorOrThrow(std::format("no {} at argument {}", typename_details::type_name<T>(), i));
 			return t;
@@ -2287,7 +2281,7 @@ namespace lua::decorator {
 		/// </summary>
 		/// <typeparam name="T">type to generate metatable for</typeparam>
 		template<class T>
-		void GetUserDataMetatable() {
+		void GetUserClassMetatable() {
 			if (NewMetaTable(typename_details::type_name<T>())) {
 				if constexpr (userdata::IndexCpp<State<B>, T>) {
 					RegisterFunc<userdata::IndexOperator<State<B>, T>>(B::GetMetaEventName(B::MetaEvent::Index), -3);
@@ -2413,10 +2407,7 @@ namespace lua::decorator {
 				if constexpr (userdata::HasLuaMetaMethods<T>)
 					RegisterFuncs(T::LuaMetaMethods, -3);
 
-				Push(B::GetMetaEventName(B::MetaEvent::Name));
-				Push(typename_details::type_name<T>());
-				B::SetTableRaw(-3);
-				Push(TypeNameName);
+				Push(B::MetaEvent::Name);
 				Push(typename_details::type_name<T>());
 				B::SetTableRaw(-3);
 				Push(BaseTypeNameName);
@@ -2430,8 +2421,8 @@ namespace lua::decorator {
 			}
 		}
 		template<class T>
-		void PrepareUserDataType() {
-			GetUserDataMetatable<T>();
+		void PrepareUserClassType() {
+			GetUserClassMetatable<T>();
 			B::Pop(1);
 		}
 
@@ -2446,16 +2437,16 @@ namespace lua::decorator {
 		/// <param name="...args">parameters for constructor</param>
 		/// <returns>obj</returns>
 		template<class T, class ... Args>
-		T* NewUserData(Args&& ... args) {
+		T* NewUserClass(Args&& ... args) {
 			if constexpr (userdata::BaseDefined<T>) {
-				userdata::UserDataBaseHolder<T, typename T::BaseClass>* t = new (B::NewUserdata(sizeof(userdata::UserDataBaseHolder<T, typename T::BaseClass>))) userdata::UserDataBaseHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
-				GetUserDataMetatable<T>();
+				auto* t = new (B::NewUserdata(sizeof(userdata::UserClassHolder<T, typename T::BaseClass>))) userdata::UserClassHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
+				GetUserClassMetatable<T>();
 				B::SetMetatable(-2);
 				return &t->ActualObj;
 			}
 			else {
 				T* t = new (B::NewUserdata(sizeof(T))) T(std::forward<Args>(args)...);
-				GetUserDataMetatable<T>();
+				GetUserClassMetatable<T>();
 				B::SetMetatable(-2);
 				return t;
 			}
@@ -2472,16 +2463,17 @@ namespace lua::decorator {
 		/// <param name="...args">parameters for constructor</param>
 		/// <returns>obj</returns>
 		template<class T, class ... Args>
-		T* NewUserDataWithUserValues(int nuvalues, Args&& ... args) {
+		requires B::Capabilities::ArbitraryUservalues
+		T* NewUserClassWithUserValues(int nuvalues, Args&& ... args) {
 			if constexpr (userdata::BaseDefined<T>) {
-				userdata::UserDataBaseHolder<T, typename T::BaseClass>* t = new (B::NewUserdata(sizeof(userdata::UserDataBaseHolder<T, typename T::BaseClass>), nuvalues)) userdata::UserDataBaseHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
-				GetUserDataMetatable<T>();
+				auto* t = new (B::NewUserdata(sizeof(userdata::UserClassHolder<T, typename T::BaseClass>), nuvalues)) userdata::UserClassHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
+				GetUserClassMetatable<T>();
 				B::SetMetatable(-2);
 				return &t->ActualObj;
 			}
 			else {
 				T* t = new (B::NewUserdata(sizeof(T))) T(std::forward<Args>(args)...);
-				GetUserDataMetatable<T>();
+				GetUserClassMetatable<T>();
 				B::SetMetatable(-2);
 				return t;
 			}

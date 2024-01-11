@@ -48,9 +48,9 @@ namespace typename_details {
 	};
 
 	template <typename T>
-	constexpr const char* type_name()
+	constexpr std::string_view type_name()
 	{
 		constexpr auto& value = type_name_holder<T>::value;
-		return value.data();
+		return { value.data(), value.size() - 1 };
 	}
 }

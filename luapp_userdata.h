@@ -241,15 +241,24 @@ namespace lua::userdata {
 	};
 
 
+	template<class Base>
+	struct UserClassBase {
+		Base* const BaseObj;
+
+		UserClassBase(Base* b) : BaseObj(b) {}
+	};
 	template<class T, class Base>
 	requires std::derived_from<T, Base>
-	struct UserDataBaseHolder {
-		Base* const BaseObj;
+	struct UserClassHolder : UserClassBase<Base> {
 		T ActualObj;
 
 		template<class ... Args>
-		UserDataBaseHolder(Args&& ... args) : ActualObj(std::forward<Args>(args)...), BaseObj(static_cast<Base*>(&ActualObj)) {
-		}
+		UserClassHolder(Args&& ... args) : ActualObj(std::forward<Args>(args)...), UserClassBase<Base>(static_cast<Base*>(&ActualObj)) {}
+
+		UserClassHolder(const UserClassHolder&) = delete;
+		UserClassHolder(UserClassHolder&&) = delete;
+		void operator=(const UserClassHolder&) = delete;
+		void operator=(UserClassHolder&&) = delete;
 	};
 
 
@@ -257,12 +266,12 @@ namespace lua::userdata {
 	int Finalizer(State L)
 	{
 		if constexpr (BaseDefined<T>) {
-			L.GetUserData<T>(1); // just use the checks here to validate the argument
-			UserDataBaseHolder<T, typename T::BaseClass>* u = static_cast<UserDataBaseHolder<T, typename T::BaseClass>*>(L.ToUserdata(1));
-			u->~UserDataBaseHolder<T, typename T::BaseClass>();
+			L.CheckUserClass<T>(1); // just use the checks here to validate the argument
+			auto* u = static_cast<UserClassHolder<T, typename T::BaseClass>*>(L.ToUserdata(1));
+			u->~UserClassHolder<T, typename T::BaseClass>();
 		}
 		else {
-			L.GetUserData<T>(1)->~T();
+			L.CheckUserClass<T>(1)->~T();
 		}
 		return 0;
 	}
@@ -273,8 +282,8 @@ namespace lua::userdata {
 			L.Push(false);
 			return 1;
 		}
-		T* t = L.OptionalUserData<T>(1);
-		T* o = L.OptionalUserData<T>(2);
+		T* t = L.OptionalUserClass<T>(1);
+		T* o = L.OptionalUserClass<T>(2);
 		if (t && o) {
 			L.Push(*t == *o);
 			return 1;
@@ -289,8 +298,8 @@ namespace lua::userdata {
 			L.Push(false);
 			return 1;
 		}
-		T* t = L.OptionalUserData<T>(1);
-		T* o = L.OptionalUserData<T>(2);
+		T* t = L.OptionalUserClass<T>(1);
+		T* o = L.OptionalUserClass<T>(2);
 		if (t && o) {
 			L.Push(*t < *o);
 			return 1;
@@ -305,8 +314,8 @@ namespace lua::userdata {
 			L.Push(false);
 			return 1;
 		}
-		T* t = L.OptionalUserData<T>(1);
-		T* o = L.OptionalUserData<T>(2);
+		T* t = L.OptionalUserClass<T>(1);
+		T* o = L.OptionalUserClass<T>(2);
 		if (t && o) {
 			L.Push(*t <= *o);
 			return 1;
@@ -317,93 +326,93 @@ namespace lua::userdata {
 	template<class State, class T>
 	requires AddOp<T>
 	int AddOperator(State L) {
-		T* t = L.GetUserData<T>(1);
-		T* o = L.GetUserData<T>(2);
-		L.NewUserData<T>(std::move(*t + *o));
+		T* t = L.CheckUserClass<T>(1);
+		T* o = L.CheckUserClass<T>(2);
+		L.NewUserClass<T>(std::move(*t + *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires SubtractOp<T>
 	int SubtractOperator(State L) {
-		T* t = L.GetUserData<T>(1);
-		T* o = L.GetUserData<T>(2);
-		L.NewUserData<T>(std::move(*t - *o));
+		T* t = L.CheckUserClass<T>(1);
+		T* o = L.CheckUserClass<T>(2);
+		L.NewUserClass<T>(std::move(*t - *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires MultiplyOp<T>
 	static int MultiplyOperator(State L) {
-		T* t = L.GetUserData<T>(1);
-		T* o = L.GetUserData<T>(2);
-		L.NewUserData<T>(std::move(*t * *o));
+		T* t = L.CheckUserClass<T>(1);
+		T* o = L.CheckUserClass<T>(2);
+		L.NewUserClass<T>(std::move(*t * *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires DivideOp<T>
 	int DivideOperator(State L) {
-		T* t = L.GetUserData<T>(1);
-		T* o = L.GetUserData<T>(2);
-		L.NewUserData<T>(std::move(*t / *o));
+		T* t = L.CheckUserClass<T>(1);
+		T* o = L.CheckUserClass<T>(2);
+		L.NewUserClass<T>(std::move(*t / *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires UnaryMinusOp<T>
 	int UnaryMinusOperator(State L) {
-		T* t = L.GetUserData<T>(1);
-		L.NewUserData<T>(std::move(-(*t)));
+		T* t = L.CheckUserClass<T>(1);
+		L.NewUserClass<T>(std::move(-(*t)));
 		return 1;
 	}
 	template<class State, class T>
 	requires BitwiseAndOp<T>
 	int BitwiseAndOperator(State L) {
-		T* t = L.GetUserData<T>(1);
-		T* o = L.GetUserData<T>(2);
-		L.NewUserData<T>(std::move(*t & *o));
+		T* t = L.CheckUserClass<T>(1);
+		T* o = L.CheckUserClass<T>(2);
+		L.NewUserClass<T>(std::move(*t & *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires BitwiseOrOp<T>
 	int BitwiseOrOperator(State L) {
-		T* t = L.GetUserData<T>(1);
-		T* o = L.GetUserData<T>(2);
-		L.NewUserData<T>(std::move(*t | *o));
+		T* t = L.CheckUserClass<T>(1);
+		T* o = L.CheckUserClass<T>(2);
+		L.NewUserClass<T>(std::move(*t | *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires BitwiseXOrOp<T>
 	int BitwiseXOrOperator(State L) {
-		T* t = L.GetUserData<T>(1);
-		T* o = L.GetUserData<T>(2);
-		L.NewUserData<T>(std::move(*t ^ *o));
+		T* t = L.CheckUserClass<T>(1);
+		T* o = L.CheckUserClass<T>(2);
+		L.NewUserClass<T>(std::move(*t ^ *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires BitwiseNotOp<T>
 	int BitwiseNotOperator(State L) {
-		T* t = L.GetUserData<T>(1);
-		L.NewUserData<T>(std::move(~(*t)));
+		T* t = L.CheckUserClass<T>(1);
+		L.NewUserClass<T>(std::move(~(*t)));
 		return 1;
 	}
 	template<class State, class T>
 	requires ShiftLeftOp<T>
 	int ShiftLeftOperator(State L) {
-		T* t = L.GetUserData<T>(1);
-		T* o = L.GetUserData<T>(2);
-		L.NewUserData<T>(std::move(*t << *o));
+		T* t = L.CheckUserClass<T>(1);
+		T* o = L.CheckUserClass<T>(2);
+		L.NewUserClass<T>(std::move(*t << *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires ShiftRightOp<T>
 	int ShiftRightOperator(State L) {
-		T* t = L.GetUserData<T>(1);
-		T* o = L.GetUserData<T>(2);
-		L.NewUserData<T>(std::move(*t >> *o));
+		T* t = L.CheckUserClass<T>(1);
+		T* o = L.CheckUserClass<T>(2);
+		L.NewUserClass<T>(std::move(*t >> *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires IndexCpp<State, T>
 	int IndexOperator(State L) {
-		T* t = L.GetUserData<T>(1);
+		T* t = L.CheckUserClass<T>(1);
 		if constexpr (HasLuaMethods<T>) {
 			if (L.GetMetaField(1, State::MethodsName)) {
 				L.PushValue(2);
