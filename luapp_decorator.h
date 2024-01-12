@@ -2425,7 +2425,37 @@ namespace lua::decorator {
 			GetUserClassMetatable<T>();
 			B::Pop(1);
 		}
-
+	private:
+		template<class T>
+		void* UserClassAlloc(int uvs) {
+			if constexpr (B::Capabilities::ArbitraryUservalues) {
+				return B::NewUserdata(sizeof(T), uvs);
+			}
+			else {
+				return B::NewUserdata(sizeof(T));
+			}
+		}
+		template<class T, class ... Args>
+		T* UserClassNew(int uvs, Args&& ... args) {
+			return new (UserClassAlloc<T>(uvs)) T(std::forward<Args>(args)...);
+		}
+		template<class T, class ... Args>
+		T* UserClassNewBase(int uvs, Args&& ... args) {
+			if constexpr (userdata::BaseDefined<T>) {
+				return &UserClassNew<userdata::UserClassHolder<T, typename T::BaseClass>>(uvs, std::forward<Args>(args)...)->ActualObj;
+			}
+			else {
+				return UserClassNew<T>(uvs, std::forward<Args>(args)...);
+			}
+		}
+		template<class T, class ... Args>
+		T* NewUserClassUnchecked(int uvs, Args&& ... args) {
+			T* r = UserClassNewBase<T>(uvs, std::forward<Args>(args)...);
+			GetUserClassMetatable<T>();
+			B::SetMetatable(-2);
+			return r;
+		}
+	public:
 		/// <summary>
 		/// <para>converts a c++ class to a lua userdata. creates a new full userdata and calls the constructor of T, forwarding all arguments.</para>
 		/// <para>a class (metatable) for a userdata type is only generated once, and then reused for all userdata of the same type.</para>
@@ -2437,19 +2467,9 @@ namespace lua::decorator {
 		/// <param name="...args">parameters for constructor</param>
 		/// <returns>obj</returns>
 		template<class T, class ... Args>
+		requires userdata::UserClassUserValuesValid<State<B>, T>
 		T* NewUserClass(Args&& ... args) {
-			if constexpr (userdata::BaseDefined<T>) {
-				auto* t = new (B::NewUserdata(sizeof(userdata::UserClassHolder<T, typename T::BaseClass>))) userdata::UserClassHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
-				GetUserClassMetatable<T>();
-				B::SetMetatable(-2);
-				return &t->ActualObj;
-			}
-			else {
-				T* t = new (B::NewUserdata(sizeof(T))) T(std::forward<Args>(args)...);
-				GetUserClassMetatable<T>();
-				B::SetMetatable(-2);
-				return t;
-			}
+			return NewUserClassUnchecked<T>(userdata::UserClassUserValues<T>(), std::forward<Args>(args)...);
 		}
 		/// <summary>
 		/// <para>converts a c++ class to a lua userdata. creates a new full userdata and calls the constructor of T, forwarding all arguments.</para>
@@ -2465,18 +2485,9 @@ namespace lua::decorator {
 		template<class T, class ... Args>
 		requires B::Capabilities::ArbitraryUservalues
 		T* NewUserClassWithUserValues(int nuvalues, Args&& ... args) {
-			if constexpr (userdata::BaseDefined<T>) {
-				auto* t = new (B::NewUserdata(sizeof(userdata::UserClassHolder<T, typename T::BaseClass>), nuvalues)) userdata::UserClassHolder<T, typename T::BaseClass>(std::forward<Args>(args)...);
-				GetUserClassMetatable<T>();
-				B::SetMetatable(-2);
-				return &t->ActualObj;
-			}
-			else {
-				T* t = new (B::NewUserdata(sizeof(T))) T(std::forward<Args>(args)...);
-				GetUserClassMetatable<T>();
-				B::SetMetatable(-2);
-				return t;
-			}
+			if (nuvalues > userdata::StateMaxUservalues<State<B>>())
+				throw lua::LuaException{ std::format("this lua state only supports {} uservalues, instead of the requested {}", userdata::StateMaxUservalues<State<B>>(), nuvalues) };
+			return NewUserClassUnchecked<T>(nuvalues, std::forward<Args>(args)...);
 		}
 	};
 

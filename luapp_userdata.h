@@ -429,4 +429,24 @@ namespace lua::userdata {
 			return T::Index(L.L);
 		}
 	}
+	template<class T>
+	concept UserClassUVN = std::same_as<decltype(T::NumberUserValues), const int>;
+	template<class T>
+	constexpr int UserClassUserValues() {
+		if constexpr (UserClassUVN<T>)
+			return T::NumberUserValues;
+		else
+			return 0;
+	}
+	template<class State>
+	constexpr int StateMaxUservalues() {
+		if constexpr (!State::Capabilities::Uservalues)
+			return 0;
+		else if constexpr (!State::Capabilities::ArbitraryUservalues)
+			return 1;
+		else
+			return std::numeric_limits<int>::max();
+	}
+	template<class State, class T>
+	concept UserClassUserValuesValid = UserClassUserValues<T>() <= StateMaxUservalues<State>();
 }
