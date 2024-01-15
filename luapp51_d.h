@@ -1012,10 +1012,11 @@ namespace lua::v51 {
 		/// <summary>
 		/// pushes the function associated with a DebugInfo onto the stack.
 		/// does not work with Debug_GetInfoForFunc.
+		/// returns false, if lua cannot push the function.
 		/// <para>[+1,+0,-]</para>
 		/// </summary>
 		/// <param name="info"></param>
-		void Debug_PushDebugInfoFunc(const DebugInfo& info);
+		bool Debug_PushDebugInfoFunc(const DebugInfo& info);
 		/// <summary>
 		/// gets the local value number localnum of the function at the stack level level.
 		/// returns the local name and pushes the current value.

@@ -1173,7 +1173,8 @@ namespace lua::decorator {
 			if (info.Name != nullptr && *info.Name != '\0') {
 				return info.Name;
 			}
-			B::Debug_PushDebugInfoFunc(info);
+			if (!B::Debug_PushDebugInfoFunc(info))
+				return "";
 			auto r = GetNameForFunc();
 			B::Pop(1);
 			return r;
@@ -2528,14 +2529,12 @@ namespace lua::decorator {
 				return;
 			State<B>::Close();
 			this->L = s.L;
-			s.L = nullptr;
 		};
 		UniqueState& operator=(State<B>&& s) noexcept {
 			if (this->L == s.L)
 				return;
 			State<B>::Close();
 			this->L = s.L;
-			s.L = nullptr;
 		}
 
 		~UniqueState() {

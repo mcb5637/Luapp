@@ -705,14 +705,13 @@ namespace lua::v51 {
 		CopyDebugInfo(d, r);
 		return r;
 	}
-	void State::Debug_PushDebugInfoFunc(const DebugInfo& info)
+	bool State::Debug_PushDebugInfoFunc(const DebugInfo& info)
 	{
 		lua_Debug d;
 		if (info.CallInfo == 0)
-			throw LuaException{ "invalid DebugInfo" };
+			return false;
 		d.i_ci = info.CallInfo;
-		if (!lua_getinfo(L, Debug_GetOptionString(DebugInfoOptions::None, true, false), &d))
-			throw std::runtime_error("somehow the debug option string got messed up");
+		return lua_getinfo(L, Debug_GetOptionString(DebugInfoOptions::None, true, false), &d);
 	}
 	const char* State::Debug_GetLocal(int level, int localnum)
 	{
