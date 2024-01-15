@@ -1402,6 +1402,7 @@ namespace lua::decorator {
 			if (!B::CheckStack(extra))
 				ErrorOrThrow(std::format("stack overflow ({})", msg));
 		}
+		using B::CheckStack;
 		/// <summary>
 		/// checks if the stack contains at least n enements.
 		/// <para>[-0,+0,v]</para>
