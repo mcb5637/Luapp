@@ -18,5 +18,6 @@ namespace lua {
 	using ActivationRecord = State::ActivationRecord;
 	using HookEvent = State::HookEvent;
 	using UniqueState = decorator::UniqueState<v53::State>;
+	using Reference = State::Reference;
 }
 #endif
