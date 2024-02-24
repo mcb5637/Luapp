@@ -3,6 +3,7 @@
 #include <string_view>
 #include <sstream>
 #include <set>
+#include <map>
 
 #include "constexprTypename.h"
 #include "luapp_common.h"
@@ -757,8 +758,30 @@ namespace lua::decorator {
 			static std::string FuncFormat(State L, int index, const typename B::DebugInfo& d, std::string_view name, std::string_view src, std::string_view pre, std::string_view post) {
 				return std::format("{}{} {} {} (defined in: {}){}", pre, d.What, d.NameWhat, name, src, post);
 			}
+			/// <summary>
+			/// formats a function
+			/// </summary>
+			/// <param name="L"></param>
+			/// <param name="index"></param>
+			/// <returns></returns>
+			static std::string StringFormat(State L, int index) {
+				auto sv = L.ToStringView(index);
+				std::string r{};
+				r.reserve(sv.length() + 2);
+				r.append(1, '\"');
+				r.append(sv);
+				r.append(1, '\"');
+				return r;
+			}
 		};
 	private:
+		bool IsIdentifier(std::string_view s) {
+			for (char c : s) {
+				if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'))
+					return false;
+			}
+			return !s.empty() && !(s[0] >= '0' && s[0] <= '9');
+		}
 		template<class Fmt>
 		std::string ToDebugString_Recursive(int index, int tableExpandLevels, size_t indent, std::set<const void*>& tablesDone)
 		{
@@ -779,7 +802,7 @@ namespace lua::decorator {
 				}
 				return std::format("{}", *B::ToNumber(index));
 			case LType::String:
-				return "\"" + ToStdString(index) + "\"";
+				return Fmt::StringFormat(*this, index);
 			case LType::Table:
 			{
 				auto tp = B::ToPointer(index);
@@ -788,11 +811,22 @@ namespace lua::decorator {
 				}
 				if (tableExpandLevels > 0 && B::CheckStack(3)) {
 					tablesDone.insert(tp);
+					std::map<std::pair<int, std::string>, std::string> data{};
+					for (LType kty : Pairs(index)) {
+						data[std::pair<int, std::string>(static_cast<int>(kty),
+							ToDebugString_Recursive<Fmt>(-2, tableExpandLevels - 1, indent + 1, tablesDone))]
+							= ToDebugString_Recursive<Fmt>(-1, tableExpandLevels - 1, indent + 1, tablesDone);
+					}
 					std::stringstream str{};
 					str << "{\n";
-					for (auto t : Pairs(index)) {
-						str << std::string(indent + 1, '\t') << '[' << ToDebugString_Recursive<Fmt>(-2, tableExpandLevels - 1, indent + 1, tablesDone)
-							<< "] = " << ToDebugString_Recursive<Fmt>(-1, tableExpandLevels - 1, indent + 1, tablesDone) << ",\n";
+					for (const auto& [kd, v] : data) {
+						const auto& [kty, k] = kd;
+						str << std::string(indent + 1, '\t');
+						if (static_cast<LType>(kty) == LType::String && IsIdentifier(static_cast<std::string_view>(k).substr(1, k.length() - 2)))
+							str << static_cast<std::string_view>(k).substr(1, k.length() - 2) << " = ";
+						else
+							str << '[' << k << "] = ";
+						str << v << ",\n";
 					}
 					str << std::string(indent, '\t') << "}";
 					return str.str();
