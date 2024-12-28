@@ -266,12 +266,12 @@ namespace lua::userdata {
 	int Finalizer(State L)
 	{
 		if constexpr (BaseDefined<T>) {
-			L.CheckUserClass<T>(1); // just use the checks here to validate the argument
+			L.template CheckUserClass<T>(1); // just use the checks here to validate the argument
 			auto* u = static_cast<UserClassHolder<T, typename T::BaseClass>*>(L.ToUserdata(1));
 			u->~UserClassHolder<T, typename T::BaseClass>();
 		}
 		else {
-			L.CheckUserClass<T>(1)->~T();
+			L.template CheckUserClass<T>(1)->~T();
 		}
 		return 0;
 	}
@@ -282,8 +282,8 @@ namespace lua::userdata {
 			L.Push(false);
 			return 1;
 		}
-		T* t = L.OptionalUserClass<T>(1);
-		T* o = L.OptionalUserClass<T>(2);
+		T* t = L.template OptionalUserClass<T>(1);
+		T* o = L.template OptionalUserClass<T>(2);
 		if (t && o) {
 			L.Push(*t == *o);
 			return 1;
@@ -298,8 +298,8 @@ namespace lua::userdata {
 			L.Push(false);
 			return 1;
 		}
-		T* t = L.OptionalUserClass<T>(1);
-		T* o = L.OptionalUserClass<T>(2);
+		T* t = L.template OptionalUserClass<T>(1);
+		T* o = L.template OptionalUserClass<T>(2);
 		if (t && o) {
 			L.Push(*t < *o);
 			return 1;
@@ -314,8 +314,8 @@ namespace lua::userdata {
 			L.Push(false);
 			return 1;
 		}
-		T* t = L.OptionalUserClass<T>(1);
-		T* o = L.OptionalUserClass<T>(2);
+		T* t = L.template OptionalUserClass<T>(1);
+		T* o = L.template OptionalUserClass<T>(2);
 		if (t && o) {
 			L.Push(*t <= *o);
 			return 1;
@@ -326,93 +326,93 @@ namespace lua::userdata {
 	template<class State, class T>
 	requires AddOp<T>
 	int AddOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
-		T* o = L.CheckUserClass<T>(2);
-		L.NewUserClass<T>(std::move(*t + *o));
+		T* t = L.template CheckUserClass<T>(1);
+		T* o = L.template CheckUserClass<T>(2);
+		L.template NewUserClass<T>(std::move(*t + *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires SubtractOp<T>
 	int SubtractOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
-		T* o = L.CheckUserClass<T>(2);
-		L.NewUserClass<T>(std::move(*t - *o));
+		T* t = L.template CheckUserClass<T>(1);
+		T* o = L.template CheckUserClass<T>(2);
+		L.template NewUserClass<T>(std::move(*t - *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires MultiplyOp<T>
 	static int MultiplyOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
-		T* o = L.CheckUserClass<T>(2);
-		L.NewUserClass<T>(std::move(*t * *o));
+		T* t = L.template CheckUserClass<T>(1);
+		T* o = L.template CheckUserClass<T>(2);
+		L.template NewUserClass<T>(std::move(*t * *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires DivideOp<T>
 	int DivideOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
-		T* o = L.CheckUserClass<T>(2);
-		L.NewUserClass<T>(std::move(*t / *o));
+		T* t = L.template CheckUserClass<T>(1);
+		T* o = L.template CheckUserClass<T>(2);
+		L.template NewUserClass<T>(std::move(*t / *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires UnaryMinusOp<T>
 	int UnaryMinusOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
-		L.NewUserClass<T>(std::move(-(*t)));
+		T* t = L.template CheckUserClass<T>(1);
+		L.template NewUserClass<T>(std::move(-(*t)));
 		return 1;
 	}
 	template<class State, class T>
 	requires BitwiseAndOp<T>
 	int BitwiseAndOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
-		T* o = L.CheckUserClass<T>(2);
-		L.NewUserClass<T>(std::move(*t & *o));
+		T* t = L.template CheckUserClass<T>(1);
+		T* o = L.template CheckUserClass<T>(2);
+		L.template NewUserClass<T>(std::move(*t & *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires BitwiseOrOp<T>
 	int BitwiseOrOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
-		T* o = L.CheckUserClass<T>(2);
-		L.NewUserClass<T>(std::move(*t | *o));
+		T* t = L.template CheckUserClass<T>(1);
+		T* o = L.template CheckUserClass<T>(2);
+		L.template NewUserClass<T>(std::move(*t | *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires BitwiseXOrOp<T>
 	int BitwiseXOrOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
-		T* o = L.CheckUserClass<T>(2);
-		L.NewUserClass<T>(std::move(*t ^ *o));
+		T* t = L.template CheckUserClass<T>(1);
+		T* o = L.template CheckUserClass<T>(2);
+		L.template NewUserClass<T>(std::move(*t ^ *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires BitwiseNotOp<T>
 	int BitwiseNotOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
-		L.NewUserClass<T>(std::move(~(*t)));
+		T* t = L.template CheckUserClass<T>(1);
+		L.template NewUserClass<T>(std::move(~(*t)));
 		return 1;
 	}
 	template<class State, class T>
 	requires ShiftLeftOp<T>
 	int ShiftLeftOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
-		T* o = L.CheckUserClass<T>(2);
-		L.NewUserClass<T>(std::move(*t << *o));
+		T* t = L.template CheckUserClass<T>(1);
+		T* o = L.template CheckUserClass<T>(2);
+		L.template NewUserClass<T>(std::move(*t << *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires ShiftRightOp<T>
 	int ShiftRightOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
-		T* o = L.CheckUserClass<T>(2);
-		L.NewUserClass<T>(std::move(*t >> *o));
+		T* t = L.template CheckUserClass<T>(1);
+		T* o = L.template CheckUserClass<T>(2);
+		L.template NewUserClass<T>(std::move(*t >> *o));
 		return 1;
 	}
 	template<class State, class T>
 	requires IndexCpp<State, T>
 	int IndexOperator(State L) {
-		T* t = L.CheckUserClass<T>(1);
+		T* t = L.template CheckUserClass<T>(1);
 		if constexpr (HasLuaMethods<T>) {
 			if (L.GetMetaField(1, State::MethodsName)) {
 				L.PushValue(2);
