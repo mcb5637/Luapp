@@ -180,11 +180,11 @@ namespace lua::decorator {
 			friend class State;
 			int r;
 
-			constexpr Reference(int r)
+		public:
+			constexpr explicit Reference(int r)
 			{
 				this->r = r;
 			}
-		public:
 			// initialized with noref
 			constexpr Reference()
 			{
@@ -192,6 +192,10 @@ namespace lua::decorator {
 			}
 
 			auto operator<=>(const Reference&) const = default;
+
+			constexpr int Value() const {
+				return r;
+			}
 		};
 
 		/// <summary>
@@ -1742,7 +1746,7 @@ namespace lua::decorator {
 		/// <param name="t">table to reference in</param>
 		/// <returns>reference</returns>
 		Reference Ref(int t = B::REGISTRYINDEX) {
-			return { B::RefI(t) };
+			return Reference{ B::RefI(t) };
 		}
 		/// <summary>
 		/// frees the reference r.
