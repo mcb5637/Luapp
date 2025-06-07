@@ -815,16 +815,19 @@ namespace lua::decorator {
 				}
 				if (tableExpandLevels > 0 && B::CheckStack(3)) {
 					tablesDone.insert(tp);
-					std::map<std::pair<int, std::string>, std::string> data{};
+					std::map<std::tuple<int, lua::Number, std::string>, std::string> data{};
 					for (LType kty : Pairs(index)) {
-						data[std::pair<int, std::string>(static_cast<int>(kty),
+						lua::Number i = 0;
+						if (kty == LType::Number)
+							i = *B::ToNumber(-2);
+						data[std::tuple<int, lua::Number, std::string>(static_cast<int>(kty), i,
 							ToDebugString_Recursive<Fmt>(-2, tableExpandLevels - 1, indent + 1, tablesDone))]
 							= ToDebugString_Recursive<Fmt>(-1, tableExpandLevels - 1, indent + 1, tablesDone);
 					}
 					std::stringstream str{};
 					str << "{\n";
 					for (const auto& [kd, v] : data) {
-						const auto& [kty, k] = kd;
+						const auto& [kty, _, k] = kd;
 						str << std::string(indent + 1, '\t');
 						if (static_cast<LType>(kty) == LType::String && IsIdentifier(static_cast<std::string_view>(k).substr(1, k.length() - 2)))
 							str << static_cast<std::string_view>(k).substr(1, k.length() - 2) << " = ";
