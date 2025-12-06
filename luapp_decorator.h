@@ -203,7 +203,7 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="L">lua state</param>
 		/// <param name="ar">activation record</param>
-		using CppHook = void(*) (State L, B::ActivationRecord ar);
+		using CppHook = void(*) (State L, typename B::ActivationRecord ar);
 
 		/// <summary>
 		/// adapts a CppHook to a CHook, doing all the type conversion and exception handling.
@@ -698,7 +698,7 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="i"></param>
 		/// <returns></returns>
-		LocalsHolder Debug_Locals(typename const B::DebugInfo& i) {
+		LocalsHolder Debug_Locals(const typename B::DebugInfo& i) {
 			return LocalsHolder{ *this, i };
 		}
 		/// <summary>
@@ -902,7 +902,7 @@ namespace lua::decorator {
 				if (locals) {
 					const char* localname;
 					int lnum = 1;
-					while (localname = B::Debug_GetLocal(lvl, lnum)) {
+					while ((localname = B::Debug_GetLocal(lvl, lnum))) {
 						trace << "\r\n\t\tlocal " << localname << " = " << ToDebugString(-1);
 						B::Pop(1);
 						lnum++;
@@ -911,7 +911,7 @@ namespace lua::decorator {
 				if (upvalues) {
 					const char* upname;
 					int unum = 1;
-					while (upname = B::Debug_GetUpvalue(-1, unum)) {
+					while ((upname = B::Debug_GetUpvalue(-1, unum))) {
 						trace << "\r\n\t\tupvalue " << upname << " = " << ToDebugString(-1);
 						B::Pop(1);
 						unum++;
