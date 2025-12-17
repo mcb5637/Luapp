@@ -944,7 +944,7 @@ namespace lua::v54 {
 		/// <param name="ud">data, passed to reader</param>
 		/// <param name="chunkname">name of the chunk</param>
 		/// <returns>error code</returns>
-		ErrorCode Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname);
+		ErrorCode Load(const char* (LUAPP_CDECL* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname);
 
 		/// <summary>
 		/// dumps a lua function at the top of the stack to binary, which can be loaded again via Load.
@@ -952,7 +952,7 @@ namespace lua::v54 {
 		/// </summary>
 		/// <param name="writer">writer function</param>
 		/// <param name="ud">data, passed to writer</param>
-		void Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud);
+		void Dump(int(LUAPP_CDECL* writer)(lua_State*, const void*, size_t, void*), void* ud);
 
 		/// <summary>
 		/// creates a new table and pushes it onto the stack.

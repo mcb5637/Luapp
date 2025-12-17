@@ -1,6 +1,5 @@
-#include "../pch.h"
-
 #include "luapp50_d.h"
+#include <cstring>
 
 #ifdef LUA_BUILD_AS_DLL
 #define LUA_API __declspec(dllimport)
@@ -8,9 +7,9 @@
 #ifndef LUA_CPPLINKAGE
 extern "C" {
 #endif
-#include "..\lua50\lua.h"
-#include "..\lua50\lauxlib.h"
-#include "..\lua50\lualib.h"
+#include "../lua50/lua.h"
+#include "../lua50/lauxlib.h"
+#include "../lua50/lualib.h"
 #ifndef LUA_CPPLINKAGE
 }
 #endif
@@ -85,7 +84,7 @@ namespace lua::v50 {
 		trg.CurrentLine = src.currentline;
 		trg.NumUpvalues = src.nups;
 		trg.LineDefined = src.linedefined;
-		memcpy(trg.ShortSrc, src.short_src, DebugInfo::SHORTSRC_SIZE);
+		std::memcpy(trg.ShortSrc, src.short_src, DebugInfo::SHORTSRC_SIZE);
 		trg.ShortSrc[DebugInfo::SHORTSRC_SIZE - 1] = '\0';
 		trg.CallInfo = src.i_ci;
 	}
@@ -387,11 +386,11 @@ namespace lua::v50 {
 	{
 		return lua_newuserdata(L, s);
 	}
-	ErrorCode State::Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
+	ErrorCode State::Load(const char* (LUAPP_CDECL* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
 	{
 		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname));
 	}
-	void State::Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud)
+	void State::Dump(int(LUAPP_CDECL* writer)(lua_State*, const void*, size_t, void*), void* ud)
 	{
 		lua_dump(L, writer, ud);
 	}
@@ -761,7 +760,7 @@ namespace lua::v50 {
 	}
 	ErrorCode State::DoString(const char* code)
 	{
-		return static_cast<ErrorCode>(luaL_loadbuffer(L, code, strlen(code), code) || lua_pcall(L, 0, LUA_MULTRET, 0));
+		return static_cast<ErrorCode>(luaL_loadbuffer(L, code, std::strlen(code), code) || lua_pcall(L, 0, LUA_MULTRET, 0));
 	}
 	ErrorCode State::DoString(const char* code, size_t l, const char* name)
 	{

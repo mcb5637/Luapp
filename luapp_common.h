@@ -7,6 +7,13 @@
 struct lua_State;
 struct lua_Debug;
 
+#ifdef _MSC_VER
+#define LUAPP_CDECL __cdecl
+#else
+#define LUAPP_CDECL
+#define __FUNCSIG__ __PRETTY_FUNCTION__
+#endif
+
 namespace lua {
 	/// <summary>
 	/// turn on/off exception handling at compile time
@@ -93,7 +100,7 @@ namespace lua {
 	/// <see cref='lua50::CppToCFunction'/>
 	/// <param name="L">lua state</param>
 	/// <returns>number of return values on the stack</returns>
-	using CFunction = int(__cdecl*) (lua_State* L);
+	using CFunction = int(LUAPP_CDECL*) (lua_State* L);
 
 	/// <summary>
 	/// aka lua_Hook. no type conversion/exception handling. use CppHook if in doubt.
@@ -102,5 +109,5 @@ namespace lua {
 	/// <see cref='lua50::CppToCHook'/>
 	/// <param name="L">lua state</param>
 	/// <param name="ar">activation record</param>
-	using CHook = void(__cdecl*)(lua_State* L, lua_Debug* ar);
+	using CHook = void(LUAPP_CDECL*)(lua_State* L, lua_Debug* ar);
 }

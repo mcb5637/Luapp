@@ -738,7 +738,7 @@ namespace lua::decorator {
 			/// <param name="d"></param>
 			/// <returns></returns>
 			static std::string CFuncSourceFormat(State L, int index, const typename B::DebugInfo& d) {
-				return std::format("C:{}", static_cast<void*>(L.ToCFunction(index)));;
+				return std::format("C:{}", reinterpret_cast<void*>(L.ToCFunction(index)));;
 			}
 			/// <summary>
 			/// formats the source part of a lua func.
@@ -2561,22 +2561,25 @@ namespace lua::decorator {
 		UniqueState& operator=(const UniqueState&) = delete;
 		UniqueState& operator=(UniqueState&& s) noexcept {
 			if (this->L == s.L)
-				return;
+				return *this;
 			State<B>::Close();
 			this->L = s.L;
 			s.L = nullptr;
+			return *this;
 		}
 		UniqueState& operator=(const State<B>& s) noexcept {
 			if (this->L == s.L)
-				return;
+				return *this;
 			State<B>::Close();
 			this->L = s.L;
+			return *this;
 		};
 		UniqueState& operator=(State<B>&& s) noexcept {
 			if (this->L == s.L)
-				return;
+				return *this;
 			State<B>::Close();
 			this->L = s.L;
+			return *this;
 		}
 
 		~UniqueState() {

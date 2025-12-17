@@ -1,19 +1,16 @@
-#include "../pch.h"
-
 #include "luappjit_d.h"
 
 #ifndef LUA_CPPLINKAGE
 extern "C" {
 #endif
-#include "..\luajit\lua.h"
-#include "..\luajit\lauxlib.h"
-#include "..\luajit\lualib.h"
-#include "..\luajit\luajit.h"
+#include "../luajit/lua.h"
+#include "../luajit/lauxlib.h"
+#include "../luajit/lualib.h"
+#include "../luajit/luajit.h"
 #ifndef LUA_CPPLINKAGE
 }
 #endif
 
-#include <cstdlib>
 #include <type_traits>
 #include <sstream>
 

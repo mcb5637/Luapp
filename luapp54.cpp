@@ -1,16 +1,16 @@
-#include "../pch.h"
-
 #include "luapp54_d.h"
+#include <cstring>
 
 #ifndef LUA_CPPLINKAGE
 extern "C" {
 #endif
-#include "..\lua54\lua.h"
-#include "..\lua54\lauxlib.h"
-#include "..\lua54\lualib.h"
+#include "../lua54/lua.h"
+#include "../lua54/lauxlib.h"
+#include "../lua54/lualib.h"
 #ifndef LUA_CPPLINKAGE
 }
 #endif
+
 
 namespace lua::v54 {
 	// make sure all the constants match
@@ -114,7 +114,7 @@ namespace lua::v54 {
 		trg.IsTailCall = src.istailcall;
 		trg.FirstValueTransferred = src.ftransfer;
 		trg.NumberTransferred = src.ntransfer;
-		memcpy(trg.ShortSrc, src.short_src, DebugInfo::SHORTSRC_SIZE);
+		std::memcpy(trg.ShortSrc, src.short_src, DebugInfo::SHORTSRC_SIZE);
 		trg.ShortSrc[DebugInfo::SHORTSRC_SIZE - 1] = '\0';
 		trg.CallInfo = src.i_ci;
 	}
@@ -395,11 +395,11 @@ namespace lua::v54 {
 	{
 		return lua_setiuservalue(L, index, nuvalue);
 	}
-	ErrorCode State::Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
+	ErrorCode State::Load(const char* (LUAPP_CDECL* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
 	{
 		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname, nullptr));
 	}
-	void State::Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud)
+	void State::Dump(int(LUAPP_CDECL* writer)(lua_State*, const void*, size_t, void*), void* ud)
 	{
 		lua_dump(L, writer, ud, false);
 	}

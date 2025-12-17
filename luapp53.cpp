@@ -1,13 +1,12 @@
-#include "../pch.h"
-
 #include "luapp53_d.h"
+#include <cstring>
 
 #ifndef LUA_CPPLINKAGE
 extern "C" {
 #endif
-#include "..\lua53\lua.h"
-#include "..\lua53\lauxlib.h"
-#include "..\lua53\lualib.h"
+#include "../lua53/lua.h"
+#include "../lua53/lauxlib.h"
+#include "../lua53/lualib.h"
 #ifndef LUA_CPPLINKAGE
 }
 #endif
@@ -113,7 +112,7 @@ namespace lua::v53 {
 		trg.NumParameters = src.nparams;
 		trg.IsVarArg = src.isvararg;
 		trg.IsTailCall = src.istailcall;
-		memcpy(trg.ShortSrc, src.short_src, DebugInfo::SHORTSRC_SIZE);
+		std::memcpy(trg.ShortSrc, src.short_src, DebugInfo::SHORTSRC_SIZE);
 		trg.ShortSrc[DebugInfo::SHORTSRC_SIZE - 1] = '\0';
 		trg.CallInfo = src.i_ci;
 	}
@@ -393,11 +392,11 @@ namespace lua::v53 {
 	{
 		lua_setuservalue(L, index);
 	}
-	ErrorCode State::Load(const char* (__cdecl* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
+	ErrorCode State::Load(const char* (LUAPP_CDECL* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
 	{
 		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname, nullptr));
 	}
-	void State::Dump(int(__cdecl* writer)(lua_State*, const void*, size_t, void*), void* ud)
+	void State::Dump(int(LUAPP_CDECL* writer)(lua_State*, const void*, size_t, void*), void* ud)
 	{
 		lua_dump(L, writer, ud, false);
 	}
