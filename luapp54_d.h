@@ -371,18 +371,18 @@ namespace lua::v54 {
 		/// returns the event that caused the hook call.
 		/// </summary>
 		/// <returns></returns>
-		HookEvent Event() const;
+		[[nodiscard]] HookEvent Event() const;
 		/// <summary>
 		/// returns the line of a line hook event.
 		/// </summary>
 		/// <returns></returns>
-		int Line() const;
+		[[nodiscard]] int Line() const;
 		/// <summary>
 		/// checks, if the event that caused the hook call is one of the specified events.
 		/// </summary>
 		/// <param name="e"></param>
 		/// <returns></returns>
-		bool Matches(HookEvent e) const;
+		[[nodiscard]] bool Matches(HookEvent e) const;
 	};
 
 	class State {
@@ -1251,7 +1251,7 @@ namespace lua::v54 {
 		/// </summary>
 		/// <param name="ar">ar to get the info from</param>
 		/// <param name="opt">what to get</param>
-		/// <param name="pushFunc"push the active function></param>
+		/// <param name="pushFunc">push the active function></param>
 		/// <returns>debug info</returns>
 		DebugInfo Debug_GetInfoFromAR(ActivationRecord ar, DebugInfoOptions opt, bool pushFunc = false);
 		/// <summary>
@@ -1282,7 +1282,7 @@ namespace lua::v54 {
 		/// </summary>
 		/// <param name="f">event</param>
 		/// <returns>event string</returns>
-		constexpr std::string_view GetMetaEventName(MetaEvent f) {
+		static constexpr std::string_view GetMetaEventName(MetaEvent f) {
 			switch (f)
 			{
 			case MetaEvent::Add:

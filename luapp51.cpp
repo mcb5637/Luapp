@@ -21,6 +21,8 @@ extern "C" {
 #include <type_traits>
 #include <sstream>
 
+#include "lookup_table.h"
+
 namespace lua::v51 {
 	// make sure all the constants match
 	// i do define them new to avoid having to include the c lua files and having all their funcs/defines in global namespace
@@ -529,6 +531,7 @@ namespace lua::v51 {
 	void State::Error()
 	{
 		lua_error(L);
+	    throw std::logic_error{"unreachable"};
 	}
 	State State::NewThread()
 	{
@@ -548,6 +551,7 @@ namespace lua::v51 {
 			CheckStackHasElements(nret);
 		}
 		lua_yield(L, nret);
+	    throw std::logic_error{"unreachable"};
 	}
 	void State::XMove(State to, int num)
 	{
@@ -559,123 +563,28 @@ namespace lua::v51 {
 	Number State::Version() {
 		return LUA_VERSION_NUM;
 	}
-	constexpr const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
+	const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
 	{
-		if (fromStack) {
-			switch (opt) {
-			case DebugInfoOptions::None:
-				return ">";
-			case DebugInfoOptions::Name:
-				return ">n";
-			case DebugInfoOptions::Source:
-				return ">S";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return ">Sn";
-			case DebugInfoOptions::Line:
-				return ">l";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return ">ln";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return ">lS";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return ">lSn";
-			case DebugInfoOptions::Upvalues:
-				return ">u";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name:
-				return ">un";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source:
-				return ">uS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return ">uSn";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line:
-				return ">ul";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return ">uln";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return ">ulS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return ">ulSn";
-			default:
-				return "";
-			}
-		}
-		else if (pushFunc) {
-			switch (opt) {
-			case DebugInfoOptions::None:
-				return "f";
-			case DebugInfoOptions::Name:
-				return "fn";
-			case DebugInfoOptions::Source:
-				return "fS";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "fSn";
-			case DebugInfoOptions::Line:
-				return "fl";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return "fln";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return "flS";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "flSn";
-			case DebugInfoOptions::Upvalues:
-				return "fu";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name:
-				return "fun";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source:
-				return "fuS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "fuSn";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line:
-				return "ful";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return "fuln";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return "fulS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "fulSn";
-			default:
-				return "";
-			}
-		}
-		else {
+	    static constexpr auto push = static_cast<DebugInfoOptions>(16);
+	    static constexpr auto stack = static_cast<DebugInfoOptions>(32);
+	    static constexpr auto lut =
+            lut_details::MakeLUT<int,
+                                 static_cast<int>(DebugInfoOptions::Name | DebugInfoOptions::Source |
+                                                  DebugInfoOptions::Line | DebugInfoOptions::Upvalues | push | stack),
+                                 lut_details::OptionStringElement{static_cast<int>(stack), '>'},
+                                 lut_details::OptionStringElement{static_cast<int>(push), 'f'},
+                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Name), 'n'},
+                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Source), 'S'},
+                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Line), 'l'},
+                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Upvalues), 'u'}>();
 
-			switch (opt) {
-			case DebugInfoOptions::None:
-				return "";
-			case DebugInfoOptions::Name:
-				return "n";
-			case DebugInfoOptions::Source:
-				return "S";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "Sn";
-			case DebugInfoOptions::Line:
-				return "l";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return "ln";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return "lS";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "lSn";
-			case DebugInfoOptions::Upvalues:
-				return "u";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name:
-				return "un";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source:
-				return "uS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "uSn";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line:
-				return "ul";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return "uln";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return "ulS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "ulSn";
-			default:
-				return "";
-			}
-		}
+	    opt = opt &
+            (DebugInfoOptions::Name | DebugInfoOptions::Source | DebugInfoOptions::Line | DebugInfoOptions::Upvalues);
+	    if (pushFunc)
+	        opt = opt | push;
+	    if (fromStack)
+	        opt = opt | stack;
+	    return lut[static_cast<size_t>(static_cast<int>(opt))].data();
 	}
 	bool State::Debug_IsStackLevelValid(int lvl)
 	{

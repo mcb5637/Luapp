@@ -5,11 +5,16 @@
 extern "C" {
 #endif
 #include "../lua54/lua.h"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
 #include "../lua54/lauxlib.h"
+#pragma clang diagnostic pop
 #include "../lua54/lualib.h"
 #ifndef LUA_CPPLINKAGE
 }
 #endif
+
+#include "lookup_table.h"
 
 
 namespace lua::v54 {
@@ -311,7 +316,10 @@ namespace lua::v54 {
 	}
 	bool State::NumberToInteger(Number n, Integer& i)
 	{
-		return lua_numbertointeger(n, &i);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+	    return lua_numbertointeger(n, &i);
+#pragma clang diagnostic pop
 	}
 	size_t State::StringToNumber(const char* s)
 	{
@@ -541,6 +549,7 @@ namespace lua::v54 {
 	void State::Error()
 	{
 		lua_error(L);
+	    throw std::logic_error{"unreachable"};
 	}
 	State State::NewThread()
 	{
@@ -560,6 +569,7 @@ namespace lua::v54 {
 			CheckStackHasElements(nret);
 		}
 		lua_yield(L, nret);
+	    throw std::logic_error{"unreachable"};
 	}
 	void State::XMove(State to, int num)
 	{
@@ -577,335 +587,36 @@ namespace lua::v54 {
 	}
 	void* State::GetExtraSpace()
 	{
-		return lua_getextraspace(L);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+	    return lua_getextraspace(L);
+#pragma clang diagnostic pop
 	}
 
-	constexpr const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
+	const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
 	{
-		if (fromStack) {
-			switch (opt) {
-			case DebugInfoOptions::None:
-				return ">";
-			case DebugInfoOptions::Name:
-				return ">n";
-			case DebugInfoOptions::Source:
-				return ">S";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return ">Sn";
-			case DebugInfoOptions::Line:
-				return ">l";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return ">ln";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return ">lS";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return ">lSn";
-			case DebugInfoOptions::Upvalues:
-				return ">u";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name:
-				return ">un";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source:
-				return ">uS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return ">uSn";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line:
-				return ">ul";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return ">uln";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return ">ulS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return ">ulSn";
-			case DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return ">nt";
-			case DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return ">St";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return ">Snt";
-			case DebugInfoOptions::Line | DebugInfoOptions::TailCall:
-				return ">lt";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return ">lnt";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return ">lSt";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return ">lSnt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall:
-				return ">ut";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return ">unt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return ">uSt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return ">uSnt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall:
-				return ">ult";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return ">ulnt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return ">ulSt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return ">ulSnt";
-			default:
-				return "";
-			}
-		}
-		else if (pushFunc) {
-			switch (opt) {
-			case DebugInfoOptions::None:
-				return "f";
-			case DebugInfoOptions::Name:
-				return "fn";
-			case DebugInfoOptions::Source:
-				return "fS";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "fSn";
-			case DebugInfoOptions::Line:
-				return "fl";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return "fln";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return "flS";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "flSn";
-			case DebugInfoOptions::Upvalues:
-				return "fu";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name:
-				return "fun";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source:
-				return "fuS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "fuSn";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line:
-				return "ful";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return "fuln";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return "fulS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "fulSn";
-			case DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "fnt";
-			case DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return "fSt";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "fSnt";
-			case DebugInfoOptions::Line | DebugInfoOptions::TailCall:
-				return "flt";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "flnt";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return "flSt";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "flSnt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall:
-				return "fut";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "funt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return "fuSt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "fuSnt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall:
-				return "fult";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "fulnt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return "fulSt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "fulSnt";
-			case DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "fnr";
-			case DebugInfoOptions::Source | DebugInfoOptions::Transfer:
-				return "fSr";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "fSnr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Transfer:
-				return "flr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "flnr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
-				return "flSr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "flSnr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Transfer:
-				return "fur";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "funr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
-				return "fuSr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "fuSnr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Transfer:
-				return "fulr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "fulnr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
-				return "fulSr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "fulSnr";
-			case DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "fntr";
-			case DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "fStr";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "fSntr";
-			case DebugInfoOptions::Line | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "fltr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "flntr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "flStr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "flSntr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "futr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "funtr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "fuStr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "fuSntr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "fultr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "fulntr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "fulStr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "fulSntr";
-			default:
-				return "";
-			}
-		}
-		else {
-			switch (opt) {
-			case DebugInfoOptions::None:
-				return "";
-			case DebugInfoOptions::Name:
-				return "n";
-			case DebugInfoOptions::Source:
-				return "S";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "Sn";
-			case DebugInfoOptions::Line:
-				return "l";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return "ln";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return "lS";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "lSn";
-			case DebugInfoOptions::Upvalues:
-				return "u";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name:
-				return "un";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source:
-				return "uS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "uSn";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line:
-				return "ul";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name:
-				return "uln";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source:
-				return "ulS";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name:
-				return "ulSn";
-			case DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "nt";
-			case DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return "St";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "Snt";
-			case DebugInfoOptions::Line | DebugInfoOptions::TailCall:
-				return "lt";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "lnt";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return "lSt";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "lSnt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall:
-				return "ut";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "unt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return "uSt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "uSnt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall:
-				return "ult";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "ulnt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall:
-				return "ulSt";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall:
-				return "ulSnt";
-			case DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "nr";
-			case DebugInfoOptions::Source | DebugInfoOptions::Transfer:
-				return "Sr";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "Snr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Transfer:
-				return "lr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "lnr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
-				return "lSr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "lSnr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Transfer:
-				return "ur";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "unr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
-				return "uSr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "uSnr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Transfer:
-				return "ulr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "ulnr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Transfer:
-				return "ulSr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::Transfer:
-				return "ulSnr";
-			case DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "ntr";
-			case DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "Str";
-			case DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "Sntr";
-			case DebugInfoOptions::Line | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "ltr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "lntr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "lStr";
-			case DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "lSntr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "utr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "untr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "uStr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "uSntr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "ultr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "ulntr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "ulStr";
-			case DebugInfoOptions::Upvalues | DebugInfoOptions::Line | DebugInfoOptions::Source | DebugInfoOptions::Name | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer:
-				return "ulSntr";
-			default:
-				return "";
-			}
-		}
+	    static constexpr auto push = static_cast<DebugInfoOptions>(64);
+	    static constexpr auto stack = static_cast<DebugInfoOptions>(128);
+	    static constexpr auto lut =
+            lut_details::MakeLUT<int,
+                                 static_cast<int>(DebugInfoOptions::Name | DebugInfoOptions::Source |
+                                                  DebugInfoOptions::Line | DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer | push | stack),
+                                 lut_details::OptionStringElement{static_cast<int>(stack), '>'},
+                                 lut_details::OptionStringElement{static_cast<int>(push), 'f'},
+                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Name), 'n'},
+                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Source), 'S'},
+                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Line), 'l'},
+                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Upvalues), 'u'},
+	                             lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::TailCall), 't'},
+                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Transfer), 'r'}>();
+
+	    opt = opt &
+            (DebugInfoOptions::Name | DebugInfoOptions::Source | DebugInfoOptions::Line | DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall | DebugInfoOptions::Transfer);
+	    if (pushFunc)
+	        opt = opt | push;
+	    if (fromStack)
+	        opt = opt | stack;
+	    return lut[static_cast<size_t>(static_cast<int>(opt))].data();
 	}
 	bool State::Debug_IsStackLevelValid(int lvl)
 	{

@@ -79,7 +79,8 @@ namespace lua::decorator {
 				return ret;
 			}
 			else {
-				State L{ l };
+                // ReSharper disable once CppDFAUnreachableCode
+                State L{ l };
 				return F(L);
 			}
 		}
@@ -193,7 +194,7 @@ namespace lua::decorator {
 
 			auto operator<=>(const Reference&) const = default;
 
-			constexpr int Value() const {
+			[[nodiscard]] constexpr int Value() const {
 				return r;
 			}
 		};
@@ -243,7 +244,8 @@ namespace lua::decorator {
 					L.Error();
 			}
 			else {
-				State L{ l };
+                // ReSharper disable once CppDFAUnreachableCode
+                State L{ l };
 				F(L, typename B::ActivationRecord{ ar });
 			}
 		}
@@ -274,7 +276,7 @@ namespace lua::decorator {
 		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
 		/// <para>[-nups,+1,m]</para>
 		/// </summary>
-		/// <param name="F">function</param>
+		/// <typeparam name="F">function</typeparam>
 		/// <param name="nups">number of upvalues</param>
 		template<CFunction F>
 		void Push(int nups = 0)
@@ -286,7 +288,7 @@ namespace lua::decorator {
 		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
 		/// <para>[-nups,+1,m]</para>
 		/// </summary>
-		/// <param name="F">function</param>
+		/// <typeparam name="F">function</typeparam>
 		/// <param name="nups">number of upvalues</param>
 		template<CppFunction F>
 		void Push(int nups = 0)
@@ -366,9 +368,9 @@ namespace lua::decorator {
 		/// <returns>binary data of the function</returns>
 		std::string Dump() {
 			std::stringstream str{};
-			B::Dump([](lua_State* L, const void* data, size_t s, void* ud) {
+			B::Dump([](lua_State*, const void* data, size_t s, void* ud) {
 				auto* st = static_cast<std::stringstream*>(ud);
-				st->write(static_cast<const char*>(data), s);
+				st->write(static_cast<const char*>(data), static_cast<std::streamsize>(s));
 				return 0;
 				}, &str);
 			return str.str();
@@ -388,7 +390,8 @@ namespace lua::decorator {
 			const char* s = B::ToString(idx, &l);
 			if (!s)
 				throw LuaException("no string");
-			return { s, l };
+            // ReSharper disable once CppDFALocalValueEscapesFunction
+            return { s, l };
 		}
 		/// <summary>
 		/// converts to a std::string.
@@ -420,7 +423,7 @@ namespace lua::decorator {
 		/// may call metamethods.
 		/// <para>[-2,+0,e]</para>
 		/// </summary>
-		/// <param name="index">valid index for table acccess</param>
+		/// <param name="index">valid index for table access</param>
 		/// <exception cref="lua::LuaException">on lua error</exception>
 		void SetTable(int index) {
 			B::PushValue(index);
@@ -435,7 +438,7 @@ namespace lua::decorator {
 		/// <para>[-0,+1,t]</para>
 		/// </summary>
 		/// <param name="index">valid index for table access</param>
-		/// <param name="n">key</param>
+		/// <param name="s">key</param>
 		void GetTableRaw(int index, std::string_view s) {
 			index = B::ToAbsoluteIndex(index);
 			Push(s);
@@ -447,8 +450,8 @@ namespace lua::decorator {
 		/// may not call metamethods.
 		/// <para>[-1,+0,mt]</para>
 		/// </summary>
-		/// <param name="index">valid index for table acccess</param>
-		/// <param name="n">key</param>
+		/// <param name="index">valid index for table access</param>
+		/// <param name="s">key</param>
 		void SetTableRaw(int index, std::string_view s) {
 			index = B::ToAbsoluteIndex(index);
 			Push(s);
@@ -660,7 +663,7 @@ namespace lua::decorator {
 		/// removes any previous hooks.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
-		/// <param name="F">hook function</param>
+		/// <typeparam name="F">hook function</typeparam>
 		/// <param name="mask">conditions when to call</param>
 		/// <param name="count">count parameter for count condition</param>
 		template<CppHook F>
@@ -694,17 +697,17 @@ namespace lua::decorator {
 		/// <summary>
 		/// allows to iterate over the locals of a DebugInfo. (only if from the current call stack).
 		/// each iteration pushes the current value, it needs to be popped by the user.
-		/// the iterator contains the locals name and its number (usefull for SetLocal).
+		/// the iterator contains the locals name and its number (usefully for SetLocal).
 		/// </summary>
 		/// <param name="i"></param>
 		/// <returns></returns>
-		LocalsHolder Debug_Locals(const typename B::DebugInfo& i) {
+		LocalsHolder Debug_Locals(const B::DebugInfo& i) {
 			return LocalsHolder{ *this, i };
 		}
 		/// <summary>
 		/// allows to iterate over the locals of level of the current call stack.
 		/// each iteration pushes the current value, it needs to be popped by the user.
-		/// the iterator contains the locals name and its number (usefull for SetLocal).
+		/// the iterator contains the locals name and its number (usefully for SetLocal).
 		/// </summary>
 		/// <param name="lvl"></param>
 		/// <returns></returns>
@@ -718,7 +721,7 @@ namespace lua::decorator {
 		/// <summary>
 		/// allows to iterate over the upvalues of a function.
 		/// each iteration pushes the current value, it needs to be popped by the user.
-		/// the iterator contains the upvalues name and its number (usefull for SetUpvalue).
+		/// the iterator contains the upvalues name and its number (usefully for SetUpvalue).
 		/// </summary>
 		/// <param name="func"></param>
 		/// <returns></returns>
@@ -737,7 +740,7 @@ namespace lua::decorator {
 			/// <param name="index"></param>
 			/// <param name="d"></param>
 			/// <returns></returns>
-			static std::string CFuncSourceFormat(State L, int index, const typename B::DebugInfo& d) {
+			static std::string CFuncSourceFormat(State L, int index, [[maybe_unused]] const B::DebugInfo& d) {
 				return std::format("C:{}", reinterpret_cast<void*>(L.ToCFunction(index)));;
 			}
 			/// <summary>
@@ -747,7 +750,7 @@ namespace lua::decorator {
 			/// <param name="index"></param>
 			/// <param name="d"></param>
 			/// <returns></returns>
-			static std::string LuaFuncSourceFormat(State L, int index, const typename B::DebugInfo& d) {
+			static std::string LuaFuncSourceFormat([[maybe_unused]] State L, [[maybe_unused]] int index, const B::DebugInfo& d) {
 				return std::format("{}:{}", d.ShortSrc, d.LineDefined);;
 			}
 			/// <summary>
@@ -759,7 +762,7 @@ namespace lua::decorator {
 			/// <param name="name"></param>
 			/// <param name="src"></param>
 			/// <returns></returns>
-			static std::string FuncFormat(State L, int index, const typename B::DebugInfo& d, std::string_view name, std::string_view src, std::string_view pre, std::string_view post) {
+			static std::string FuncFormat([[maybe_unused]] State L, [[maybe_unused]] int index, const B::DebugInfo& d, std::string_view name, std::string_view src, std::string_view pre, std::string_view post) {
 				return std::format("{}{} {} {} (defined in: {}){}", pre, d.What, d.NameWhat, name, src, post);
 			}
 			/// <summary>
@@ -1006,7 +1009,7 @@ namespace lua::decorator {
 		/// <para>[-0,+0,m]</para>
 		/// </summary>
 		/// <param name="name">key to register</param>
-		/// <param name="F">function to register</param>
+		/// <typeparam name="F">function to register</typeparam>
 		/// <param name="index">valid index where to register</param>
 		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
 		template<CFunction F>
@@ -1018,7 +1021,7 @@ namespace lua::decorator {
 		/// <para>[-0,+0,m]</para>
 		/// </summary>
 		/// <param name="name">key to register</param>
-		/// <param name="F">function to register</param>
+		/// <typeparam name="F">function to register</typeparam>
 		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
 		template<CFunction F>
 		void RegisterFunc(std::string_view name, void* upval = nullptr) {
@@ -1030,7 +1033,7 @@ namespace lua::decorator {
 		/// <para>[-0,+0,m]</para>
 		/// </summary>
 		/// <param name="name">key to register</param>
-		/// <param name="F">function to register</param>
+		/// <typeparam name="F">function to register</typeparam>
 		/// <param name="index">valid index where to register</param>
 		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
 		template<CppFunction F>
@@ -1043,7 +1046,7 @@ namespace lua::decorator {
 		/// <para>[-0,+0,m]</para>
 		/// </summary>
 		/// <param name="name">key to register</param>
-		/// <param name="F">function to register</param>
+		/// <typeparam name="F">function to register</typeparam>
 		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
 		template<CppFunction F>
 		void RegisterFunc(std::string_view name, void* upval = nullptr)
@@ -1137,7 +1140,8 @@ namespace lua::decorator {
 				throw lua::LuaException{ std::string{msg} };
 			}
 			else {
-				Push(msg);
+                // ReSharper disable once CppDFAUnreachableCode
+                Push(msg);
 				B::Error();
 			}
 		}
@@ -1196,7 +1200,7 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="info"></param>
 		/// <returns></returns>
-		std::string GetNameForFunc(const typename B::DebugInfo& info) {
+		std::string GetNameForFunc(const B::DebugInfo& info) {
 			if (info.Name != nullptr && *info.Name != '\0') {
 				return info.Name;
 			}
@@ -1210,7 +1214,7 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="info"></param>
 		/// <returns></returns>
-		std::string Debug_GetNameForStackFunc(const typename B::DebugInfo& info) {
+		std::string Debug_GetNameForStackFunc(const B::DebugInfo& info) {
 			if (info.Name != nullptr && *info.Name != '\0') {
 				return info.Name;
 			}
@@ -1303,14 +1307,13 @@ namespace lua::decorator {
 		/// <param name="lvl">stack level</param>
 		void Where(int lvl) {
 			typename B::DebugInfo i{};
-			if (B::Debug_GetStack(0, i, B::DebugInfoOptions::Source | B::DebugInfoOptions::Line, false)) {
+			if (B::Debug_GetStack(lvl, i, B::DebugInfoOptions::Source | B::DebugInfoOptions::Line, false)) {
 				if (i.LineDefined != 0) {
 					B::PushFString("%s:%d: ", i.ShortSrc, i.LineDefined);
 					return;
 				}
 			}
 			B::Push("");
-			return;
 		}
 
 
@@ -1368,7 +1371,7 @@ namespace lua::decorator {
 		/// returns if it found a method to call.
 		/// <para>[-0,+0|1,e]</para>
 		/// </summary>
-		/// <param name="obj">valid index to call methamethod of</param>
+		/// <param name="obj">valid index to call metamethod of</param>
 		/// <param name="ev">event</param>
 		/// <returns>found method</returns>
 		/// <exception cref="lua::LuaException">on lua error</exception>
@@ -1379,7 +1382,7 @@ namespace lua::decorator {
 		/// pushes the metatable associated with name.
 		/// <para>[-0,+1,-]</para>
 		/// </summary>
-		/// <param name="name">metatable name</param>
+		/// <param name="tname">metatable name</param>
 		void GetMetaTableFromRegistry(std::string_view tname) {
 			Push(tname);
 			GetTable(B::REGISTRYINDEX);
@@ -1389,7 +1392,7 @@ namespace lua::decorator {
 		/// in both cases, pushes the final value onto the stack.
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
-		/// <param name="name">metatable name</param>
+		/// <param name="tname">metatable name</param>
 		/// <returns>created</returns>
 		bool NewMetaTable(std::string_view tname) {
 			GetMetaTableFromRegistry(tname);
@@ -1412,7 +1415,7 @@ namespace lua::decorator {
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="idx">acceptable index to check</param>
-		/// <param name="name">metatable name</param>
+		/// <param name="tname">metatable name</param>
 		/// <returns>userdata</returns>
 		/// <see cref="lua::State::GetUserData"/>
 		void* TestUserdata(int idx, std::string_view tname) {
@@ -1568,7 +1571,7 @@ namespace lua::decorator {
 			return B::ToBoolean(idx);
 		}
 		/// <summary>
-		/// checks for an userdata type. (via its metatable).
+		/// checks for a userdata type. (via its metatable).
 		/// throws on fail.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
@@ -1588,7 +1591,6 @@ namespace lua::decorator {
 		/// <para>[-0,+?,m]</para>
 		/// </summary>
 		/// <param name="code">code</param>
-		/// <param name="len">code lenght</param>
 		/// <param name="name">code name</param>
 		/// <returns>number of return values</returns>
 		/// <exception cref="lua::LuaException">on lua exceptions</exception>
@@ -1633,7 +1635,6 @@ namespace lua::decorator {
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="name">key to query</param>
-		/// <param name="index">index of the table</param>
 		/// <returns>had table before the call</returns>
 		bool GetSubTable(std::string_view name) {
 			Push(name);
@@ -1650,11 +1651,11 @@ namespace lua::decorator {
 		}
 
 		/// <summary>
-		/// in idx is a number returns it. if idx is none or nil, returns def.
+		/// in idx is a number, returns it. if idx is none or nil, returns def.
 		/// otherwise throws.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
-		/// <param name="idx">aceptable index to check</param>
+		/// <param name="idx">acceptable index to check</param>
 		/// <param name="def">default value</param>
 		/// <returns>number</returns>
 		/// <exception cref="lua::LuaException">if invalid</exception>
@@ -1665,11 +1666,11 @@ namespace lua::decorator {
 				return CheckNumber(idx);
 		}
 		/// <summary>
-		/// in idx is a number returns it cast to an float. if idx is none or nil, returns def.
+		/// in idx is a number, returns it cast to a float. if idx is none or nil, returns def.
 		/// otherwise throws.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
-		/// <param name="idx">aceptable index to check</param>
+		/// <param name="idx">acceptable index to check</param>
 		/// <param name="def">default value</param>
 		/// <returns>float</returns>
 		/// <exception cref="lua::LuaException">if invalid</exception>
@@ -1677,11 +1678,11 @@ namespace lua::decorator {
 			return static_cast<float>(OptNumber(idx, def));
 		}
 		/// <summary>
-		/// in idx is a number returns it cast to an int. if idx is none or nil, returns def.
+		/// in idx is a number, returns it cast to an int. if idx is none or nil, returns def.
 		/// otherwise throws.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
-		/// <param name="idx">aceptable index to check</param>
+		/// <param name="idx">acceptable index to check</param>
 		/// <param name="def">default value</param>
 		/// <returns>int</returns>
 		/// <exception cref="lua::LuaException">if invalid</exception>
@@ -1692,11 +1693,11 @@ namespace lua::decorator {
 				return CheckInt(idx);
 		}
 		/// <summary>
-		/// in idx is a number returns it cast to an Integer. if idx is none or nil, returns def.
+		/// in idx is a number, returns it cast to an Integer. if idx is none or nil, returns def.
 		/// otherwise throws.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
-		/// <param name="idx">aceptable index to check</param>
+		/// <param name="idx">acceptable index to check</param>
 		/// <param name="def">default value</param>
 		/// <returns>int</returns>
 		/// <exception cref="lua::LuaException">if invalid</exception>
@@ -1711,7 +1712,7 @@ namespace lua::decorator {
 		/// otherwise throws.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
-		/// <param name="idx">aceptable index to check</param>
+		/// <param name="idx">acceptable index to check</param>
 		/// <param name="def">default value</param>
 		/// <param name="l">optional length out</param>
 		/// <returns>c string</returns>
@@ -1730,7 +1731,7 @@ namespace lua::decorator {
 		/// otherwise throws.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
-		/// <param name="idx">aceptable index to check</param>
+		/// <param name="idx">acceptable index to check</param>
 		/// <param name="def">default value</param>
 		/// <returns>bool</returns>
 		/// <exception cref="lua::LuaException">if invalid</exception>
@@ -1771,7 +1772,7 @@ namespace lua::decorator {
 		}
 
 		/// <summary>
-		/// no valid reference, guranteed to be different from all valid references.
+		/// no valid reference, guaranteed to be different from all valid references.
 		/// if pushed, pushes nil.
 		/// </summary>
 		constexpr static Reference NoRef{ B::NOREFI };
@@ -1793,7 +1794,8 @@ namespace lua::decorator {
 		{
 			size_t l;
 			const char* s = CheckString(idx, &l);
-			return { s, l };
+            // ReSharper disable once CppDFALocalValueEscapesFunction
+            return { s, l };
 		}
 		/// <summary>
 		/// if idx is a string, returns it. if it is nil or none, returns a copy of def. otherwise throws.
@@ -1807,6 +1809,7 @@ namespace lua::decorator {
 		{
 			size_t l;
 			const char* s = OptString(idx, def.data(), &l);
+            // ReSharper disable once CppDFALocalValueEscapesFunction
 			return { s, l };
 		}
 		/// <summary>
@@ -1898,10 +1901,10 @@ namespace lua::decorator {
 		public:
 			friend class State;
 			friend class PairsHolder;
-			inline friend bool operator==(const PairsIter& i, std::default_sentinel_t s) {
+			inline friend bool operator==(const PairsIter& i, std::default_sentinel_t) {
 				return !i.HasNext;
 			}
-			inline friend bool operator==(std::default_sentinel_t s, const PairsIter& i) {
+			inline friend bool operator==(std::default_sentinel_t, const PairsIter& i) {
 				return !i.HasNext;
 			}
 
@@ -2054,7 +2057,7 @@ namespace lua::decorator {
 		class LocalsIter {
 			friend class State;
 			State L;
-			const typename B::DebugInfo& Inf;
+			const B::DebugInfo& Inf;
 
 		public:
 			/// <summary>
@@ -2066,13 +2069,13 @@ namespace lua::decorator {
 			};
 		private:
 			Local Loc;
-			LocalsIter(State l, const typename B::DebugInfo& i, int n) : L(l), Inf(i), Loc(n, nullptr) {
+			LocalsIter(State l, const B::DebugInfo& i, int n) : L(l), Inf(i), Loc(n, nullptr) {
 			}
 		public:
-			inline friend bool operator==(const LocalsIter& i, std::default_sentinel_t s) {
+			inline friend bool operator==(const LocalsIter& i, std::default_sentinel_t) {
 				return i.Loc.Name == nullptr;
 			}
-			inline friend bool operator==(std::default_sentinel_t s, const LocalsIter& i) {
+			inline friend bool operator==(std::default_sentinel_t, const LocalsIter& i) {
 				return i.Loc.Name == nullptr;
 			}
 
@@ -2095,9 +2098,9 @@ namespace lua::decorator {
 		class LocalsHolder {
 			friend class State;
 			State L;
-			typename B::DebugInfo Inf;
+			B::DebugInfo Inf;
 
-			LocalsHolder(State l, typename B::DebugInfo i) : L(l), Inf(i) {}
+			LocalsHolder(State l, B::DebugInfo i) : L(l), Inf(i) {}
 		public:
 			LocalsIter begin() {
 				LocalsIter r{ L, Inf, 0 };
@@ -2128,10 +2131,10 @@ namespace lua::decorator {
 			UpvaluesIter(State l, int f, int n) : L(l), Func(f), Upv(n, nullptr) {
 			}
 		public:
-			inline friend bool operator==(const UpvaluesIter& i, std::default_sentinel_t s) {
+			inline friend bool operator==(const UpvaluesIter& i, std::default_sentinel_t) {
 				return i.Upv.Name == nullptr;
 			}
-			inline friend bool operator==(std::default_sentinel_t s, const UpvaluesIter& i) {
+			inline friend bool operator==(std::default_sentinel_t, const UpvaluesIter& i) {
 				return i.Upv.Name == nullptr;
 			}
 
@@ -2241,7 +2244,7 @@ namespace lua::decorator {
 		/// <para>- + operator overload (only works for both operands of type T).</para>
 		/// <para></para>
 		/// <para>- operator (__sub):</para>
-		/// <para>- Substract static member.</para>
+		/// <para>- Subtract static member.</para>
 		/// <para>- - operator overload (only works for both operands of type T).</para>
 		/// <para></para>
 		/// <para>* operator (__mul):</para>
@@ -2507,7 +2510,7 @@ namespace lua::decorator {
 		/// </summary>
 		/// <typeparam name="T">type to create</typeparam>
 		/// <typeparam name="...Args">parameters for constructor</typeparam>
-		/// <param name="...args">parameters for constructor</param>
+		/// <param name="args">parameters for constructor</param>
 		/// <returns>obj</returns>
 		template<class T, class ... Args>
 		requires userdata::UserClassUserValuesValid<State<B>, T>
@@ -2523,7 +2526,7 @@ namespace lua::decorator {
 		/// <typeparam name="T">type to create</typeparam>
 		/// <typeparam name="...Args">parameters for constructor</typeparam>
 		/// <param name="nuvalues">number of user values</param>
-		/// <param name="...args">parameters for constructor</param>
+		/// <param name="args">parameters for constructor</param>
 		/// <returns>obj</returns>
 		template<class T, class ... Args>
 		requires B::Capabilities::ArbitraryUservalues

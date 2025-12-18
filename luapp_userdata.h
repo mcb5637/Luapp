@@ -253,7 +253,7 @@ namespace lua::userdata {
 		T ActualObj;
 
 		template<class ... Args>
-		UserClassHolder(Args&& ... args) : ActualObj(std::forward<Args>(args)...), UserClassBase<Base>(static_cast<Base*>(&ActualObj)) {}
+        explicit UserClassHolder(Args&& ... args) : UserClassBase<Base>(static_cast<Base*>(&ActualObj)), ActualObj(std::forward<Args>(args)...) {}
 
 		UserClassHolder(const UserClassHolder&) = delete;
 		UserClassHolder(UserClassHolder&&) = delete;
@@ -277,7 +277,8 @@ namespace lua::userdata {
 	}
 	template<class State, class T>
 	requires EquatableOp<T>
-	int EqualsOperator(State L) {
+    // ReSharper disable once CppDFAConstantFunctionResult
+    int EqualsOperator(State L) {
 		if (L.GetTop() < 2) {
 			L.Push(false);
 			return 1;
@@ -293,6 +294,7 @@ namespace lua::userdata {
 	}
 	template<class State, class T>
 	requires LessThanOp<T>
+    // ReSharper disable once CppDFAConstantFunctionResult
 	int LessThanOperator(State L) {
 		if (L.GetTop() < 2) {
 			L.Push(false);
@@ -309,6 +311,7 @@ namespace lua::userdata {
 	}
 	template<class State, class T>
 	requires LessThanOp<T>
+    // ReSharper disable once CppDFAConstantFunctionResult
 	int LessThanEqualsOperator(State L) {
 		if (L.GetTop() < 2) {
 			L.Push(false);
@@ -412,7 +415,7 @@ namespace lua::userdata {
 	template<class State, class T>
 	requires IndexCpp<State, T>
 	int IndexOperator(State L) {
-		T* t = L.template CheckUserClass<T>(1);
+		L.template CheckUserClass<T>(1);
 		if constexpr (HasLuaMethods<T>) {
 			if (L.GetMetaField(1, State::MethodsName)) {
 				L.PushValue(2);
