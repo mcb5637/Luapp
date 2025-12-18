@@ -22,14 +22,17 @@ namespace lua::decorator {
 	/// <para>e is an indication of possible exceptions</para>
 	/// <para>(- no exception, m memory only, e other exceptions, v throws on purpose, t only with type checks enabled).</para>
 	/// </summary>
-	template<class B>
-	class State : public B {
+	template<class B, template<class> class... C>
+	class State : public B, public C<State<B, C...>>... {
 		constexpr static std::string_view MethodsName = "Methods";
 		constexpr static std::string_view BaseTypeNameName = "BaseTypeName";
 
 		template<class State, class T> requires userdata::IndexCpp<State, T>
 		friend int userdata::IndexOperator(State L);
 	public:
+	    template<template<class> class... D>
+	    using BindExtensions = State<B, D...>;
+
 		/// <summary>
 		/// <para>normal function to interface with lua.</para>
 		/// <para>recieves its arguments on the lua stack in direct order (first argument at 1) (with nothing else on the stack).</para>
@@ -360,6 +363,7 @@ namespace lua::decorator {
 			Push(B::GetMetaEventName(ev));
 		}
 		using B::Push;
+	    using C<State<B, C...>>::Push...;
 
 		/// <summary>
 		/// dumps a lua function at the top of the stack to binary, which can be loaded again via Load.
@@ -2541,25 +2545,28 @@ namespace lua::decorator {
 	/// holds a lua state and automatically closes it, if it goes out of scope.
 	/// </summary>
 	/// <typeparam name="B"></typeparam>
-	template<class B>
-	class UniqueState : public State<B> {
+	template<class B, template<class> class... C>
+	class UniqueState : public State<B, C...> {
 	public:
+	    template<template<class> class... D>
+	    using BindExtensions = UniqueState<B, D...>;
+
 		/// <summary>
 		/// creates a State from a lua_State* (usually from external APIs).
 		/// </summary>
 		/// <param name="L">state pointer</param>
-		UniqueState(lua_State* L) : State<B>(L) {}
+		UniqueState(lua_State* L) : State<B, C...>(L) {}
 		/// <summary>
 		/// opens a new lua state.
 		/// </summary>
 		/// <param name="io">open io and os libs</param>
 		/// <param name="debug">open debug lib</param>
-		UniqueState(bool io = true, bool debug = false) : State<B>(io, debug) {}
+		UniqueState(bool io = true, bool debug = false) : State<B, C...>(io, debug) {}
 
 		UniqueState(const UniqueState&) = delete;
-		UniqueState(UniqueState&& s) noexcept : State<B>(s.GetState()) { s.L = nullptr; }
-		UniqueState(const State<B>& s) noexcept : State<B>(s) {}
-		UniqueState(State<B>&& s) noexcept : State<B>(s) {}
+		UniqueState(UniqueState&& s) noexcept : State<B, C...>(s.GetState()) { s.L = nullptr; }
+		UniqueState(const State<B, C...>& s) noexcept : State<B, C...>(s) {}
+		UniqueState(State<B, C...>&& s) noexcept : State<B, C...>(s) {}
 
 		UniqueState& operator=(const UniqueState&) = delete;
 		UniqueState& operator=(UniqueState&& s) noexcept {
@@ -2570,14 +2577,14 @@ namespace lua::decorator {
 			s.L = nullptr;
 			return *this;
 		}
-		UniqueState& operator=(const State<B>& s) noexcept {
+		UniqueState& operator=(const State<B, C...>& s) noexcept {
 			if (this->L == s.L)
 				return *this;
 			State<B>::Close();
 			this->L = s.L;
 			return *this;
 		};
-		UniqueState& operator=(State<B>&& s) noexcept {
+		UniqueState& operator=(State<B, C...>&& s) noexcept {
 			if (this->L == s.L)
 				return *this;
 			State<B>::Close();
@@ -2586,7 +2593,7 @@ namespace lua::decorator {
 		}
 
 		~UniqueState() {
-			State<B>::Close();
+			State<B, C...>::Close();
 		}
 	};
 }

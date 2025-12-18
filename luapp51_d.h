@@ -4,7 +4,7 @@
 #include "luapp_common.h"
 
 namespace lua::decorator {
-	template<class B>
+	template<class B, template<class> class... C>
 	class State;
 }
 namespace lua::v51 {
@@ -290,7 +290,7 @@ namespace lua::v51 {
 	/// just a pointer, so pass by vale prefered.
 	/// </summary>
 	class ActivationRecord {
-		template<class B>
+		template<class B, template<class> class... C>
 		friend class decorator::State;
 		friend class State;
 		lua_Debug* ar;
