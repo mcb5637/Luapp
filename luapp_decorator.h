@@ -8,6 +8,8 @@
 #include "constexprTypename.h"
 #include "luapp_common.h"
 #include "luapp_userdata.h"
+#include "luapp_cast.h"
+#include "luapp_function.h"
 
 namespace lua::decorator {
 	/// <summary>
@@ -142,6 +144,17 @@ namespace lua::decorator {
 			template<CFunction F>
 			constexpr static FuncReference GetRef(std::string_view name) {
 				return { name, F };
+			}
+		    /// <summary>
+		    /// A Reference to an arbitrary function.
+		    /// </summary>
+		    /// <typeparam name="F"></typeparam>
+		    /// <param name="name"></param>
+		    /// <returns></returns>
+		    template<auto F>
+	        requires func::detail::AutoTranslateEnabled<State, decltype(F)>
+            constexpr static FuncReference GetRef(std::string_view name) {
+			    return { name, &CppToCFunction<AutoTranslateAPI<F>> };
 			}
 			/// <summary>
 			/// A reference to a Member function bound as CppFunction.
@@ -298,6 +311,17 @@ namespace lua::decorator {
 		{
 			B::Push(&CppToCFunction<F>, nups);
 		}
+	    /// <summary>
+	    /// pushes an arbitrary function onto the stack, automatically translating its parameters and return values.
+	    /// <para>[-0,+1,m]</para>
+	    /// </summary>
+	    /// <typeparam name="F">function</typeparam>
+	    template<auto F>
+	    requires func::detail::AutoTranslateEnabled<State, decltype(F)>
+        void Push()
+		{
+		    B::Push(&CppToCFunction<AutoTranslateAPI<F>>, 0);
+		}
 		/// <summary>
 		/// pushes a member function pointer bound to a object onto the stack. the bound object takes up upvalue 1.
 		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
@@ -349,9 +373,10 @@ namespace lua::decorator {
 		/// <para>[-0,+1,-]</para>
 		/// </summary>
 		/// <param name="i">int</param>
-		void Push(int i) {
+		template<std::integral T>
+		void Push(T i) {
 			if constexpr (B::Capabilities::NativeIntegers)
-				B::Push(static_cast<lua::Integer>(i));
+				B::Push(cast_detail::CastThrow<lua::Integer>(i, "value cannot fit into lua::Integer"));
 			else
 				B::Push(static_cast<lua::Number>(i));
 		}
@@ -1293,6 +1318,17 @@ namespace lua::decorator {
 		[[noreturn]] void TypeError(int idx, LType t) {
 			TypeError(idx, B::TypeName(t));
 		}
+	    /// <summary>
+	    /// throws an error with the message: "location: bad argument narg to 'func' (tname expected, got rt)"
+	    /// <para>[-0,+0,v]</para>
+	    /// </summary>
+	    /// <param name="idx">index</param>
+	    /// <typeparam name="T">expected type</typeparam>
+	    /// <exception cref="lua::LuaException">always</exception>
+	    template<class T>
+	    [[noreturn]] void CastError(int idx) {
+		    ArgError(idx, std::format("{} expected, value out of range", typename_details::type_name<T>()));
+		}
 		/// <summary>
 		/// throws an error if a is not met.
 		/// <para>[-0,+0,v]</para>
@@ -1496,6 +1532,18 @@ namespace lua::decorator {
 				return *n;
 			TypeError(idx, LType::Number);
 		}
+	    /// <summary>
+	    /// checks if there is a number and returns it.
+	    /// <para>[-0,+0,v]</para>
+	    /// </summary>
+	    /// <param name="idx">acceptable index to check</param>
+	    /// <returns>number</returns>
+	    /// <exception cref="lua::LuaException">if not number</exception>
+	    template<class T>
+	    requires std::same_as<T, Number>
+	    Number Check(int idx) {
+		    return CheckNumber(idx);
+		}
 		/// <summary>
 		/// checks if there is a number and returns it cast to a float.
 		/// <para>[-0,+0,v]</para>
@@ -1505,6 +1553,21 @@ namespace lua::decorator {
 		/// <exception cref="lua::LuaException">if not number</exception>
 		float CheckFloat(int idx) {
 			return static_cast<float>(CheckNumber(idx));
+		}
+	    /// <summary>
+	    /// checks if there is a number and returns it cast to a float.
+	    /// <para>[-0,+0,v]</para>
+	    /// </summary>
+	    /// <param name="idx">acceptable index to check</param>
+	    /// <returns>float</returns>
+	    /// <exception cref="lua::LuaException">if not number or if out of range</exception>
+	    template<class T>
+	    requires std::same_as<T, float>
+	    float Check(int idx) {
+		    auto r = cast_detail::TryCast<float>(CheckNumber(idx));
+		    if (r.has_value())
+		        return *r;
+		    CastError<T>(idx);
 		}
 		/// <summary>
 		/// checks if there is a integer and returns it.
@@ -1535,18 +1598,26 @@ namespace lua::decorator {
 		/// <returns>int</returns>
 		/// <exception cref="lua::LuaException">if not number</exception>
 		int CheckInt(int idx) {
-			if constexpr (B::Capabilities::NativeIntegers) {
-				auto i = B::ToInteger(idx);
-				if (i.has_value())
-					return static_cast<int>(*i);
-				if (B::IsNumber(idx))
-					ArgError(idx, "number has no integer representation");
-				else
-					TypeError(idx, LType::Number);
-			}
-			else {
-				return static_cast<int>(CheckNumber(idx));
-			}
+			return static_cast<int>(CheckInteger(idx));
+		}
+	    /// <summary>
+	    /// checks if there is a integer and returns it.
+	    /// <para>[-0,+0,v]</para>
+	    /// </summary>
+	    /// <param name="idx">acceptable index to check</param>
+	    /// <returns>int</returns>
+	    /// <exception cref="lua::LuaException">if not number</exception>
+	    template<class T>
+        requires (std::integral<T> && !std::same_as<T, bool>)
+	    T Check(int idx) {
+		    std::optional<T> r;
+		    if constexpr (B::Capabilities::NativeIntegers)
+		        r = cast_detail::TryCast<T>(CheckInteger(idx));
+		    else
+		        r = cast_detail::TryCast<T>(CheckNumber(idx));
+		    if (r.has_value())
+		        return *r;
+		    CastError<T>(idx);
 		}
 		/// <summary>
 		/// checks if there is a string and returns it.
@@ -1573,6 +1644,18 @@ namespace lua::decorator {
 		bool CheckBool(int idx) {
 			CheckType(idx, LType::Boolean);
 			return B::ToBoolean(idx);
+		}
+	    /// <summary>
+	    /// checks if there is a bool and returns it.
+	    /// <para>[-0,+0,v]</para>
+	    /// </summary>
+	    /// <param name="idx">acceptable index to check</param>
+	    /// <returns>bool</returns>
+	    /// <exception cref="lua::LuaException">if not bool</exception>
+	    template<class T>
+        requires std::same_as<T, bool>
+	    bool Check(int idx) {
+		    return CheckBool(idx);
 		}
 		/// <summary>
 		/// checks for a userdata type. (via its metatable).
@@ -1801,6 +1884,19 @@ namespace lua::decorator {
             // ReSharper disable once CppDFALocalValueEscapesFunction
             return { s, l };
 		}
+	    /// <summary>
+	    /// checks if idx is a string and returns it.
+	    /// <para>[-0,+0,v]</para>
+	    /// </summary>
+	    /// <param name="idx">acceptable index to check</param>
+	    /// <returns>string</returns>
+	    /// <exception cref="lua::LuaException">if not a string</exception>
+	    template<class T>
+        requires std::same_as<T, std::string_view>
+	    std::string_view Check(int idx)
+		{
+		    return CheckStringView(idx);
+		}
 		/// <summary>
 		/// if idx is a string, returns it. if it is nil or none, returns a copy of def. otherwise throws.
 		/// <para>[-0,+0,v]</para>
@@ -1827,6 +1923,19 @@ namespace lua::decorator {
 		{
 			return std::string{ CheckStringView(idx) };
 		}
+	    /// <summary>
+	    /// checks if idx is a string and returns it.
+	    /// <para>[-0,+0,v]</para>
+	    /// </summary>
+	    /// <param name="idx">acceptable index to check</param>
+	    /// <returns>string</returns>
+	    /// <exception cref="lua::LuaException">if not a string</exception>
+	    template<class T>
+        requires std::same_as<T, std::string>
+        std::string Check(int idx)
+		{
+		    return CheckStdString(idx);
+		}
 		/// <summary>
 		/// if idx is a string, returns it. if it is nil or none, returns a copy of def. otherwise throws.
 		/// <para>[-0,+0,v]</para>
@@ -1839,6 +1948,8 @@ namespace lua::decorator {
 		{
 			return std::string{ OptStringView(idx, def) };
 		}
+
+	    using C<State<B, C...>>::Check...;
 
 		/// <summary>
 		/// converts idx to a string, pushes it and returns it.
@@ -2538,6 +2649,49 @@ namespace lua::decorator {
 			if (nuvalues > userdata::StateMaxUservalues<State<B>>())
 				throw lua::LuaException{ std::format("this lua state only supports {} uservalues, instead of the requested {}", userdata::StateMaxUservalues<State<B>>(), nuvalues) };
 			return NewUserClassUnchecked<T>(nuvalues, std::forward<Args>(args)...);
+		}
+
+	private:
+	    template<class T>
+        auto CheckAll()
+	    {
+            auto f = [this]<size_t... I>(std::index_sequence<I...>) {
+                return T{this->template Check<std::tuple_element_t<I, T>>(static_cast<int>(I + 1)) ...};
+            };
+	        return f(std::make_index_sequence<std::tuple_size_v<T>>{});
+	    }
+
+	public:
+	    /// <summary>
+	    /// adapts an arbitrary function to a CppFunction by Check<T> ing for parameters and Push ing the result(s).
+	    /// </summary>
+	    /// <param name="L">lua state</param>
+	    /// <returns>number of return values on the stack</returns>
+        template<auto F>
+	    requires func::detail::AutoTranslateEnabled<State, decltype(F)>
+	    static int AutoTranslateAPI(State L)
+		{
+	        using R = func::FunctionTraits<decltype(F)>::ReturnType;
+	        using P = func::FunctionTraits<decltype(F)>::ArgumentTypes;
+	        if constexpr (std::same_as<R, void>)
+	        {
+	            std::apply(F, L.template CheckAll<P>());
+	            return 0;
+	        }
+	        else if constexpr (func::detail::IsTuple<R>)
+	        {
+	            R r = std::apply(F, L.template CheckAll<P>());
+	            auto p = [&L, r]<size_t... I>(std::index_sequence<I...>) {
+	                (L.Push(std::get<I>(r)), ...);
+	            };
+	            p(std::make_index_sequence<std::tuple_size_v<R>>{});
+	            return static_cast<int>(std::tuple_size_v<R>);
+	        }
+	        else
+	        {
+	            L.Push(std::apply(F, L.template CheckAll<P>()));
+	            return 1;
+	        }
 		}
 	};
 

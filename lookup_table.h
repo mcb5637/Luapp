@@ -4,7 +4,7 @@
 #include <utility>
 #include <string_view>
 
-namespace lut_details
+namespace lua::lut_details
 {
     template<class I>
     struct OptionStringElement
