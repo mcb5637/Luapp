@@ -14,3 +14,44 @@ Usage:
 - if you selected lua jit, also add luapp51.cpp and make sure, luapp51.h is includable
 	(luapp51.cpp will include luajit instead of lua51 if lua51 is not found. it will default to lua51, if both are found, but they are ABI compatible, so using both jit or 51 is fine at that point)
 - link against your lua lib/dll as usual
+
+
+UserClass:
+- c++ class as full userdata
+- metatable will be automatically build from class T
+  - `T::LuaMethods` iterable over `LuaReference`, registered as metamethods in `__index`
+  - `T::~T()` (destructor), registered as finalizer `__gc` (skipped if trivial)
+  - operators: by c++ operator or static function (static function preferred)
+    - `==` (`__eq`): `Equals` static member or `==`/`<=>` operator
+    - `<`and `>` (`__lt`): `LessThan` static member or `<`/`<=>` operator
+    - `<=` and `>=` (`__le`): `LessOrEquals` static member or `<=`/`<=>` operator
+    - `+` (`__add`): `Add` static member or `+` operator
+    - `-` (`__sub`): `Subtract` static member or `-` operator
+    - `*` (`__mul`): `Multiply` static member or `*` operator
+    - `/` (`__div`): `Divide` static member or `/` operator
+    - `//` (`__idiv`): `IntegerDivide` static member
+    - `%` (`__mod`): `Modulo` static member
+    - `^` (`__pow`): `Pow` static member
+    - unary `-` (`__unm`): `UnaryMinus` static member or unary `-` operator
+    - `&` (`__band`): `BitwiseAnd` static member or `&` operator
+    - `|` (`__bor`): `BitwiseOr` static member or `|` operator
+    - `~` (`__bxor`): `BitwiseXOr` static member or `^` operator
+    - unary `~` (`__bnot`): `BitwiseNot` static member or unary `~` operator
+    - `<<` (`__shl`): `ShiftLeft` static member or `<<` operator
+    - `>>` (`__shr`): `ShiftRight` static member or `>>` operator
+    - `#` (`__len`): `Length` static member
+    - `..` (`__concat`): `Concat` static member
+    - `[]=` (`__newindex`): `NewIndex` static member or
+    - `()` (`__call`): `Call` static member
+    - `[]` (`__index`): `Index` static member
+    - `tostring()` (`__tostring`): `ToString` static member
+  - if `T` has both `LuaMethods` and `Index` defined, first `LuaMethods` is searched, and if nothing is found, `Index` is called
+  - if `T::LuaMetaMethods` is iterable over LuaReference, registers them all into the metatable as additional metamethods (possibly overriding the default generated)
+  - inheritance:
+    - define `T::BaseClass` as `T` in the base class and do not change the typedef in the derived classes
+    - a call to `CheckUserClass<T::BaseClass>` or `OptionalUserClass<T::BaseClass>` on an userdata of type `T` will then return a correctly cast pointer to `T::BaseClass`
+    - all variables for class generation get used via normal overload resolution, meaning the most derived class wins
+    - make sure you include all methods from base classes in LuaMethods, or they will get lost
+    - as far as luapp is concerned a class may only have one base class (defined via `T::BaseClass`) but other inheritances that are not visible to luapp are allowed
+  - create with `L.NewUserClass<T>(...)` which calls the constructor with the supplied parameters
+  - access with `L.CheckUserClass<T>(index)` (note that `L.ToUserdata(index)` may return a different pointer, to allow for polymorphism)

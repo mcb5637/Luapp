@@ -166,7 +166,7 @@ namespace lua::decorator {
 		    template<auto F>
             requires func::IsMemberFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F), true>
             constexpr static FuncReference GetRef(std::remove_pointer_t<std::tuple_element_t<0, typename func::FunctionTraits<decltype(F)>::ArgumentTypes>>& obj, std::string_view name) {
-			    return { name, &CppToCFunction<AutoTranslateAPIMemberClosure<F>>, &obj };
+			    return { name, &CppToCFunction<AutoTranslateAPI<F, 1>>, &obj };
 			}
 			/// <summary>
 			/// A reference to a Member function bound as CppFunction.
@@ -346,7 +346,7 @@ namespace lua::decorator {
         void Push(std::remove_pointer_t<std::tuple_element_t<0, typename func::FunctionTraits<decltype(F)>::ArgumentTypes>>& obj)
 		{
 			B::PushLightUserdata(&obj);
-		    B::Push(&CppToCFunction<AutoTranslateAPIMemberClosure<F>>, 1);
+		    B::Push(&CppToCFunction<AutoTranslateAPI<F, 1>>, 1);
 		}
 		/// <summary>
 		/// pushes a member function pointer bound to a object onto the stack. the bound object takes up upvalue 1.
@@ -1042,7 +1042,7 @@ namespace lua::decorator {
 		        throw LuaException{ msg };
 		    }
 		    B::Remove(ehsi); // DefaultErrorDecorator
-		    auto f = [&]<int... I>(std::integer_sequence<int, I...>) {
+		    auto f = [this, t]<int... I>(std::integer_sequence<int, I...>) {
 		        return std::tuple<R...>(this->template Check<R>(t + I)...);
 		    };
 		    return f(std::make_integer_sequence<int, sizeof...(R)>{});
@@ -2334,7 +2334,7 @@ namespace lua::decorator {
 		};
 
 		/// <summary>
-		/// checks if i is an userdata of type T (or able to be cast to T) and returns it. returns nullptr if not.
+		/// checks if i is a UserClass of type T (or able to be cast to T) and returns it. returns nullptr if not.
 		/// </summary>
 		/// <typeparam name="T">class type</typeparam>
 		/// <param name="i">acceptable index to check</param>
@@ -2357,7 +2357,7 @@ namespace lua::decorator {
 					return nullptr;
 				}
 				B::Pop(2);
-				// do not acces ActualObj here, this might be of a different type alltogether
+				// do not access ActualObj here, this might be of a different type altogether
 				auto* u = static_cast<userdata::UserClassBase<typename T::BaseClass>*>(B::ToUserdata(i));
 				return dynamic_cast<T*>(u->BaseObj);
 			}
@@ -2366,7 +2366,7 @@ namespace lua::decorator {
 			}
 		}
 		/// <summary>
-		/// checks if i is an userdata of type T (or able to be cast to T) abd returns it. throws if not.
+		/// checks if i is a UserClass of type T (or able to be cast to T) and returns it. throws if not.
 		/// </summary>
 		/// <typeparam name="T">class type</typeparam>
 		/// <param name="i">acceptable index to check</param>
@@ -2380,113 +2380,7 @@ namespace lua::decorator {
 			return t;
 		}
 		/// <summary>
-		/// gets the metatable for type T.
-		/// <para>lua class generation:</para>
-		/// <para>if T::LuaMethods is iterable over LuaReference, registers them all as userdata methods (__index).</para>
-		/// <para></para>
-		/// <para>if T is not trivially destructable, generates a finalizer (__gc) that calls its destructor.</para>
-		/// <para></para>
-		/// <para>metatable operator definition:</para>
-		/// <para>- by CFunction or CppFunction: you provide an implementation as a static class member (used, if both provided).</para>
-		/// <para>- or automatically by C++ operator overloads (this requires a nothrow move constructor for operators).</para>
-		/// <para></para>
-		/// <para>== comparator (also ~= comparator) (__eq):</para>
-		/// <para>- Equals static member.</para>
-		/// <para>- == operator overload (or &lt;==&gt; overload) (checks type, then operator).</para>
-		/// <para></para>
-		/// <para>&lt; comparator (also &gt; comparator) (__lt):</para>
-		/// <para>- LessThan static member.</para>
-		/// <para>- &lt; operator overload (or &lt;==&gt; overload) (checks type, then operator).</para>
-		/// <para></para>
-		/// <para>&lt;= comparator (also &lt;= comparator) (__le):</para>
-		/// <para>- LessOrEquals static member.</para>
-		/// <para>- &lt;= operator overload (or &lt;==&gt; overload) (checks type, then operator).</para>
-		/// <para></para>
-		/// <para>+ operator (__add):</para>
-		/// <para>- Add static member.</para>
-		/// <para>- + operator overload (only works for both operands of type T).</para>
-		/// <para></para>
-		/// <para>- operator (__sub):</para>
-		/// <para>- Subtract static member.</para>
-		/// <para>- - operator overload (only works for both operands of type T).</para>
-		/// <para></para>
-		/// <para>* operator (__mul):</para>
-		/// <para>- Multiply static member.</para>
-		/// <para>- * operator overload (only works for both operands of type T).</para>
-		/// <para></para>
-		/// <para>/ operator (__div):</para>
-		/// <para>- Divide static member.</para>
-		/// <para>- / operator overload (only works for both operands of type T).</para>
-		/// <para></para>
-		/// <para>// operator (__idiv):</para>
-		/// <para>- IntegerDivide static member.</para>
-		/// <para>(no operator in c++).</para>
-		/// <para></para>
-		/// <para>% operator (__mod):</para>
-		/// <para>- Modulo static member.</para>
-		/// <para>(no operator in c++).</para>
-		/// <para></para>
-		/// <para>^ operator (__pow):</para>
-		/// <para>- Pow static member.</para>
-		/// <para>(no operator in c++).</para>
-		/// <para></para>
-		/// <para>unary - operator (__unm):</para>
-		/// <para>- UnaryMinus static member.</para>
-		/// <para>- (unary) - operator overload.</para>
-		/// <para></para>
-		/// <para>&amp; operator (__band):</para>
-		/// <para>- BitwiseAnd static member.</para>
-		/// <para>- &amp; operator overload (only works for both operands of type T).</para>
-		/// <para></para>
-		/// <para>| operator (__bor):</para>
-		/// <para>- BitwiseOr static member.</para>
-		/// <para>- | operator overload (only works for both operands of type T).</para>
-		/// <para></para>
-		/// <para>~ operator (__bxor):</para>
-		/// <para>- BitwiseXOr static member.</para>
-		/// <para>- ^ operator overload (only works for both operands of type T).</para>
-		/// <para></para>
-		/// <para>unary ~ operator (__bnot):</para>
-		/// <para>- BitwiseNot static member.</para>
-		/// <para>- (unary) ~ operator overload.</para>
-		/// <para></para>
-		/// <para>&lt;&lt; operator (__shl):</para>
-		/// <para>- ShiftLeft static member.</para>
-		/// <para>- &lt;&lt; operator overload (only works for both operands of type T).</para>
-		/// <para></para>
-		/// <para>&gt;&gt; operator (__shr):</para>
-		/// <para>- ShiftRight static member.</para>
-		/// <para>- &gt;&gt; operator overload (only works for both operands of type T).</para>
-		/// <para></para>
-		/// <para># operator (__len):</para>
-		/// <para>- Length static member.</para>
-		/// <para>(no operator in c++).</para>
-		/// <para></para>
-		/// <para>.. operator (__concat):</para>
-		/// <para>- Concat static member.</para>
-		/// <para>(no operator in c++).</para>
-		/// <para></para>
-		/// <para>[x]=1 operator (__newindex):</para>
-		/// <para>- NewIndex static member.</para>
-		/// <para></para>
-		/// <para>(...) operator (__call)</para>
-		/// <para>- Call static member.</para>
-		/// <para></para>
-		/// <para>=[x] operator (__index):</para>
-		/// <para>- Index static member.</para>
-		/// <para></para>
-		/// <para>tostring (lua) ConvertToString (c++):</para>
-		/// <para>- ToString static member.</para>
-		/// <para></para>
-		/// <para>if T has both LuaMethods and Index defined, first LuaMethods is searched, and if nothing is found, Index is called.</para>
-		/// <para></para>
-		/// <para>if T::LuaMetaMethods is iterable over LuaReference, registers them all into the metatable as additional metamethods (possibly overriding the default generaded)</para>
-		/// <para></para>
-		/// <para>to handle inheritance, define T::BaseClass as T in the base class and do not change the typedef in the derived classes.</para>
-		/// <para>a call to GetUserData&lt;T::BaseClass&gt; on an userdata of type T will then return a correctly cast pointer to T::BaseClass.</para>
-		/// <para>all variables for class generation get used via normal overload resolution, meaning the most derived class wins.</para>
-		/// <para>make sure you include all methods from base classes in LuaMethods, or they will get lost.</para>
-		/// <para>as far as luapp is concerned a class may only have one base class (defined via T::BaseClass) but other inheritances that are not visible to luapp are allowed.</para>
+		/// gets the metatable for the UserClass of type T.
 		/// </summary>
 		/// <typeparam name="T">type to generate metatable for</typeparam>
 		template<class T>
@@ -2666,8 +2560,8 @@ namespace lua::decorator {
 		}
 	public:
 		/// <summary>
-		/// <para>converts a c++ class to a lua userdata. creates a new full userdata and calls the constructor of T, forwarding all arguments.</para>
-		/// <para>a class (metatable) for a userdata type is only generated once, and then reused for all userdata of the same type.</para>
+		/// <para>creates a new UserClass of type T by calling its constructor inside a full userdata.</para>
+		/// <para>a class (metatable) for a UserClass type is only generated once, and then reused for all objects of the same type.</para>
 		/// <para></para>
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
@@ -2680,11 +2574,10 @@ namespace lua::decorator {
 		T* NewUserClass(Args&& ... args) {
 			return NewUserClassUnchecked<T>(userdata::UserClassUserValues<T>(), std::forward<Args>(args)...);
 		}
-		/// <summary>
-		/// <para>converts a c++ class to a lua userdata. creates a new full userdata and calls the constructor of T, forwarding all arguments.</para>
-		/// <para>a class (metatable) for a userdata type is only generated once, and then reused for all userdata of the same type.</para>
+	    /// <summary>
+	    /// <para>creates a new UserClass of type T by calling its constructor inside a full userdata.</para>
+	    /// <para>a class (metatable) for a UserClass type is only generated once, and then reused for all objects of the same type.</para>
 		/// <para></para>
-		/// <para>lua class generation: see lua::State::NewUserData</para>
 		/// </summary>
 		/// <typeparam name="T">type to create</typeparam>
 		/// <typeparam name="...Args">parameters for constructor</typeparam>
@@ -2700,23 +2593,15 @@ namespace lua::decorator {
 		}
 
 	private:
-	    template<class T>
+	    template<class T, size_t NumBindings>
         auto CheckAll()
-	    {
-            auto f = [this]<size_t... I>(std::index_sequence<I...>) {
-                return T{this->template Check<std::tuple_element_t<I, T>>(static_cast<int>(I + 1)) ...};
-            };
-	        return f(std::make_index_sequence<std::tuple_size_v<T>>{});
-	    }
-	    template<class T>
-        auto CheckAll(std::tuple_element_t<0, T> o)
 	    {
 	        auto s = [&]<size_t I>()
 	        {
-	            if constexpr (I == 0)
-	                return o;
+	            if constexpr (I < NumBindings)
+	                return static_cast<std::tuple_element_t<I, T>>(this->ToUserdata(B::Upvalueindex(1)));
 	            else
-	                return this->template Check<std::tuple_element_t<I, T>>(static_cast<int>(I));
+	                return this->template Check<std::tuple_element_t<I, T>>(static_cast<int>(I - NumBindings) + 1);
 	        };
 	        auto f = [&]<size_t... I>(std::index_sequence<I...>) {
 	            return T{s.template operator()<I>() ...};
@@ -2740,50 +2625,72 @@ namespace lua::decorator {
 	            return 1;
 	        }
 	    }
+	    struct StackCleanup
+	    {
+            State L;
+	        int Top = 0;
+
+	        StackCleanup(State l, int t) : L(l), Top(t) {}
+
+	        ~StackCleanup()
+	        {
+	            if (L.GetState() == nullptr)
+	                return;
+	            L.SetTop(Top);
+	        }
+	        StackCleanup(const StackCleanup&)=delete;
+	        StackCleanup(StackCleanup&& c) noexcept
+	        {
+	            L = c.L;
+	            c.L = State{nullptr};
+	            Top = c.Top;
+	        }
+	        StackCleanup& operator=(const StackCleanup&) = delete;
+	        StackCleanup& operator=(StackCleanup&& c) noexcept
+	        {
+	            if (this == &c)
+	                return *this;
+	            if (L.GetState() != nullptr)
+	                L.SetTop(Top);
+	            L = c.L;
+	            c.L = State{nullptr};
+	            Top = c.Top;
+	            return *this;
+	        }
+	    };
 
 	public:
 	    /// <summary>
 	    /// adapts an arbitrary function to a CppFunction by Check<T> ing for parameters and Push ing the result(s).
+	    /// binds the first NumBindings parameters to light userdata upvalues.
 	    /// </summary>
 	    /// <param name="L">lua state</param>
+	    /// <typeparam name="F">function to translate</typeparam>
+	    /// <typeparam name="NumBindings">upvalue bindings</typeparam>
 	    /// <returns>number of return values on the stack</returns>
-        template<auto F>
-	    requires func::IsFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F)>
+        template<auto F, size_t NumBindings = 0>
+	    requires func::detail::AutoTranslateEnabled<State, decltype(F), NumBindings>
 	    static int AutoTranslateAPI(State L)
 		{
 	        using R = func::FunctionTraits<decltype(F)>::ReturnType;
 	        using P = func::FunctionTraits<decltype(F)>::ArgumentTypes;
 	        if constexpr (std::same_as<R, void>)
 	        {
-	            std::apply(F, L.CheckAll<P>());
+	            std::apply(F, L.CheckAll<P, NumBindings>());
 	            return 0;
 	        }
 	        else
 	        {
-	            return L.PushAll(std::apply(F, L.CheckAll<P>()));
+	            return L.PushAll(std::apply(F, L.CheckAll<P, NumBindings>()));
 	        }
 		}
+
 	    /// <summary>
-	    /// adapts an arbitrary function to a CppFunction by Check<T> ing for parameters and Push ing the result(s).
+	    /// automatically stores the current top and resets it, if the return value goes out of scope.
 	    /// </summary>
-	    /// <param name="L">lua state</param>
-	    /// <returns>number of return values on the stack</returns>
-	    template<auto F>
-        requires func::IsMemberFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F), true>
-        static int AutoTranslateAPIMemberClosure(State L)
+	    StackCleanup AutoCleanStack()
         {
-            using R = func::FunctionTraits<decltype(F)>::ReturnType;
-            using P = func::FunctionTraits<decltype(F)>::ArgumentTypes;
-            auto* o = static_cast<std::tuple_element_t<0, P>>(L.ToUserdata(B::Upvalueindex(1)));
-            if constexpr (std::same_as<R, void>)
-            {
-                std::apply(F, L.template CheckAll<P>(o));
-                return 0;
-            }
-            else
-            {
-                return L.PushAll(std::apply(F, L.template CheckAll<P>(o)));
-            }
+            return {*this, B::GetTop()};
         }
 	};
 

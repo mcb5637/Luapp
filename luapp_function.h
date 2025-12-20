@@ -44,23 +44,9 @@ namespace lua::func
         struct IsFunctionPointer : std::false_type
         {
         };
-        template<class F>
-        struct IsMemberFunctionPointer : std::false_type
-        {
-        };
 
         template<class R, class... Args>
         struct IsFunctionPointer<R (*)(Args...)> : std::true_type
-        {
-        };
-
-        template<class C, class R, class... Args>
-        struct IsMemberFunctionPointer<R (C::*)(Args...)> : std::true_type
-        {
-        };
-
-        template<class C, class R, class... Args>
-        struct IsMemberFunctionPointer<R (C::*)(Args...) const> : std::true_type
         {
         };
     }
@@ -69,7 +55,7 @@ namespace lua::func
     concept IsFunctionPointer = detail::IsFunctionPointer<T>::value;
 
     template<class T>
-    concept IsMemberFunctionPointer = detail::IsMemberFunctionPointer<T>::value;
+    concept IsMemberFunctionPointer = std::is_member_function_pointer_v<T>;
 
     namespace detail
     {
@@ -86,7 +72,7 @@ namespace lua::func
             { std::tuple_size<T>::value } -> std::convertible_to<std::size_t>;
         };
 
-        template<class State, class F, bool IgnoreFirstParam = false>
+        template<class State, class F, size_t NumBindings = 0>
         concept AutoTranslateEnabled =
             (Pushable<State, typename FunctionTraits<F>::ReturnType> ||
              std::same_as<typename FunctionTraits<F>::ReturnType, void> ||
@@ -97,8 +83,8 @@ namespace lua::func
               }(std::make_index_sequence<std::tuple_size_v<typename FunctionTraits<F>::ReturnType>>{}))) &&
             []<std::size_t... Is>(std::index_sequence<Is...>)
         {
-            return ((IgnoreFirstParam && Is == 0
-                         ? true
+            return ((Is < NumBindings
+                         ? std::is_pointer_v<typename FunctionTraits<F>::template ArgumentType<Is>>
                          : Checkable<State, typename FunctionTraits<F>::template ArgumentType<Is>>) &&
                     ...);
         }(std::make_index_sequence<FunctionTraits<F>::Arity>{});
