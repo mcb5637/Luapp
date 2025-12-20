@@ -152,9 +152,21 @@ namespace lua::decorator {
 		    /// <param name="name"></param>
 		    /// <returns></returns>
 		    template<auto F>
-	        requires func::detail::AutoTranslateEnabled<State, decltype(F)>
+	        requires func::IsFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F)>
             constexpr static FuncReference GetRef(std::string_view name) {
 			    return { name, &CppToCFunction<AutoTranslateAPI<F>> };
+			}
+		    /// <summary>
+		    /// A Reference to an arbitrary member function.
+		    /// </summary>
+		    /// <typeparam name="F"></typeparam>
+			/// <param name="obj"></param>
+		    /// <param name="name"></param>
+		    /// <returns></returns>
+		    template<auto F>
+            requires func::IsMemberFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F), true>
+            constexpr static FuncReference GetRef(std::remove_pointer_t<std::tuple_element_t<0, typename func::FunctionTraits<decltype(F)>::ArgumentTypes>>& obj, std::string_view name) {
+			    return { name, &CppToCFunction<AutoTranslateAPIMemberClosure<F>>, &obj };
 			}
 			/// <summary>
 			/// A reference to a Member function bound as CppFunction.
@@ -317,10 +329,24 @@ namespace lua::decorator {
 	    /// </summary>
 	    /// <typeparam name="F">function</typeparam>
 	    template<auto F>
-	    requires func::detail::AutoTranslateEnabled<State, decltype(F)>
+	    requires func::IsFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F)>
         void Push()
 		{
 		    B::Push(&CppToCFunction<AutoTranslateAPI<F>>, 0);
+		}
+	    /// <summary>
+	    /// pushes an arbitrary member function pointer bound to a object onto the stack, automatically translating its parameters and return values.
+	    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
+	    /// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
+	    /// <para>[-0,+1,m]</para>
+	    /// </summary>
+	    /// <typeparam name="F">function</typeparam>
+	    template<auto F>
+        requires func::IsMemberFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F), true>
+        void Push(std::remove_pointer_t<std::tuple_element_t<0, typename func::FunctionTraits<decltype(F)>::ArgumentTypes>>& obj)
+		{
+			B::PushLightUserdata(&obj);
+		    B::Push(&CppToCFunction<AutoTranslateAPIMemberClosure<F>>, 1);
 		}
 		/// <summary>
 		/// pushes a member function pointer bound to a object onto the stack. the bound object takes up upvalue 1.
@@ -2660,6 +2686,38 @@ namespace lua::decorator {
             };
 	        return f(std::make_index_sequence<std::tuple_size_v<T>>{});
 	    }
+	    template<class T>
+        auto CheckAll(std::tuple_element_t<0, T> o)
+	    {
+	        auto s = [&]<size_t I>()
+	        {
+	            if constexpr (I == 0)
+	                return o;
+	            else
+	                return this->template Check<std::tuple_element_t<I, T>>(static_cast<int>(I));
+	        };
+	        auto f = [&]<size_t... I>(std::index_sequence<I...>) {
+	            return T{s.template operator()<I>() ...};
+	        };
+	        return f(std::make_index_sequence<std::tuple_size_v<T>>{});
+	    }
+	    template<class R>
+	    int PushAll(R r)
+	    {
+	        if constexpr (func::detail::IsTuple<R>)
+	        {
+	            auto p = [this, r]<size_t... I>(std::index_sequence<I...>) {
+	                (this->Push(std::get<I>(r)), ...);
+	            };
+	            p(std::make_index_sequence<std::tuple_size_v<R>>{});
+	            return static_cast<int>(std::tuple_size_v<R>);
+	        }
+	        else
+	        {
+	            this->Push(r);
+	            return 1;
+	        }
+	    }
 
 	public:
 	    /// <summary>
@@ -2668,31 +2726,43 @@ namespace lua::decorator {
 	    /// <param name="L">lua state</param>
 	    /// <returns>number of return values on the stack</returns>
         template<auto F>
-	    requires func::detail::AutoTranslateEnabled<State, decltype(F)>
+	    requires func::IsFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F)>
 	    static int AutoTranslateAPI(State L)
 		{
 	        using R = func::FunctionTraits<decltype(F)>::ReturnType;
 	        using P = func::FunctionTraits<decltype(F)>::ArgumentTypes;
 	        if constexpr (std::same_as<R, void>)
 	        {
-	            std::apply(F, L.template CheckAll<P>());
+	            std::apply(F, L.CheckAll<P>());
 	            return 0;
-	        }
-	        else if constexpr (func::detail::IsTuple<R>)
-	        {
-	            R r = std::apply(F, L.template CheckAll<P>());
-	            auto p = [&L, r]<size_t... I>(std::index_sequence<I...>) {
-	                (L.Push(std::get<I>(r)), ...);
-	            };
-	            p(std::make_index_sequence<std::tuple_size_v<R>>{});
-	            return static_cast<int>(std::tuple_size_v<R>);
 	        }
 	        else
 	        {
-	            L.Push(std::apply(F, L.template CheckAll<P>()));
-	            return 1;
+	            return L.PushAll(std::apply(F, L.CheckAll<P>()));
 	        }
 		}
+	    /// <summary>
+	    /// adapts an arbitrary function to a CppFunction by Check<T> ing for parameters and Push ing the result(s).
+	    /// </summary>
+	    /// <param name="L">lua state</param>
+	    /// <returns>number of return values on the stack</returns>
+	    template<auto F>
+        requires func::IsMemberFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F), true>
+        static int AutoTranslateAPIMemberClosure(State L)
+        {
+            using R = func::FunctionTraits<decltype(F)>::ReturnType;
+            using P = func::FunctionTraits<decltype(F)>::ArgumentTypes;
+            auto* o = static_cast<std::tuple_element_t<0, P>>(L.ToUserdata(B::Upvalueindex(1)));
+            if constexpr (std::same_as<R, void>)
+            {
+                std::apply(F, L.CheckAll<P>(o));
+                return 0;
+            }
+            else
+            {
+                return L.PushAll(std::apply(F, L.CheckAll<P>(o)));
+            }
+        }
 	};
 
 	/// <summary>
