@@ -1025,6 +1025,28 @@ namespace lua::decorator {
 			B::Remove(ehsi); // DefaultErrorDecorator
 			return B::GetTop() - t;
 		}
+	    template<class... R, class... P>
+	    std::tuple<R...> TCall(P... arg)
+		{
+		    int t = B::GetTop();
+		    Push<DefaultErrorDecorator>();
+		    int ehsi = B::ToAbsoluteIndex(-2); // just under the func to be called
+		    B::Insert(ehsi);
+		    (this->Push(arg), ...);
+		    auto c = B::PCall(sizeof...(P), sizeof...(R), ehsi);
+		    if (c != B::ErrorCode::Success) {
+		        std::string msg = B::ErrorCodeFormat(c);
+		        msg += ToStringView(-1);
+		        B::Pop(1); // error msg
+		        B::Remove(ehsi); // DefaultErrorDecorator
+		        throw LuaException{ msg };
+		    }
+		    B::Remove(ehsi); // DefaultErrorDecorator
+		    auto f = [&]<int... I>(std::integer_sequence<int, I...>) {
+		        return std::tuple<R...>(this->template Check<R>(t + I)...);
+		    };
+		    return f(std::make_integer_sequence<int, sizeof...(R)>{});
+		}
 
 
 		/// <summary>
@@ -2755,12 +2777,12 @@ namespace lua::decorator {
             auto* o = static_cast<std::tuple_element_t<0, P>>(L.ToUserdata(B::Upvalueindex(1)));
             if constexpr (std::same_as<R, void>)
             {
-                std::apply(F, L.CheckAll<P>(o));
+                std::apply(F, L.template CheckAll<P>(o));
                 return 0;
             }
             else
             {
-                return L.PushAll(std::apply(F, L.CheckAll<P>(o)));
+                return L.PushAll(std::apply(F, L.template CheckAll<P>(o)));
             }
         }
 	};
