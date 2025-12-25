@@ -290,7 +290,7 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="io">open io and os libs</param>
 		/// <param name="debug">open debug lib</param>
-		State(bool io = true, bool debug = false) : B(io, debug) {}
+		explicit State(bool io = true, bool debug = false) : B(io, debug) {}
 		/// <summary>
 		/// opens a new lua state (for similarity with luas c api).
 		/// </summary>
