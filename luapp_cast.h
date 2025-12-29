@@ -9,8 +9,10 @@ namespace lua::cast_detail
     requires (std::integral<To> || std::floating_point<To>) && (std::integral<From> || std::floating_point<From>)
     constexpr std::optional<To> TryCast(From f)
     {
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdouble-promotion"
+#endif
         if constexpr (std::floating_point<From> && !std::floating_point<To>) {
             // from https://stackoverflow.com/questions/25857843/how-do-i-convert-an-arbitrary-double-to-an-integer-while-avoiding-undefined-beha
             if (std::isnan(f) || std::isinf(f)) {
@@ -39,7 +41,9 @@ namespace lua::cast_detail
                 return std::nullopt;
             }
         }
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
         return static_cast<To>(f);
     }
     template<class To, class From>
