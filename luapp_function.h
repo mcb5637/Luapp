@@ -72,7 +72,7 @@ namespace lua::func
             { std::tuple_size<T>::value } -> std::convertible_to<std::size_t>;
         };
 
-        template<class State, class F, size_t NumBindings = 0>
+        template<class State, class F, std::size_t NumBindings = 0>
         concept AutoTranslateEnabled =
             (Pushable<State, typename FunctionTraits<F>::ReturnType> ||
              std::same_as<typename FunctionTraits<F>::ReturnType, void> ||

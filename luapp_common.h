@@ -1,7 +1,5 @@
 #pragma once
 #include <stdexcept>
-#include <compare>
-#include "constexprTypename.h"
 
 // create a lua::State from this to interact with it
 struct lua_State;
@@ -9,9 +7,10 @@ struct lua_Debug;
 
 #ifdef _MSC_VER
 #define LUAPP_CDECL __cdecl
+#define LUAPP_FUNCNAME __FUNCSIG__
 #else
 #define LUAPP_CDECL
-#define __FUNCSIG__ __PRETTY_FUNCTION__
+#define LUAPP_FUNCNAME __PRETTY_FUNCTION__
 #endif
 
 namespace lua {
@@ -20,11 +19,11 @@ namespace lua {
 	/// if active, CppToCFunction catches any c++ exceptions and converts them to lua exceptions
 	/// (this gets used internally as well)
 	/// </summary>
-	constexpr const bool CatchExceptions = true;
+	constexpr bool CatchExceptions = true;
 	/// <summary>
 	/// enable/disable type checks on API methods, as well as some stack space checks
 	/// </summary>
-	constexpr const bool TypeChecks = true;
+	constexpr bool TypeChecks = true;
 
 	/// <summary>
 	/// all values in lua are of one of these types:
@@ -52,7 +51,7 @@ namespace lua {
 		/// </summary>
 		String,
 		/// <summary>
-		/// represents a table value. tables are arrays and dictionarys in one.
+		/// represents a table value. tables are arrays and dictionaries in one.
 		/// </summary>
 		Table,
 		/// <summary>
@@ -80,9 +79,7 @@ namespace lua {
 	/// </summary>
 	class LuaException : public std::runtime_error {
 	public:
-		inline LuaException(const std::string& what) : std::runtime_error(what) {}
-		inline LuaException(const char* what) : std::runtime_error(what) {}
-		inline LuaException(const LuaException& other) noexcept : std::runtime_error(other) {}
+		using std::runtime_error::runtime_error;
 	};
 
 	/// <summary>

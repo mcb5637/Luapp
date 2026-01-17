@@ -18,7 +18,6 @@ extern "C" {
 #endif
 
 #include <cstdlib>
-#include <type_traits>
 #include <sstream>
 
 #include "lookup_table.h"
@@ -37,9 +36,9 @@ namespace lua::v51 {
 	static_assert(LType::Userdata == static_cast<LType>(LUA_TUSERDATA));
 	static_assert(LType::Thread == static_cast<LType>(LUA_TTHREAD));
 	static_assert(LType::LightUserdata == static_cast<LType>(LUA_TLIGHTUSERDATA));
-	static_assert(std::is_same<Number, lua_Number>::value);
-	static_assert(std::is_same<CFunction, lua_CFunction>::value);
-	static_assert(std::is_same<CHook, lua_Hook>::value);
+	static_assert(std::same_as<Number, lua_Number>);
+	static_assert(std::same_as<CFunction, lua_CFunction>);
+	static_assert(std::same_as<CHook, lua_Hook>);
 	static_assert(State::GLOBALSINDEX == LUA_GLOBALSINDEX);
 	static_assert(State::ENVIRONINDEX == LUA_ENVIRONINDEX);
 	static_assert(State::MULTIRET == LUA_MULTRET);
@@ -231,7 +230,8 @@ namespace lua::v51 {
 	{
 		return lua_typename(L, static_cast<int>(t));
 	}
-	int State::Compare_Unprotected(lua_State* L)
+    // ReSharper disable once CppDFAConstantFunctionResult
+    int State::Compare_Unprotected(lua_State* L)
 	{
 		auto op = static_cast<ComparisonOperator>(static_cast<int>(lua_tointeger(L, 4)));
 		bool r;
@@ -292,7 +292,7 @@ namespace lua::v51 {
 		lua_State* l = lua_tothread(L, index);
 		if (!l)
 			throw LuaException("invalid thread");
-		return { l };
+		return State{ l };
 	}
 	const void* State::ToPointer(int index)
 	{
@@ -366,7 +366,7 @@ namespace lua::v51 {
 	}
 	int State::Arithmetic_Unprotected(lua_State* L)
 	{
-		ArihmeticOperator op = static_cast<ArihmeticOperator>(static_cast<int>(lua_tonumber(L, -1)));
+		auto op = static_cast<ArihmeticOperator>(static_cast<int>(lua_tonumber(L, -1)));
 		lua_pop(L, 1);
 		switch (op)
 		{
@@ -535,7 +535,7 @@ namespace lua::v51 {
 	}
 	State State::NewThread()
 	{
-		return { lua_newthread(L) };
+		return State{ lua_newthread(L) };
 	}
 	ErrorCode State::ResumeThread(int narg)
 	{

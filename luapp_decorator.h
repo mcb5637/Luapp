@@ -61,21 +61,21 @@ namespace lua::decorator {
 						ret = F(L);
 					}
 					catch (const std::exception& e) {
-						L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
+						L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), LUAPP_FUNCNAME);
 						err = true;
 					}
 					catch (...) {
 						auto ExceptionConverter = B::GetExConv();
 						if (ExceptionConverter != nullptr) {
 							try {
-								auto s = ExceptionConverter(std::current_exception(), __FUNCSIG__);
+								auto s = ExceptionConverter(std::current_exception(), LUAPP_FUNCNAME);
 								L.Push(s);
 								err = true;
 							}
 							catch (...) {}
 						}
 						if (!err) {
-							L.PushFString("unknown exception caught in %s", __FUNCSIG__);
+							L.PushFString("unknown exception caught in %s", LUAPP_FUNCNAME);
 							err = true;
 						}
 					}
@@ -250,21 +250,21 @@ namespace lua::decorator {
 						F(L, typename B::ActivationRecord{ ar });
 					}
 					catch (const std::exception& e) {
-						L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), __FUNCSIG__);
+						L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), LUAPP_FUNCNAME);
 						err = true;
 					}
 					catch (...) {
 						auto ExceptionConverter = B::GetExConv();
 						if (ExceptionConverter) {
 							try {
-								auto s = ExceptionConverter(std::current_exception(), __FUNCSIG__);
+								auto s = ExceptionConverter(std::current_exception(), LUAPP_FUNCNAME);
 								L.Push(s);
 								err = true;
 							}
 							catch (...) {}
 						}
 						if (!err) {
-							L.PushFString("unknown exception caught in %s", __FUNCSIG__);
+							L.PushFString("unknown exception caught in %s", LUAPP_FUNCNAME);
 							err = true;
 						}
 					}
@@ -282,10 +282,10 @@ namespace lua::decorator {
 
 
 		/// <summary>
-		/// creates a State from a lua_State* (usually from external APIs).
-		/// </summary>
-		/// <param name="L">state pointer</param>
-		State(lua_State* L) : B(L) {}
+        /// creates a State from a lua_State* (usually from external APIs).
+        /// </summary>
+        /// <param name="L">state pointer</param>
+        explicit State(lua_State* L) : B(L) {}
 		/// <summary>
 		/// opens a new lua state.
 		/// </summary>
@@ -301,7 +301,7 @@ namespace lua::decorator {
 		static State Create(bool io = true, bool debug = false) { return State(io, debug); }
 
 		template<template<class> class... D>
-		State(State<B, D...> s) : B(s.GetState()) {}
+        explicit State(State<B, D...> s) : B(s.GetState()) {}
 
 		/// <summary>
 		/// pushes a CFunction or CClosure (function with upvalues) onto the stack.
@@ -820,6 +820,8 @@ namespace lua::decorator {
 			/// <param name="d"></param>
 			/// <param name="name"></param>
 			/// <param name="src"></param>
+			/// <param name="pre"></param>
+			/// <param name="post"></param>
 			/// <returns></returns>
 			static std::string FuncFormat([[maybe_unused]] State L, [[maybe_unused]] int index, const B::DebugInfo& d, std::string_view name, std::string_view src, std::string_view pre, std::string_view post) {
 				return std::format("{}{} {} {} (defined in: {}){}", pre, d.What, d.NameWhat, name, src, post);
@@ -851,8 +853,7 @@ namespace lua::decorator {
 		template<class Fmt>
 		std::string ToDebugString_Recursive(int index, int tableExpandLevels, size_t indent, std::set<const void*>& tablesDone)
 		{
-			LType t = B::Type(index);
-			switch (t)
+            switch (B::Type(index))
 			{
 			case LType::Nil:
 				return "nil";
@@ -872,7 +873,7 @@ namespace lua::decorator {
 			case LType::Table:
 			{
 				auto tp = B::ToPointer(index);
-				if (tablesDone.find(tp) != tablesDone.end()) {
+				if (tablesDone.contains(tp)) {
 					return std::format("<table, recursion {}>", tp);
 				}
 				if (tableExpandLevels > 0 && B::CheckStack(3)) {
@@ -934,6 +935,8 @@ namespace lua::decorator {
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">acceptable index to check</param>
+		/// <param name="maxTableExpandLevels"></param>
+		/// <param name="indent"></param>
 		/// <returns>debug string</returns>
 		template<class Fmt = ToDebugString_Format>
 		std::string ToDebugString(int index, int maxTableExpandLevels = 0, size_t indent = 0) {
@@ -1234,7 +1237,7 @@ namespace lua::decorator {
 			if (!B::CheckStack(2))
 				return "";
 			const void* p = B::ToPointer(-1);
-			if (searched.find(p) != searched.end())
+			if (searched.contains(p))
 				return "";
 			searched.insert(p);
 			for (auto kt : Pairs(-1)) {
@@ -2124,10 +2127,10 @@ namespace lua::decorator {
 				return i;
 			}
 			/// <summary>
-			/// marks the end of a table iteration.
-			/// </summary>
-			/// <returns>iterator sentinel</returns>
-			std::default_sentinel_t end() {
+            /// marks the end of a table iteration.
+            /// </summary>
+            /// <returns>iterator sentinel</returns>
+            static std::default_sentinel_t end() {
 				return std::default_sentinel;
 			}
 		};
@@ -2178,10 +2181,10 @@ namespace lua::decorator {
 				return r;
 			}
 			/// <summary>
-			/// acesses the current key.
+			/// accesses the current key.
 			/// </summary>
 			/// <returns>key</returns>
-			int operator*() {
+			int operator*() const {
 				return Key;
 			}
 		};
@@ -2211,10 +2214,10 @@ namespace lua::decorator {
 				return i;
 			}
 			/// <summary>
-			/// marks the end of table.
-			/// </summary>
-			/// <returns>iterator sentinel</returns>
-			std::default_sentinel_t end() {
+            /// marks the end of table.
+            /// </summary>
+            /// <returns>iterator sentinel</returns>
+            static std::default_sentinel_t end() {
 				return std::default_sentinel;
 			}
 		};
@@ -2273,7 +2276,7 @@ namespace lua::decorator {
 				LocalsIter r{ L, Inf, 0 };
 				return ++r;
 			}
-			std::default_sentinel_t end() {
+            static std::default_sentinel_t end() {
 				return std::default_sentinel;
 			}
 		};
@@ -2332,7 +2335,7 @@ namespace lua::decorator {
 				UpvaluesIter r{ L, Func, 0 };
 				return ++r;
 			}
-			std::default_sentinel_t end() {
+            static std::default_sentinel_t end() {
 				return std::default_sentinel;
 			}
 		};
@@ -2711,48 +2714,48 @@ namespace lua::decorator {
 	    using Base = State<B, C...>;
 
 		/// <summary>
-		/// creates a State from a lua_State* (usually from external APIs).
-		/// </summary>
-		/// <param name="L">state pointer</param>
-		UniqueState(lua_State* L) : State<B, C...>(L) {}
+        /// creates a State from a lua_State* (usually from external APIs).
+        /// </summary>
+        /// <param name="L">state pointer</param>
+        explicit UniqueState(lua_State* L) : Base(L) {}
 		/// <summary>
-		/// opens a new lua state.
-		/// </summary>
-		/// <param name="io">open io and os libs</param>
-		/// <param name="debug">open debug lib</param>
-		UniqueState(bool io = true, bool debug = false) : State<B, C...>(io, debug) {}
+        /// opens a new lua state.
+        /// </summary>
+        /// <param name="io">open io and os libs</param>
+        /// <param name="debug">open debug lib</param>
+        explicit UniqueState(bool io = true, bool debug = false) : Base(io, debug) {}
 
 		UniqueState(const UniqueState&) = delete;
-		UniqueState(UniqueState&& s) noexcept : State<B, C...>(s.GetState()) { s.L = nullptr; }
-		UniqueState(const State<B, C...>& s) noexcept : State<B, C...>(s) {}
-		UniqueState(State<B, C...>&& s) noexcept : State<B, C...>(s) {}
+		UniqueState(UniqueState&& s) noexcept : Base(s.GetState()) { s.L = nullptr; }
+        explicit UniqueState(const Base& s) noexcept : Base(s) {}
+        explicit UniqueState(Base&& s) noexcept : Base(s) {}
 
 		UniqueState& operator=(const UniqueState&) = delete;
 		UniqueState& operator=(UniqueState&& s) noexcept {
 			if (this->L == s.L)
 				return *this;
-			State<B, C...>::Close();
+			Base::Close();
 			this->L = s.L;
 			s.L = nullptr;
 			return *this;
 		}
-		UniqueState& operator=(const State<B, C...>& s) noexcept {
+		UniqueState& operator=(const Base& s) noexcept {
 			if (this->L == s.L)
 				return *this;
-			State<B, C...>::Close();
+			Base::Close();
 			this->L = s.L;
 			return *this;
 		};
-		UniqueState& operator=(State<B, C...>&& s) noexcept {
+		UniqueState& operator=(Base&& s) noexcept {
 			if (this->L == s.L)
 				return *this;
-			State<B, C...>::Close();
+			Base::Close();
 			this->L = s.L;
 			return *this;
 		}
 
 		~UniqueState() {
-			State<B, C...>::Close();
+			Base::Close();
 		}
 	};
 }

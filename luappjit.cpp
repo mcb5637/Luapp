@@ -11,7 +11,6 @@ extern "C" {
 }
 #endif
 
-#include <type_traits>
 #include <sstream>
 
 namespace lua::jit {
@@ -28,9 +27,9 @@ namespace lua::jit {
 	static_assert(LType::Userdata == static_cast<LType>(LUA_TUSERDATA));
 	static_assert(LType::Thread == static_cast<LType>(LUA_TTHREAD));
 	static_assert(LType::LightUserdata == static_cast<LType>(LUA_TLIGHTUSERDATA));
-	static_assert(std::is_same<Number, lua_Number>::value);
-	static_assert(std::is_same<CFunction, lua_CFunction>::value);
-	static_assert(std::is_same<CHook, lua_Hook>::value);
+	static_assert(std::same_as<Number, lua_Number>);
+	static_assert(std::same_as<CFunction, lua_CFunction>);
+	static_assert(std::same_as<CHook, lua_Hook>);
 	static_assert(State::GLOBALSINDEX == LUA_GLOBALSINDEX);
 	static_assert(State::ENVIRONINDEX == LUA_ENVIRONINDEX);
 	static_assert(State::MULTIRET == LUA_MULTRET);

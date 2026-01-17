@@ -253,27 +253,27 @@ namespace lua::v54 {
 		friend void CopyDebugInfo(const lua_Debug& src, DebugInfo& trg);
 	};
 	constexpr DebugInfoOptions operator|(DebugInfoOptions a, DebugInfoOptions b) {
-		using under = std::underlying_type<DebugInfoOptions>::type;
+		using under = std::underlying_type_t<DebugInfoOptions>;
 		return static_cast<DebugInfoOptions>(static_cast<under>(a) | static_cast<under>(b));
 	}
 	constexpr DebugInfoOptions operator&(DebugInfoOptions a, DebugInfoOptions b) {
-		using under = std::underlying_type<DebugInfoOptions>::type;
+		using under = std::underlying_type_t<DebugInfoOptions>;
 		return static_cast<DebugInfoOptions>(static_cast<under>(a) & static_cast<under>(b));
 	}
 	constexpr DebugInfoOptions operator^(DebugInfoOptions a, DebugInfoOptions b) {
-		using under = std::underlying_type<DebugInfoOptions>::type;
+		using under = std::underlying_type_t<DebugInfoOptions>;
 		return static_cast<DebugInfoOptions>(static_cast<under>(a) ^ static_cast<under>(b));
 	}
 	constexpr HookEvent operator|(HookEvent a, HookEvent b) {
-		using under = std::underlying_type<HookEvent>::type;
+		using under = std::underlying_type_t<HookEvent>;
 		return static_cast<HookEvent>(static_cast<under>(a) | static_cast<under>(b));
 	}
 	constexpr HookEvent operator&(HookEvent a, HookEvent b) {
-		using under = std::underlying_type<HookEvent>::type;
+		using under = std::underlying_type_t<HookEvent>;
 		return static_cast<HookEvent>(static_cast<under>(a) & static_cast<under>(b));
 	}
 	constexpr HookEvent operator^(HookEvent a, HookEvent b) {
-		using under = std::underlying_type<HookEvent>::type;
+		using under = std::underlying_type_t<HookEvent>;
 		return static_cast<HookEvent>(static_cast<under>(a) ^ static_cast<under>(b));
 	}
 	/// <summary>
@@ -364,7 +364,7 @@ namespace lua::v54 {
 		friend class decorator::State;
 		friend class State;
 		lua_Debug* ar;
-		ActivationRecord(lua_Debug* ar);
+        explicit ActivationRecord(lua_Debug* ar);
 
 	public:
 		/// <summary>
@@ -458,16 +458,16 @@ namespace lua::v54 {
 		using HookEvent = HookEvent;
 
 		/// <summary>
-		/// creates a State from a lua_State* (usually from external APIs).
-		/// </summary>
-		/// <param name="L">state pointer</param>
-		State(lua_State* L);
+        /// creates a State from a lua_State* (usually from external APIs).
+        /// </summary>
+        /// <param name="L">state pointer</param>
+        explicit State(lua_State* L);
 		/// <summary>
-		/// opens a new lua state.
-		/// </summary>
-		/// <param name="io">open io and os libs</param>
-		/// <param name="debug">open debug lib</param>
-		State(bool io = true, bool debug = false);
+        /// opens a new lua state.
+        /// </summary>
+        /// <param name="io">open io and os libs</param>
+        /// <param name="debug">open debug lib</param>
+        explicit State(bool io = true, bool debug = false);
 
 		/// <summary>
 		/// gets the lua_State* to pass to external apis.

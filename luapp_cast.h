@@ -4,6 +4,8 @@
 #include <limits>
 #include <cmath>
 
+#include "luapp_common.h"
+
 namespace lua::cast_detail
 {
     template<class To, class From>

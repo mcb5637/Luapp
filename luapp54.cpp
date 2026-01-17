@@ -31,10 +31,10 @@ namespace lua::v54 {
 	static_assert(LType::Userdata == static_cast<LType>(LUA_TUSERDATA));
 	static_assert(LType::Thread == static_cast<LType>(LUA_TTHREAD));
 	static_assert(LType::LightUserdata == static_cast<LType>(LUA_TLIGHTUSERDATA));
-	static_assert(std::is_same<Number, lua_Number>::value);
-	static_assert(std::is_same<Integer, lua_Integer>::value);
-	static_assert(std::is_same<CFunction, lua_CFunction>::value);
-	static_assert(std::is_same<CHook, lua_Hook>::value);
+	static_assert(std::same_as<Number, lua_Number>);
+	static_assert(std::same_as<Integer, lua_Integer>);
+	static_assert(std::same_as<CFunction, lua_CFunction>);
+	static_assert(std::same_as<CHook, lua_Hook>);
 	static_assert(State::MULTIRET == LUA_MULTRET);
 	static_assert(ErrorCode::Success == static_cast<ErrorCode>(0));
 	static_assert(ErrorCode::Runtime == static_cast<ErrorCode>(LUA_ERRRUN));
@@ -295,7 +295,7 @@ namespace lua::v54 {
 		lua_State* l = lua_tothread(L, index);
 		if (!l)
 			throw LuaException("invalid thread");
-		return { l };
+		return State{ l };
 	}
 	const void* State::ToPointer(int index)
 	{
@@ -553,7 +553,7 @@ namespace lua::v54 {
 	}
 	State State::NewThread()
 	{
-		return { lua_newthread(L) };
+		return State{ lua_newthread(L) };
 	}
 	ErrorCode State::ResumeThread(int narg, int& nresult)
 	{

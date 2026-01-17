@@ -175,7 +175,7 @@ namespace lua::userdata {
 	/// checks if a type has a userdata binary not defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept  BitwiseNotOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
+	concept BitwiseNotOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
 		{~a} -> std::same_as<T>;
 	};
 	/// <summary>
@@ -245,7 +245,7 @@ namespace lua::userdata {
 	struct UserClassBase {
 		Base* const BaseObj;
 
-		UserClassBase(Base* b) : BaseObj(b) {}
+        explicit UserClassBase(Base* b) : BaseObj(b) {}
 	};
 	template<class T, class Base>
 	requires std::derived_from<T, Base>

@@ -72,16 +72,16 @@ namespace lua::jit {
 		using JITMode = JITMode;
 
 		/// <summary>
-		/// creates a State from a lua_State* (usually from external APIs).
-		/// </summary>
-		/// <param name="L">state pointer</param>
-		State(lua_State* L);
+        /// creates a State from a lua_State* (usually from external APIs).
+        /// </summary>
+        /// <param name="L">state pointer</param>
+        explicit State(lua_State* L);
 		/// <summary>
-		/// opens a new lua state.
-		/// </summary>
-		/// <param name="io">open io and os libs</param>
-		/// <param name="debug">open debug lib</param>
-		State(bool io = true, bool debug = false);
+        /// opens a new lua state.
+        /// </summary>
+        /// <param name="io">open io and os libs</param>
+        /// <param name="debug">open debug lib</param>
+        explicit State(bool io = true, bool debug = false);
 
 		/// <summary>
 		/// converts the value at index to a number. must be a number or a string convertible to a number, otherise returns 0.
@@ -141,6 +141,7 @@ namespace lua::jit {
 		/// sets the JIT mode for the function at idx (or the parent of the caller if 0).
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
+		/// <param name="idx"></param>
 		/// <param name="m"></param>
 		/// <exception cref="lua::LuaException">if failed</exception>
 		void SetJITModeForSingleFunc(int idx, JITMode m);
@@ -148,13 +149,15 @@ namespace lua::jit {
 		/// sets the JIT mode for the function at idx (or the parent of the caller if 0) and everything called by it.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
+		/// <param name="idx"></param>
 		/// <param name="m"></param>
 		/// <exception cref="lua::LuaException">if failed</exception>
 		void SetJITModeForFuncAndChildren(int idx, JITMode m);
 		/// <summary>
-		/// sets the JIT mode for the everything called by the function at idx (or the parent of the caller if 0).
+		/// sets the JIT mode for everything called by the function at idx (or the parent of the caller if 0).
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
+		/// <param name="idx"></param>
 		/// <param name="m"></param>
 		/// <exception cref="lua::LuaException">if failed</exception>
 		void SetJITModeForChildrenOnly(int idx, JITMode m);
