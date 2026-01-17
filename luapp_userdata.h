@@ -68,10 +68,10 @@ namespace lua::userdata {
 		{a + b} -> std::same_as<T>;
 	};
 	/// <summary>
-	/// checks if a type has a userdata subtract defined manually via Substract static member.
+	/// checks if a type has a userdata subtract defined manually via Subtract static member.
 	/// </summary>
 	template<class S, class T>
-	concept SubtractCpp = std::is_same_v<CppFunction<S>, decltype(&T::Substract)> || std::is_same_v<CFunction, decltype(&T::Substract)>;
+	concept SubtractCpp = std::is_same_v<CppFunction<S>, decltype(&T::Subtract)> || std::is_same_v<CFunction, decltype(&T::Subtract)>;
 	/// <summary>
 	/// checks if a type has a userdata subtract defined via c++ operator.
 	/// </summary>

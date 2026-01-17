@@ -2,6 +2,7 @@
 #include <optional>
 #include <concepts>
 #include <limits>
+#include <cmath>
 
 namespace lua::cast_detail
 {

@@ -4,6 +4,7 @@
 #include <sstream>
 #include <set>
 #include <map>
+#include <functional>
 
 #include "constexprTypename.h"
 #include "luapp_common.h"
@@ -1858,7 +1859,7 @@ namespace lua::decorator {
 		const char* OptString(int idx, const char* def, size_t* l = nullptr) {
 			if (B::IsNoneOrNil(idx)) {
 				if (l)
-					*l = (def ? strlen(def) : 0);
+					*l = (def ? std::string_view(def).size() : 0);
 				return def;
 			}
 			else
@@ -2429,7 +2430,7 @@ namespace lua::decorator {
 					RegisterFunc<userdata::AddOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::Add), -3);
 
 				if constexpr (userdata::SubtractCpp<State, T>)
-					RegisterFunc<T::Substract>(B::GetMetaEventName(B::MetaEvent::Subtract), -3);
+					RegisterFunc<T::Subtract>(B::GetMetaEventName(B::MetaEvent::Subtract), -3);
 				else if constexpr (userdata::SubtractOp<T>)
 					RegisterFunc<userdata::SubtractOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::Subtract), -3);
 
@@ -2706,6 +2707,8 @@ namespace lua::decorator {
 	public:
 	    template<template<class> class... D>
 	    using BindExtensions = UniqueState<B, D...>;
+
+	    using Base = State<B, C...>;
 
 		/// <summary>
 		/// creates a State from a lua_State* (usually from external APIs).
