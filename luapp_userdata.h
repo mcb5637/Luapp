@@ -232,47 +232,29 @@ namespace lua::userdata {
 	/// </summary>
 	template<class S, class T>
 	concept ToStringCpp = std::is_same_v<CppFunction<S>, decltype(&T::ToString)> || std::is_same_v<CFunction, decltype(&T::ToString)>;
-	/// <summary>
-	/// checks if a type has a base class defined for userdata type
-	/// </summary>
-	template<class T>
-	concept BaseDefined = requires {
-		typename T::BaseClass;
-	};
 
-
-	template<class Base>
-	struct UserClassBase {
-		Base* const BaseObj;
-
-        explicit UserClassBase(Base* b) : BaseObj(b) {}
-	};
-	template<class T, class Base>
-	requires std::derived_from<T, Base>
-	struct UserClassHolder : UserClassBase<Base> {
-		T ActualObj;
-
-		template<class ... Args>
-        explicit UserClassHolder(Args&& ... args) : UserClassBase<Base>(static_cast<Base*>(&ActualObj)), ActualObj(std::forward<Args>(args)...) {}
-
-		UserClassHolder(const UserClassHolder&) = delete;
-		UserClassHolder(UserClassHolder&&) = delete;
-		void operator=(const UserClassHolder&) = delete;
-		void operator=(UserClassHolder&&) = delete;
-	};
+    /// <summary>
+    /// checks if a type has base classes defined for userdata type
+    /// </summary>
+    template<class T>
+    concept InheritsDefined = requires {
+        typename T::InheritsFrom;
+    };
+    template<class To>
+    struct UserClassCast
+    {
+        template<class From>
+        static To* Cast(void* ud)
+        {
+            return &static_cast<To&>(*static_cast<From*>(ud));
+        }
+    };
 
 
 	template<class State, class T>
 	int Finalizer(State L)
 	{
-		if constexpr (BaseDefined<T>) {
-			L.template CheckUserClass<T>(1); // just use the checks here to validate the argument
-			auto* u = static_cast<UserClassHolder<T, typename T::BaseClass>*>(L.ToUserdata(1));
-			u->~UserClassHolder<T, typename T::BaseClass>();
-		}
-		else {
-			L.template CheckUserClass<T>(1)->~T();
-		}
+		L.template CheckUserClass<T>(1)->~T();
 		return 0;
 	}
 	template<class State, class T>

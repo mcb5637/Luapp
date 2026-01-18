@@ -28,7 +28,6 @@ namespace lua::decorator {
 	template<class B, template<class> class... C>
 	class State : public B, public C<State<B, C...>>... {
 		constexpr static std::string_view MethodsName = "Methods";
-		constexpr static std::string_view BaseTypeNameName = "BaseTypeName";
 
 		template<class State, class T> requires userdata::IndexCpp<State, T>
 		friend int userdata::IndexOperator(State L);
@@ -2348,29 +2347,18 @@ namespace lua::decorator {
 		/// <returns>obj</returns>
 		template<class T>
 		T* OptionalUserClass(int i) {
-			if constexpr (userdata::BaseDefined<T>) {
-				if (B::Type(i) != LType::Userdata)
-					return nullptr;
-				if (!B::GetMetatable(i))
-					return nullptr;
-				Push(BaseTypeNameName);
-				B::GetTableRaw(-2);
-				if (B::Type(-1) != LType::String) {
-					B::Pop(2);
-					return nullptr;
-				}
-				if (typename_details::type_name<typename T::BaseClass>() != ToStringView(-1)) {
-					B::Pop(2);
-					return nullptr;
-				}
-				B::Pop(2);
-				// do not access ActualObj here, this might be of a different type altogether
-				auto* u = static_cast<userdata::UserClassBase<typename T::BaseClass>*>(B::ToUserdata(i));
-				return dynamic_cast<T*>(u->BaseObj);
+			void* ud = B::ToUserdata(i);
+			if (ud != nullptr) {
+			    if (!GetMetaField(i, typename_details::type_name<userdata::UserClassCast<T>>()))
+			        return nullptr;
+			    auto* cast = reinterpret_cast<T*(*)(void*)>(B::ToUserdata(-1));
+			    B::Pop(1);
+			    if (cast != nullptr)
+			    {
+			        return cast(ud);
+			    }
 			}
-			else {
-				return static_cast<T*>(TestUserdata(i, typename_details::type_name<T>()));
-			}
+			return nullptr;
 		}
 		/// <summary>
 		/// checks if i is a UserClass of type T (or able to be cast to T) and returns it. throws if not.
@@ -2386,6 +2374,24 @@ namespace lua::decorator {
 				ErrorOrThrow(std::format("no {} at argument {}", typename_details::type_name<T>(), i));
 			return t;
 		}
+
+	private:
+	    template<class T, class Actual>
+	    void WriteUserClassBaseRecursive()
+	    {
+	        if constexpr (userdata::InheritsDefined<T>)
+	        {
+	            auto f = [&]<std::size_t... Idx>(std::index_sequence<Idx...>) {
+	                (WriteUserClassBaseRecursive<std::tuple_element_t<Idx, typename T::InheritsFrom>, Actual>(), ...);
+	            };
+	            f(std::make_index_sequence<std::tuple_size_v<typename T::InheritsFrom>>());
+	        }
+	        Push(typename_details::type_name<userdata::UserClassCast<T>>());
+	        B::PushLightUserdata(reinterpret_cast<void*>(&userdata::UserClassCast<T>::template Cast<Actual>));
+	        B::SetTableRaw(-3);
+	    }
+
+	public:
 		/// <summary>
 		/// gets the metatable for the UserClass of type T.
 		/// </summary>
@@ -2393,6 +2399,8 @@ namespace lua::decorator {
 		template<class T>
 		void GetUserClassMetatable() {
 			if (NewMetaTable(typename_details::type_name<T>())) {
+			    WriteUserClassBaseRecursive<T, T>();
+
 				if constexpr (userdata::IndexCpp<State, T>) {
 					RegisterFunc<userdata::IndexOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::Index), -3);
 					if constexpr (userdata::HasLuaMethods<T>) {
@@ -2520,14 +2528,6 @@ namespace lua::decorator {
 				Push(B::MetaEvent::Name);
 				Push(typename_details::type_name<T>());
 				B::SetTableRaw(-3);
-				Push(BaseTypeNameName);
-				if constexpr (userdata::BaseDefined<T>) {
-					static_assert(std::derived_from<T, typename T::BaseClass>);
-					Push(typename_details::type_name<typename T::BaseClass>());
-				}
-				else
-					Push(typename_details::type_name<T>());
-				B::SetTableRaw(-3);
 			}
 		}
 		template<class T>
@@ -2550,17 +2550,8 @@ namespace lua::decorator {
 			return new (UserClassAlloc<T>(uvs)) T(std::forward<Args>(args)...);
 		}
 		template<class T, class ... Args>
-		T* UserClassNewBase(int uvs, Args&& ... args) {
-			if constexpr (userdata::BaseDefined<T>) {
-				return &UserClassNew<userdata::UserClassHolder<T, typename T::BaseClass>>(uvs, std::forward<Args>(args)...)->ActualObj;
-			}
-			else {
-				return UserClassNew<T>(uvs, std::forward<Args>(args)...);
-			}
-		}
-		template<class T, class ... Args>
 		T* NewUserClassUnchecked(int uvs, Args&& ... args) {
-			T* r = UserClassNewBase<T>(uvs, std::forward<Args>(args)...);
+			T* r = UserClassNew<T>(uvs, std::forward<Args>(args)...);
 			GetUserClassMetatable<T>();
 			B::SetMetatable(-2);
 			return r;
