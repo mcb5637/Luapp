@@ -67,7 +67,7 @@ namespace lua::v52 {
 	static_assert(ArihmeticOperator::Pow == static_cast<ArihmeticOperator>(LUA_OPPOW));
 	static_assert(ArihmeticOperator::UnaryNegation == static_cast<ArihmeticOperator>(LUA_OPUNM));
 
-	std::string(*ExceptionConverter)(std::exception_ptr ex, const char* funcsig) = nullptr;
+    ExConverterT ExceptionConverter = nullptr;
 
 	HookEvent LuaHookToEvent(int ev) {
 		static_assert(static_cast<HookEvent>(1 << LUA_HOOKCALL) == HookEvent::Call);

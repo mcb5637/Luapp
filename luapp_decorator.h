@@ -68,7 +68,7 @@ namespace lua::decorator {
 						auto ExceptionConverter = B::GetExConv();
 						if (ExceptionConverter != nullptr) {
 							try {
-								auto s = ExceptionConverter(std::current_exception(), LUAPP_FUNCNAME);
+								auto s = ExceptionConverter(LUAPP_FUNCNAME);
 								L.Push(s);
 								err = true;
 							}
@@ -257,7 +257,7 @@ namespace lua::decorator {
 						auto ExceptionConverter = B::GetExConv();
 						if (ExceptionConverter) {
 							try {
-								auto s = ExceptionConverter(std::current_exception(), LUAPP_FUNCNAME);
+								auto s = ExceptionConverter(LUAPP_FUNCNAME);
 								L.Push(s);
 								err = true;
 							}

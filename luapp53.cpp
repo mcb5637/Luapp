@@ -78,7 +78,7 @@ namespace lua::v53 {
 	static_assert(ArihmeticOperator::BitwiseNot == static_cast<ArihmeticOperator>(LUA_OPBNOT));
 	static_assert(State::EXTRASPACE == LUA_EXTRASPACE);
 
-	ExConverterT ExceptionConverter = nullptr;
+    ExConverterT ExceptionConverter = nullptr;
 
 	HookEvent LuaHookToEvent(int ev) {
 		static_assert(static_cast<HookEvent>(1 << LUA_HOOKCALL) == HookEvent::Call);

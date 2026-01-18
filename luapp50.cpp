@@ -55,7 +55,7 @@ namespace lua::v50 {
 	static_assert(HookEvent::Line == static_cast<HookEvent>(LUA_MASKLINE));
 	static_assert(HookEvent::Count == static_cast<HookEvent>(LUA_MASKCOUNT));
 
-	std::string(*ExceptionConverter)(std::exception_ptr ex, const char* funcsig) = nullptr;
+    ExConverterT ExceptionConverter = nullptr;
 
 	HookEvent LuaHookToEvent(int ev) {
 		static_assert(static_cast<HookEvent>(1 << LUA_HOOKCALL) == HookEvent::Call);

@@ -8,7 +8,7 @@ namespace lua::decorator {
 	class State;
 }
 namespace lua::v50 {
-	using ExConverterT = std::string(*)(std::exception_ptr ex, const char* funcsig);
+	using ExConverterT = std::string(*)(std::string_view funcsig);
 	/// <summary>
 	/// called in exception conversion from c++ to lua (that do not inherit from std::exception).
 	/// return value gets thrown as lua exception.
