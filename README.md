@@ -48,10 +48,11 @@ UserClass:
   - if `T` has both `LuaMethods` and `Index` defined, first `LuaMethods` is searched, and if nothing is found, `Index` is called
   - if `T::LuaMetaMethods` is iterable over LuaReference, registers them all into the metatable as additional metamethods (possibly overriding the default generated)
   - inheritance:
-    - define `T::BaseClass` as `T` in the base class and do not change the typedef in the derived classes
-    - a call to `CheckUserClass<T::BaseClass>` or `OptionalUserClass<T::BaseClass>` on an userdata of type `T` will then return a correctly cast pointer to `T::BaseClass`
-    - all variables for class generation get used via normal overload resolution, meaning the most derived class wins
-    - make sure you include all methods from base classes in LuaMethods, or they will get lost
-    - as far as luapp is concerned a class may only have one base class (defined via `T::BaseClass`) but other inheritances that are not visible to luapp are allowed
+    - a subclass must mark its parents via `using InheritsFrom = std::tuple<ParentA, ...>`
+    - (parents that are not marked will be invisible to luapp)
+    - `CheckUserClass<ParentA>` and `OptionalUserClass<ParentA>` will recognize objects of a subclass and correctly cast them, even in case of multi-inheritance
+    - `LuaMethods` of parent classes are registered before own, so overriding methods is possible
+    - (note that subclasses with no own methods should define an empty `LuaMethods`, otherwise the parents methods will be registered multiple times)
+    - all other metatable entries are only generated for the child class (but their underlying operators/functions may be inherited)
   - create with `L.NewUserClass<T>(...)` which calls the constructor with the supplied parameters
   - access with `L.CheckUserClass<T>(index)` (note that `L.ToUserdata(index)` may return a different pointer, to allow for polymorphism)

@@ -2390,6 +2390,18 @@ namespace lua::decorator {
 	        B::PushLightUserdata(reinterpret_cast<void*>(&userdata::UserClassCast<T>::template Cast<Actual>));
 	        B::SetTableRaw(-3);
 	    }
+	    template<class T>
+	    void RegisterUserClassMethodsRecursive()
+	    {
+	        if constexpr (userdata::InheritsDefined<T>)
+	        {
+	            auto f = [&]<std::size_t... Idx>(std::index_sequence<Idx...>) {
+	                (RegisterUserClassMethodsRecursive<std::tuple_element_t<Idx, typename T::InheritsFrom>>(), ...);
+	            };
+	            f(std::make_index_sequence<std::tuple_size_v<typename T::InheritsFrom>>());
+	        }
+	        RegisterFuncs(T::LuaMethods, -3);
+	    }
 
 	public:
 		/// <summary>
@@ -2406,14 +2418,14 @@ namespace lua::decorator {
 					if constexpr (userdata::HasLuaMethods<T>) {
 						Push(MethodsName);
 						B::NewTable();
-						RegisterFuncs(T::LuaMethods, -3);
+					    RegisterUserClassMethodsRecursive<T>();
 						B::SetTableRaw(-3);
 					}
 				}
 				else if constexpr (userdata::HasLuaMethods<T>) {
 					Push(B::GetMetaEventName(B::MetaEvent::Index));
 					B::NewTable();
-					RegisterFuncs(T::LuaMethods, -3);
+					RegisterUserClassMethodsRecursive<T>();
 					B::SetTableRaw(-3);
 				}
 
