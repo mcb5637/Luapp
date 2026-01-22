@@ -446,7 +446,11 @@ namespace lua::v54 {
 			/// <summary>
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for c functions, threads and userdata.
 			/// </summary>
-			static constexpr bool NonFunctionEnvironments = false;
+		    static constexpr bool NonFunctionEnvironments = false;
+		    /// <summary>
+		    /// if true, supports State::PushExternalString.
+		    /// </summary>
+		    static constexpr bool ExternalString = false;
 		};
 		using ErrorCode = ErrorCode;
 		using ComparisonOperator = ComparisonOperator;

@@ -67,7 +67,11 @@ namespace lua::jit {
 			/// <summary>
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for c functions, threads and userdata.
 			/// </summary>
-			static constexpr bool NonFunctionEnvironments = lua::v51::State::Capabilities::NonFunctionEnvironments;
+		    static constexpr bool NonFunctionEnvironments = lua::v51::State::Capabilities::NonFunctionEnvironments;
+		    /// <summary>
+		    /// if true, supports State::PushExternalString.
+		    /// </summary>
+		    static constexpr bool ExternalString = false;
 		};
 		using JITMode = JITMode;
 

@@ -443,7 +443,11 @@ namespace lua::v53 {
 			/// <summary>
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for c functions, threads and userdata.
 			/// </summary>
-			static constexpr bool NonFunctionEnvironments = false;
+		    static constexpr bool NonFunctionEnvironments = false;
+		    /// <summary>
+		    /// if true, supports State::PushExternalString.
+		    /// </summary>
+		    static constexpr bool ExternalString = false;
 		};
 		using ErrorCode = ErrorCode;
 		using ComparisonOperator = ComparisonOperator;
@@ -1253,7 +1257,7 @@ namespace lua::v53 {
 		/// </summary>
 		/// <param name="f">event</param>
 		/// <returns>event string</returns>
-		static constexpr const char* GetMetaEventName(MetaEvent f) {
+		static constexpr std::string_view GetMetaEventName(MetaEvent f) {
 			switch (f)
 			{
 			case MetaEvent::Add:

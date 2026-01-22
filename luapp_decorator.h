@@ -397,6 +397,40 @@ namespace lua::decorator {
 		{
 			B::Push(s.data(), s.size());
 		}
+	    /// <summary>
+	    /// pushes an external std::string_view.
+	    /// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
+	    /// <para>[-0,+1,m]</para>
+	    /// </summary>
+	    /// <param name="s">string to push</param>
+	    void PushExternalString(std::string_view s)
+		{
+		    if constexpr (B::Capabilities::ExternalString)
+		        B::PushExternalString(s.data(), s.size());
+		    else
+		        Push(s);
+		}
+	    /// <summary>
+	    /// pushes an external string.
+	    /// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
+	    /// <para>[-0,+1,m]</para>
+	    /// </summary>
+	    /// <param name="s">string to push</param>
+	    template<size_t N>
+	    void PushExternalString(const char (&s)[N])
+		{
+		    PushExternalString(std::string_view(s, N - 1));
+		}
+	    /// <summary>
+	    /// pushes an external string.
+	    /// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
+	    /// <para>[-0,+1,m]</para>
+	    /// </summary>
+	    /// <param name="s">string to push</param>
+        void PushExternalString(const char* s, size_t l)
+		{
+		    PushExternalString(std::string_view(s, l));
+		}
 		/// <summary>
 		/// pushes an integer onto the stack.
 		/// <para>[-0,+1,-]</para>
@@ -414,7 +448,7 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="ev">event</param>
 		void Push(B::MetaEvent ev) {
-			Push(B::GetMetaEventName(ev));
+			PushExternalString(B::GetMetaEventName(ev));
 		}
 		using B::Push;
 	    using C<State<B, C...>>::Push...;
@@ -1064,7 +1098,9 @@ namespace lua::decorator {
 		/// <param name="f">function to register</param>
 		/// <param name="index">valid index where to register</param>
 		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-		void RegisterFunc(std::string_view name, CFunction f, int index, void* upval = nullptr)
+		template<class T>
+	    requires lua::func::detail::Pushable<State, T>
+		void RegisterFunc(T name, CFunction f, int index, void* upval = nullptr)
 		{
 			Push(name);
 			if (upval)
@@ -1078,8 +1114,10 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="name">key to register</param>
 		/// <param name="f">function to register</param>
-		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-		void RegisterFunc(std::string_view name, CFunction f, void* upval = nullptr)
+	    /// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
+	    template<class T>
+        requires lua::func::detail::Pushable<State, T>
+		void RegisterFunc(T name, CFunction f, void* upval = nullptr)
 		{
 			if (upval)
 				B::PushLightUserdata(upval);
@@ -1095,8 +1133,9 @@ namespace lua::decorator {
 		/// <typeparam name="F">function to register</typeparam>
 		/// <param name="index">valid index where to register</param>
 		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-		template<CFunction F>
-		void RegisterFunc(std::string_view name, int index, void* upval = nullptr) {
+	    template<CFunction F, class T>
+        requires lua::func::detail::Pushable<State, T>
+		void RegisterFunc(T name, int index, void* upval = nullptr) {
 			RegisterFunc(name, F, index, upval);
 		}
 		/// <summary>
@@ -1106,8 +1145,9 @@ namespace lua::decorator {
 		/// <param name="name">key to register</param>
 		/// <typeparam name="F">function to register</typeparam>
 		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-		template<CFunction F>
-		void RegisterFunc(std::string_view name, void* upval = nullptr) {
+	    template<CFunction F, class T>
+        requires lua::func::detail::Pushable<State, T>
+		void RegisterFunc(T name, void* upval = nullptr) {
 			RegisterFunc(name, F, upval);
 		}
 		/// <summary>
@@ -1119,8 +1159,9 @@ namespace lua::decorator {
 		/// <typeparam name="F">function to register</typeparam>
 		/// <param name="index">valid index where to register</param>
 		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-		template<CppFunction F>
-		void RegisterFunc(std::string_view name, int index, void* upval = nullptr)
+	    template<CppFunction F, class T>
+        requires lua::func::detail::Pushable<State, T>
+		void RegisterFunc(T name, int index, void* upval = nullptr)
 		{
 			RegisterFunc(name, &CppToCFunction<F>, index, upval);
 		}
@@ -1131,8 +1172,9 @@ namespace lua::decorator {
 		/// <param name="name">key to register</param>
 		/// <typeparam name="F">function to register</typeparam>
 		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-		template<CppFunction F>
-		void RegisterFunc(std::string_view name, void* upval = nullptr)
+	    template<CppFunction F, class T>
+        requires lua::func::detail::Pushable<State, T>
+		void RegisterFunc(T name, void* upval = nullptr)
 		{
 			RegisterFunc(name, &CppToCFunction<F>, upval);
 		}
@@ -1146,8 +1188,9 @@ namespace lua::decorator {
 		/// <typeparam name="F">member function to register</typeparam>
 		/// <param name="obj">object</param>
 		/// <param name="name">key to register</param>
-		template<class O, int(O::* F)(State L)>
-		void RegisterFunc(O& obj, std::string_view name)
+	    template<class O, int(O::* F)(State L), class T>
+        requires lua::func::detail::Pushable<State, T>
+		void RegisterFunc(O& obj, T name)
 		{
 			RegisterFunc(name, &CppToCFunction<MemberClosure<O, F>>, &obj);
 		}
@@ -1162,8 +1205,9 @@ namespace lua::decorator {
 		/// <typeparam name="F">member function to register</typeparam>
 		/// <param name="obj">object</param>
 		/// <param name="name">key to register</param>
-		template<class O, int(O::* F)(State L) const>
-		void RegisterFunc(O& obj, std::string_view name)
+	    template<class O, int(O::* F)(State L) const, class T>
+        requires lua::func::detail::Pushable<State, T>
+		void RegisterFunc(O& obj, T name)
 		{
 			RegisterFunc(name, &CppToCFunction<MemberClosure<O, F>>, &obj);
 		}
@@ -2349,10 +2393,17 @@ namespace lua::decorator {
 		T* OptionalUserClass(int i) {
 			void* ud = B::ToUserdata(i);
 			if (ud != nullptr) {
-			    if (!GetMetaField(i, typename_details::type_name<userdata::UserClassCast<T>>()))
+			    if (!B::GetMetatable(i)) {
 			        return nullptr;
+			    }
+			    PushExternalString(GetUserClassCastName<T>());
+			    B::GetTableRaw(-2);
+			    if (B::IsNil(-1)) {
+			        B::Pop(2);
+			        return nullptr;
+			    }
 			    auto* cast = reinterpret_cast<T*(*)(void*)>(B::ToUserdata(-1));
-			    B::Pop(1);
+			    B::Pop(2);
 			    if (cast != nullptr)
 			    {
 			        return cast(ud);
@@ -2376,6 +2427,11 @@ namespace lua::decorator {
 		}
 
 	private:
+	    template<class T>
+	    static consteval std::string_view GetUserClassCastName()
+	    {
+	        return typename_details::type_name<userdata::UserClassCast<T>>();
+	    }
 	    template<class T, class Actual>
 	    void WriteUserClassBaseRecursive()
 	    {
@@ -2386,7 +2442,7 @@ namespace lua::decorator {
 	            };
 	            f(std::make_index_sequence<std::tuple_size_v<typename T::InheritsFrom>>());
 	        }
-	        Push(typename_details::type_name<userdata::UserClassCast<T>>());
+	        PushExternalString(GetUserClassCastName<T>());
 	        B::PushLightUserdata(reinterpret_cast<void*>(&userdata::UserClassCast<T>::template Cast<Actual>));
 	        B::SetTableRaw(-3);
 	    }
@@ -2414,131 +2470,131 @@ namespace lua::decorator {
 			    WriteUserClassBaseRecursive<T, T>();
 
 				if constexpr (userdata::IndexCpp<State, T>) {
-					RegisterFunc<userdata::IndexOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::Index), -3);
+					RegisterFunc<userdata::IndexOperator<State, T>>(B::MetaEvent::Index, -3);
 					if constexpr (userdata::HasLuaMethods<T>) {
-						Push(MethodsName);
+						PushExternalString(MethodsName);
 						B::NewTable();
 					    RegisterUserClassMethodsRecursive<T>();
 						B::SetTableRaw(-3);
 					}
 				}
 				else if constexpr (userdata::HasLuaMethods<T>) {
-					Push(B::GetMetaEventName(B::MetaEvent::Index));
+					Push(B::MetaEvent::Index);
 					B::NewTable();
 					RegisterUserClassMethodsRecursive<T>();
 					B::SetTableRaw(-3);
 				}
 
 				if constexpr (!std::is_trivially_destructible_v<T>)
-					RegisterFunc<userdata::Finalizer<State, T>>(B::GetMetaEventName(B::MetaEvent::Finalizer), -3);
+					RegisterFunc<userdata::Finalizer<State, T>>(B::MetaEvent::Finalizer, -3);
 
 				if constexpr (userdata::EquatableCpp<State, T>)
-					RegisterFunc<T::Equals>(B::GetMetaEventName(B::MetaEvent::Equals), -3);
+					RegisterFunc<T::Equals>(B::MetaEvent::Equals, -3);
 				else if constexpr (userdata::EquatableOp<T>)
-					RegisterFunc<userdata::EqualsOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::Equals), -3);
+					RegisterFunc<userdata::EqualsOperator<State, T>>(B::MetaEvent::Equals, -3);
 
 				if constexpr (userdata::LessThanCpp<State, T>)
-					RegisterFunc<T::LessThan>(B::GetMetaEventName(B::MetaEvent::LessThan), -3);
+					RegisterFunc<T::LessThan>(B::MetaEvent::LessThan, -3);
 				else if constexpr (userdata::LessThanOp<T>)
-					RegisterFunc<userdata::LessThanOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::LessThan), -3);
+					RegisterFunc<userdata::LessThanOperator<State, T>>(B::MetaEvent::LessThan, -3);
 
 				if constexpr (userdata::LessThanEqualsCpp<State, T>)
-					RegisterFunc<T::LessOrEquals>(B::GetMetaEventName(B::MetaEvent::LessOrEquals), -3);
+					RegisterFunc<T::LessOrEquals>(B::MetaEvent::LessOrEquals, -3);
 				else if constexpr (userdata::LessThanEqualsOp<T>)
-					RegisterFunc<userdata::LessThanEqualsOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::LessOrEquals), -3);
+					RegisterFunc<userdata::LessThanEqualsOperator<State, T>>(B::MetaEvent::LessOrEquals, -3);
 
 				if constexpr (userdata::AddCpp<State, T>)
-					RegisterFunc<T::Add>(B::GetMetaEventName(B::MetaEvent::Add), -3);
+					RegisterFunc<T::Add>(B::MetaEvent::Add, -3);
 				else if constexpr (userdata::AddOp<T>)
-					RegisterFunc<userdata::AddOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::Add), -3);
+					RegisterFunc<userdata::AddOperator<State, T>>(B::MetaEvent::Add, -3);
 
 				if constexpr (userdata::SubtractCpp<State, T>)
-					RegisterFunc<T::Subtract>(B::GetMetaEventName(B::MetaEvent::Subtract), -3);
+					RegisterFunc<T::Subtract>(B::MetaEvent::Subtract, -3);
 				else if constexpr (userdata::SubtractOp<T>)
-					RegisterFunc<userdata::SubtractOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::Subtract), -3);
+					RegisterFunc<userdata::SubtractOperator<State, T>>(B::MetaEvent::Subtract, -3);
 
 				if constexpr (userdata::MultiplyCpp<State, T>)
-					RegisterFunc<T::Multiply>(B::GetMetaEventName(B::MetaEvent::Multiply), -3);
+					RegisterFunc<T::Multiply>(B::MetaEvent::Multiply, -3);
 				else if constexpr (userdata::MultiplyOp<T>)
-					RegisterFunc<userdata::MultiplyOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::Multiply), -3);
+					RegisterFunc<userdata::MultiplyOperator<State, T>>(B::MetaEvent::Multiply, -3);
 
 				if constexpr (userdata::DivideCpp<State, T>)
-					RegisterFunc<T::Divide>(B::GetMetaEventName(B::MetaEvent::Divide), -3);
+					RegisterFunc<T::Divide>(B::MetaEvent::Divide, -3);
 				else if constexpr (userdata::DivideOp<T>)
-					RegisterFunc<userdata::DivideOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::Divide), -3);
+					RegisterFunc<userdata::DivideOperator<State, T>>(B::MetaEvent::Divide, -3);
 
 				if constexpr (B::Capabilities::NativeIntegers) {
 					if constexpr (userdata::IntegerDivideCpp<State, T>)
-						RegisterFunc<T::IntegerDivide>(B::GetMetaEventName(B::MetaEvent::IntegerDivide), -3);
+						RegisterFunc<T::IntegerDivide>(B::MetaEvent::IntegerDivide, -3);
 				}
 
 				if constexpr (B::Capabilities::MetatableLengthModulo) {
 					if constexpr (userdata::ModuloCpp<State, T>)
-						RegisterFunc<T::Modulo>(B::GetMetaEventName(B::MetaEvent::Modulo), -3);
+						RegisterFunc<T::Modulo>(B::MetaEvent::Modulo, -3);
 				}
 
 				if constexpr (userdata::PowCpp<State, T>)
-					RegisterFunc<T::Pow>(B::GetMetaEventName(B::MetaEvent::Pow), -3);
+					RegisterFunc<T::Pow>(B::MetaEvent::Pow, -3);
 
 				if constexpr (userdata::UnaryMinusCpp<State, T>)
-					RegisterFunc<T::UnaryMinus>(B::GetMetaEventName(B::MetaEvent::UnaryMinus), -3);
+					RegisterFunc<T::UnaryMinus>(B::MetaEvent::UnaryMinus, -3);
 				else if constexpr (userdata::UnaryMinusOp<T>)
-					RegisterFunc<userdata::UnaryMinusOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::UnaryMinus), -3);
+					RegisterFunc<userdata::UnaryMinusOperator<State, T>>(B::MetaEvent::UnaryMinus, -3);
 
 				if constexpr (B::Capabilities::NativeIntegers) {
 					if constexpr (userdata::BitwiseAndCpp<State, T>)
-						RegisterFunc<T::BitwiseAnd>(B::GetMetaEventName(B::MetaEvent::BitwiseAnd), -3);
+						RegisterFunc<T::BitwiseAnd>(B::MetaEvent::BitwiseAnd, -3);
 					else if constexpr (userdata::BitwiseAndOp<T>)
-						RegisterFunc<userdata::BitwiseAndOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseAnd), -3);
+						RegisterFunc<userdata::BitwiseAndOperator<State, T>>(B::MetaEvent::BitwiseAnd, -3);
 
 					if constexpr (userdata::BitwiseOrCpp<State, T>)
-						RegisterFunc<T::BitwiseOr>(B::GetMetaEventName(B::MetaEvent::BitwiseOr), -3);
+						RegisterFunc<T::BitwiseOr>(B::MetaEvent::BitwiseOr, -3);
 					else if constexpr (userdata::BitwiseOrOp<T>)
-						RegisterFunc<userdata::BitwiseOrOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseOr), -3);
+						RegisterFunc<userdata::BitwiseOrOperator<State, T>>(B::MetaEvent::BitwiseOr, -3);
 
 					if constexpr (userdata::BitwiseXOrCpp<State, T>)
-						RegisterFunc<T::BitwiseXOr>(B::GetMetaEventName(B::MetaEvent::BitwiseXOr), -3);
+						RegisterFunc<T::BitwiseXOr>(B::MetaEvent::BitwiseXOr, -3);
 					else if constexpr (userdata::BitwiseXOrOp<T>)
-						RegisterFunc<userdata::BitwiseXOrOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseXOr), -3);
+						RegisterFunc<userdata::BitwiseXOrOperator<State, T>>(B::MetaEvent::BitwiseXOr, -3);
 
 					if constexpr (userdata::BitwiseNotCpp<State, T>)
-						RegisterFunc<T::BitwiseNot>(B::GetMetaEventName(B::MetaEvent::BitwiseNot), -3);
+						RegisterFunc<T::BitwiseNot>(B::MetaEvent::BitwiseNot, -3);
 					else if constexpr (userdata::BitwiseNotOp<T>)
-						RegisterFunc<userdata::BitwiseNotOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::BitwiseNot), -3);
+						RegisterFunc<userdata::BitwiseNotOperator<State, T>>(B::MetaEvent::BitwiseNot, -3);
 
 					if constexpr (userdata::ShiftLeftCpp<State, T>)
-						RegisterFunc<T::ShiftLeft>(B::GetMetaEventName(B::MetaEvent::ShiftLeft), -3);
+						RegisterFunc<T::ShiftLeft>(B::MetaEvent::ShiftLeft, -3);
 					else if constexpr (userdata::ShiftLeftOp<T>)
-						RegisterFunc<userdata::ShiftLeftOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::ShiftLeft), -3);
+						RegisterFunc<userdata::ShiftLeftOperator<State, T>>(B::MetaEvent::ShiftLeft, -3);
 
 					if constexpr (userdata::ShiftRightCpp<State, T>)
-						RegisterFunc<T::ShiftRight>(B::GetMetaEventName(B::MetaEvent::ShiftRight), -3);
+						RegisterFunc<T::ShiftRight>(B::MetaEvent::ShiftRight, -3);
 					else if constexpr (userdata::ShiftRightOp<T>)
-						RegisterFunc<userdata::ShiftRightOperator<State, T>>(B::GetMetaEventName(B::MetaEvent::ShiftRight), -3);
+						RegisterFunc<userdata::ShiftRightOperator<State, T>>(B::MetaEvent::ShiftRight, -3);
 				}
 
 				if constexpr (B::Capabilities::MetatableLengthModulo) {
 					if constexpr (userdata::LengthCpp<State, T>)
-						RegisterFunc<T::Length>(B::GetMetaEventName(B::MetaEvent::Length), -3);
+						RegisterFunc<T::Length>(B::MetaEvent::Length, -3);
 				}
 
 				if constexpr (userdata::ConcatCpp<State, T>)
-					RegisterFunc<T::Concat>(B::GetMetaEventName(B::MetaEvent::Concat), -3);
+					RegisterFunc<T::Concat>(B::MetaEvent::Concat, -3);
 
 				if constexpr (userdata::NewIndexCpp<State, T>)
-					RegisterFunc<T::NewIndex>(B::GetMetaEventName(B::MetaEvent::NewIndex), -3);
+					RegisterFunc<T::NewIndex>(B::MetaEvent::NewIndex, -3);
 
 				if constexpr (userdata::CallCpp<State, T>)
-					RegisterFunc<T::Call>(B::GetMetaEventName(B::MetaEvent::Call), -3);
+					RegisterFunc<T::Call>(B::MetaEvent::Call, -3);
 
 				if constexpr (userdata::ToStringCpp<State, T>)
-					RegisterFunc<T::ToString>(B::GetMetaEventName(B::MetaEvent::ToString), -3);
+					RegisterFunc<T::ToString>(B::MetaEvent::ToString, -3);
 
 				if constexpr (userdata::HasLuaMetaMethods<T>)
 					RegisterFuncs(T::LuaMetaMethods, -3);
 
 				Push(B::MetaEvent::Name);
-				Push(typename_details::type_name<T>());
+				PushExternalString(typename_details::type_name<T>());
 				B::SetTableRaw(-3);
 			}
 		}
