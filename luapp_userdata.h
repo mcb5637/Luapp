@@ -434,4 +434,79 @@ namespace lua::userdata {
 	}
 	template<class State, class T>
 	concept UserClassUserValuesValid = UserClassUserValues<T>() <= StateMaxUservalues<State>();
+
+    template<class State, class O, int(O::* F)(State L)>
+    int MemberFuncAdaptor(State L) {
+        auto* t = L.template CheckUserClass<O>(1);
+        return std::invoke(F, t, L);
+    }
+    template<class State, class O, int(O::* F)(State L) const>
+    int MemberFuncAdaptor(State L) {
+        auto* t = L.template CheckUserClass<O>(1);
+        return std::invoke(F, t, L);
+    }
+
+    template<class UC>
+    class UserClassChecked
+    {
+        UC* Data;
+
+    public:
+        using UserClass = UC;
+
+        explicit UserClassChecked(UC* Data) : Data(Data) {}
+
+        UC* Get()
+        {
+            return Data;
+        }
+        const UC* Get() const
+        {
+            return Data;
+        }
+
+        UC* operator->()
+        {
+            return Data;
+        }
+        const UC* operator->() const
+        {
+            return Data;
+        }
+
+        UC& operator*()
+        {
+            return *Data;
+        }
+        const UC& operator*() const
+        {
+            return *Data;
+        }
+    };
+
+    template<class UC, class... Arg>
+    class PushNewUserClass
+    {
+        std::tuple<Arg...> Params;
+    public:
+        explicit PushNewUserClass(std::in_place_type_t<UC>, Arg... args) : Params(std::forward<Arg>(args)...) {}
+
+        template<class State>
+        void Push(State L)
+        {
+            auto p = [&]<size_t... I>(std::index_sequence<I...>) {
+                L.template NewUserClass<UC>(std::get<I>(Params)...);
+            };
+            p(std::make_index_sequence<sizeof...(Arg)>{});
+        }
+    };
+}
+
+namespace lua
+{
+    template<class UC>
+    using UserClassChecked = userdata::UserClassChecked<UC>;
+
+    template<class UC, class... Arg>
+    using PushNewUserClass = userdata::PushNewUserClass<UC, Arg...>;
 }

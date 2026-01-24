@@ -34,7 +34,7 @@ namespace lua::func
 
     // const member function pointer
     template<class C, class R, class... Args>
-    struct FunctionTraits<R (C::*)(Args...) const> : FunctionTraits<R(C*, Args...)>
+    struct FunctionTraits<R (C::*)(Args...) const> : FunctionTraits<R(const C*, Args...)>
     {
     };
 
@@ -57,6 +57,14 @@ namespace lua::func
     template<class T>
     concept IsMemberFunctionPointer = std::is_member_function_pointer_v<T>;
 
+    template<class State, class F>
+    concept IsLuaMemberFunction = IsMemberFunctionPointer<F> && FunctionTraits<F>::Arity == 2
+        && std::same_as<int, typename FunctionTraits<F>::ReturnType> && std::same_as<State, typename FunctionTraits<F>::template ArgumentType<1>>;
+
+    template<class F>
+    requires IsMemberFunctionPointer<F>
+    using ObjectTypeOfMemberFunc = std::remove_cvref_t<std::remove_pointer_t<typename FunctionTraits<F>::template ArgumentType<0>>>;
+
     namespace detail
     {
         template<class State, class P>
@@ -72,7 +80,14 @@ namespace lua::func
             { std::tuple_size<T>::value } -> std::convertible_to<std::size_t>;
         };
 
-        template<class State, class F, std::size_t NumBindings = 0>
+        template<class T, class UC>
+        concept IsUserClass = !std::same_as<UC, void> &&
+            (std::same_as<T, UC*> || std::same_as<T, UC&> || std::same_as<T, const UC*> || std::same_as<T, const UC&>);
+
+        template<class State, class P, class UC>
+        concept CheckableOrUserClass = Checkable<State, P> || IsUserClass<P, UC>;
+
+        template<class State, class F, std::size_t NumBindings = 0, class UC = void>
         concept AutoTranslateEnabled =
             (Pushable<State, typename FunctionTraits<F>::ReturnType> ||
              std::same_as<typename FunctionTraits<F>::ReturnType, void> ||
@@ -85,7 +100,7 @@ namespace lua::func
         {
             return ((Is < NumBindings
                          ? std::is_pointer_v<typename FunctionTraits<F>::template ArgumentType<Is>>
-                         : Checkable<State, typename FunctionTraits<F>::template ArgumentType<Is>>) &&
+                         : CheckableOrUserClass<State, typename FunctionTraits<F>::template ArgumentType<Is>, UC>) &&
                     ...);
         }(std::make_index_sequence<FunctionTraits<F>::Arity>{});
     } // namespace detail
