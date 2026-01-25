@@ -129,7 +129,11 @@ namespace lua::v51 {
 		/// <summary>
 		/// userdata class name.
 		/// </summary>
-		Name,
+	    Name,
+        /// <summary>
+        /// userdata serializer (luapp only).
+        /// </summary>
+        Serialize,
 	};
 	/// <summary>
 	/// options which fields of DebugInfo to fill.
@@ -1168,7 +1172,9 @@ namespace lua::v51 {
 			case MetaEvent::ToString:
 				return "__tostring";
 			case MetaEvent::Name:
-				return "__name";
+			    return "__name";
+			case MetaEvent::Serialize:
+			    return "__serialize";
 			default:
 				return "";
 			};

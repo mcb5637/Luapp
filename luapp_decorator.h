@@ -35,6 +35,8 @@ namespace lua::decorator {
 	    template<template<class> class... D>
 	    using BindExtensions = State<B, D...>;
 
+	    constexpr static std::string_view RegistrySerializeKey = "luapp::SerializedRegistry";
+
 		/// <summary>
 		/// <para>normal function to interface with lua.</para>
 		/// <para>recieves its arguments on the lua stack in direct order (first argument at 1) (with nothing else on the stack).</para>
@@ -1920,6 +1922,13 @@ namespace lua::decorator {
 			}
 			return true;
 		}
+	    /// <summary>
+	    /// pushes the serialized registry table.
+	    /// <para>[-0,+1,-]</para>
+	    /// </summary>
+	    void PushSerializedRegistry() {
+		    GetSubTable(RegistrySerializeKey, B::REGISTRYINDEX);
+		}
 
 		/// <summary>
 		/// in idx is a number, returns it. if idx is none or nil, returns def.
@@ -2676,8 +2685,11 @@ namespace lua::decorator {
 				if constexpr (userdata::ToStringCpp<State, T>)
 					RegisterFunc<T::ToString>(B::MetaEvent::ToString, -3);
 
-				if constexpr (userdata::HasLuaMetaMethods<T>)
-					RegisterFuncs(T::LuaMetaMethods, -3);
+			    if constexpr (userdata::SerializeCpp<State, T>)
+			        RegisterFunc<T::Serialize>(B::MetaEvent::Serialize, -3);
+
+			    if constexpr (userdata::HasLuaMetaMethods<T>)
+				    RegisterFuncs(T::LuaMetaMethods, -3);
 
 				Push(B::MetaEvent::Name);
 				PushExternalString(typename_details::type_name<T>());

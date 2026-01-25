@@ -231,7 +231,12 @@ namespace lua::userdata {
 	/// checks if a type has a userdata tostring defined manually via ToString static member.
 	/// </summary>
 	template<class S, class T>
-	concept ToStringCpp = std::is_same_v<CppFunction<S>, decltype(&T::ToString)> || std::is_same_v<CFunction, decltype(&T::ToString)>;
+    concept ToStringCpp = std::is_same_v<CppFunction<S>, decltype(&T::ToString)> || std::is_same_v<CFunction, decltype(&T::ToString)>;
+    /// <summary>
+    /// checks if a type has a userdata serialize defined manually via Serialize static member.
+    /// </summary>
+    template<class S, class T>
+    concept SerializeCpp = std::is_same_v<CppFunction<S>, decltype(&T::Serialize)> || std::is_same_v<CFunction, decltype(&T::Serialize)>;
 
     /// <summary>
     /// checks if a type has base classes defined for userdata type
