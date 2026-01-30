@@ -120,11 +120,13 @@ namespace lua::decorator {
 		/// info to register a function to lua.
 		/// </summary>
 		struct FuncReference {
-			std::string_view Name;
+			std::variant<std::string_view, typename B::MetaEvent> Name;
 			CFunction Func;
 			void* Upvalue;
 
 			constexpr FuncReference(std::string_view name, CFunction f, void* upvalue = nullptr) : Name(name), Func(f), Upvalue(upvalue) {
+			}
+		    constexpr FuncReference(B::MetaEvent name, CFunction f, void* upvalue = nullptr) : Name(name), Func(f), Upvalue(upvalue) {
 			}
 
 			/// <summary>
@@ -133,8 +135,8 @@ namespace lua::decorator {
 			/// <typeparam name="F"></typeparam>
 			/// <param name="name"></param>
 			/// <returns></returns>
-			template<CppFunction F>
-			constexpr static FuncReference GetRef(std::string_view name) {
+			template<CppFunction F, class N>
+			constexpr static FuncReference GetRef(N name) {
 				return { name, &CppToCFunction<F> };
 			}
 			/// <summary>
@@ -143,8 +145,8 @@ namespace lua::decorator {
 			/// <typeparam name="F"></typeparam>
 			/// <param name="name"></param>
 			/// <returns></returns>
-			template<CFunction F>
-			constexpr static FuncReference GetRef(std::string_view name) {
+			template<CFunction F, class N>
+			constexpr static FuncReference GetRef(N name) {
 				return { name, F };
 			}
 		    /// <summary>
@@ -153,9 +155,9 @@ namespace lua::decorator {
 		    /// <typeparam name="F"></typeparam>
 		    /// <param name="name"></param>
 		    /// <returns></returns>
-		    template<auto F>
+		    template<auto F, class N>
 	        requires func::IsFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F)>
-            constexpr static FuncReference GetRef(std::string_view name) {
+            constexpr static FuncReference GetRef(N name) {
 			    return { name, &CppToCFunction<AutoTranslateAPI<F>> };
 			}
 		    /// <summary>
@@ -167,9 +169,9 @@ namespace lua::decorator {
 			/// <param name="obj"></param>
 		    /// <param name="name"></param>
 		    /// <returns></returns>
-		    template<auto F>
+		    template<auto F, class N>
             requires func::IsMemberFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F), 1>
-            constexpr static FuncReference GetRef(std::remove_cvref_t<std::remove_pointer_t<std::tuple_element_t<0, typename func::FunctionTraits<decltype(F)>::ArgumentTypes>>>& obj, std::string_view name) {
+            constexpr static FuncReference GetRef(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, N name) {
 			    return { name, &CppToCFunction<AutoTranslateAPI<F, 1>>, &obj };
 			}
 			/// <summary>
@@ -212,9 +214,9 @@ namespace lua::decorator {
 		    /// <param name="obj"></param>
 		    /// <param name="name"></param>
 		    /// <returns></returns>
-		    template<auto F>
+		    template<auto F, class N>
 		    requires func::IsLuaMemberFunction<State, decltype(F)>
-		    constexpr static FuncReference GetRef(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, std::string_view name) {
+		    constexpr static FuncReference GetRef(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, N name) {
 			    using O = func::ObjectTypeOfMemberFunc<decltype(F)>;
 			    return { name, &CppToCFunction<MemberClosure<O, F>>, &obj };
 			}
@@ -226,23 +228,23 @@ namespace lua::decorator {
 		    /// <typeparam name="F"></typeparam>
 		    /// <param name="name"></param>
 		    /// <returns></returns>
-		    template<auto F>
+		    template<auto F, class N>
 		    requires func::IsLuaMemberFunction<State, decltype(F)>
-            constexpr static FuncReference GetUCRef(std::string_view name) {
+            constexpr static FuncReference GetUCRef(N name) {
 			    using O = func::ObjectTypeOfMemberFunc<decltype(F)>;
 			    return { name, &CppToCFunction<userdata::MemberFuncAdaptor<State, O, F>> };
 			}
 
 		    /// <summary>
-		    /// A reference to a Member function.
-		    /// <para>checks its first parameter with CheckUserClass.</para>
+		    /// A Reference to an arbitrary member function bound as CppFunction.
+		    /// <para>checks its first parameter (and any other parameters of the same type) with CheckUserClass.</para>
 		    /// </summary>
 		    /// <typeparam name="F"></typeparam>
 		    /// <param name="name"></param>
 		    /// <returns></returns>
-		    template<auto F>
+		    template<auto F, class N>
             requires func::detail::AutoTranslateEnabled<State, decltype(F), 0, func::ObjectTypeOfMemberFunc<decltype(F)>>
-            constexpr static FuncReference GetUCRef(std::string_view name) {
+            constexpr static FuncReference GetUCRef(N name) {
 			    using UC = func::ObjectTypeOfMemberFunc<decltype(F)>;
 			    return { name, &CppToCFunction<AutoTranslateAPI<F, 0, UC>> };
 			}
@@ -361,7 +363,7 @@ namespace lua::decorator {
 		template<CFunction F>
 		void Push(int nups = 0)
 		{
-			Push(F, nups);
+			B::Push(F, nups);
 		}
 		/// <summary>
 		/// pushes a CppFunction or CppClosure (function with upvalues) onto the stack.
@@ -387,9 +389,9 @@ namespace lua::decorator {
 		    B::Push(&CppToCFunction<AutoTranslateAPI<F>>, 0);
 		}
 	    /// <summary>
-	    /// pushes an arbitrary member function pointer bound to a object onto the stack, automatically translating its parameters and return values.
+	    /// pushes an arbitrary member function pointer bound to an object onto the stack, automatically translating its parameters and return values.
 	    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-	    /// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
+	    /// <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
 	    /// <para>[-0,+1,m]</para>
 	    /// </summary>
 	    /// <typeparam name="F">function</typeparam>
@@ -399,43 +401,6 @@ namespace lua::decorator {
 		{
 			B::PushLightUserdata(&obj);
 		    B::Push(&CppToCFunction<AutoTranslateAPI<F, 1>>, 1);
-		}
-		/// <summary>
-		/// pushes a member function pointer bound to a object onto the stack. the bound object takes up upvalue 1.
-		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
-		/// The object gets inserted as upvalue 1, and all others shifted up by 1.
-		/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-		/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
-		/// <para>[-nups,+1,m]</para>
-		/// </summary>
-		/// <typeparam name="O">object type</typeparam>
-		/// <typeparam name="F">function</typeparam>
-		/// <param name="obj">object</param>
-		/// <param name="nups">number of upvalues</param>
-		template<class O, int(O::*F)(State L)>
-		[[deprecated]] void Push(O& obj, int nups = 0) {
-			B::PushLightUserdata(&obj);
-			B::Insert(-nups - 1);
-			Push<MemberClosure<O, F>>(nups + 1);
-		}
-		/// <summary>
-		/// pushes a member function pointer bound to a object onto the stack. the bound object takes up upvalue 1.
-		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
-		/// The object gets inserted as upvalue 1, and all others shifted up by 1.
-		/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-		/// <para>needs a non const object, because lua does not have const userdata.</para>
-		/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
-		/// <para>[-nups,+1,m]</para>
-		/// </summary>
-		/// <typeparam name="O">object type</typeparam>
-		/// <typeparam name="F">function</typeparam>
-		/// <param name="obj">object</param>
-		/// <param name="nups">number of upvalues</param>
-		template<class O, int(O::* F)(State L) const>
-		[[deprecated]] void Push(O& obj, int nups = 0) {
-			B::PushLightUserdata(&obj);
-			B::Insert(-nups - 1);
-			Push<MemberClosure<O, F>>(nups + 1);
 		}
 	    /// <summary>
 	    /// pushes a member function pointer bound to a object onto the stack. the bound object takes up upvalue 1.
@@ -457,6 +422,17 @@ namespace lua::decorator {
 		    B::PushLightUserdata(&obj);
 		    B::Insert(-nups - 1);
 		    Push<MemberClosure<O, F>>(nups + 1);
+		}
+	    /// <summary>
+	    /// pushes an arbitrary UserClass member function onto the stack, automatically translating its parameters and return values.
+	    /// <para>[-0,+1,m]</para>
+	    /// </summary>
+	    /// <typeparam name="F">function</typeparam>
+	    template<auto F, class UC>
+        requires func::detail::AutoTranslateEnabled<State, decltype(F), 0, UC>
+        void Push()
+		{
+		    B::Push(&CppToCFunction<AutoTranslateAPI<F, 0, UC>>, 0);
 		}
 		/// <summary>
 		/// pushes a std::string_view.
@@ -497,6 +473,7 @@ namespace lua::decorator {
 	    /// <para>[-0,+1,m]</para>
 	    /// </summary>
 	    /// <param name="s">string to push</param>
+	    /// <param name="l"></param>
         void PushExternalString(const char* s, size_t l)
 		{
 		    PushExternalString(std::string_view(s, l));
@@ -1165,127 +1142,59 @@ namespace lua::decorator {
 		/// <para>[-0,+0,m]</para>
 		/// </summary>
 		/// <param name="name">key to register</param>
-		/// <param name="f">function to register</param>
-		/// <param name="index">valid index where to register</param>
-		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-		template<class T>
-	    requires lua::func::detail::Pushable<State, T>
-		void RegisterFunc(T name, CFunction f, int index, void* upval = nullptr)
-		{
-			Push(name);
-			if (upval)
-				B::PushLightUserdata(upval);
-			B::Push(f, upval == nullptr ? 0 : 1);
-			B::SetTableRaw(index);
-		}
-		/// <summary>
-		/// registers the function f via the key name in the global environment.
-		/// <para>[-0,+0,m]</para>
-		/// </summary>
-		/// <param name="name">key to register</param>
-		/// <param name="f">function to register</param>
-	    /// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-	    template<class T>
-        requires lua::func::detail::Pushable<State, T>
-		void RegisterFunc(T name, CFunction f, void* upval = nullptr)
-		{
-			if (upval)
-				B::PushLightUserdata(upval);
-			B::Push(f, upval == nullptr ? 0 : 1);
-			SetGlobal(name);
-		}
-		/// <summary>
-		/// registers the function f via the key name in index.
-		/// use index = -3 to register in the ToS.
-		/// <para>[-0,+0,m]</para>
-		/// </summary>
-		/// <param name="name">key to register</param>
 		/// <typeparam name="F">function to register</typeparam>
 		/// <param name="index">valid index where to register</param>
-		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-	    template<CFunction F, class T>
-        requires lua::func::detail::Pushable<State, T>
-		void RegisterFunc(T name, int index, void* upval = nullptr) {
-			RegisterFunc(name, F, index, upval);
+	    template<auto F, class UC = void, class T>
+        requires lua::func::detail::Pushable<State, T> && (func::detail::FuncPushable<State, F> || func::detail::FuncPushableUC<State, F, UC>)
+		void RegisterFunc(T name, int index) {
+		    Push(name);
+		    if constexpr (func::detail::FuncPushable<State, F>)
+			    Push<F>();
+		    else
+		        Push<F, UC>();
+		    B::SetTableRaw(index);
 		}
-		/// <summary>
-		/// registers the function f via the key name in the global environment.
-		/// <para>[-0,+0,m]</para>
-		/// </summary>
-		/// <param name="name">key to register</param>
-		/// <typeparam name="F">function to register</typeparam>
-		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-	    template<CFunction F, class T>
-        requires lua::func::detail::Pushable<State, T>
-		void RegisterFunc(T name, void* upval = nullptr) {
-			RegisterFunc(name, F, upval);
+	    /// <summary>
+	    /// registers the function f via the key name in the global environment.
+	    /// <para>[-0,+0,m]</para>
+	    /// </summary>
+	    /// <param name="name">key to register</param>
+	    /// <typeparam name="F">function to register</typeparam>
+	    template<auto F, class UC = void, class T>
+        requires lua::func::detail::Pushable<State, T> && (func::detail::FuncPushable<State, F> || func::detail::FuncPushableUC<State, F, UC>)
+        void RegisterFunc(T name) {
+		    Push(name);
+		    if constexpr (func::detail::FuncPushable<State, F>)
+		        Push<F>();
+		    else
+		        Push<F, UC>();
+		    SetGlobal();
 		}
-		/// <summary>
-		/// registers the function f via the key name in index.
-		/// use index = -3 to register in the ToS.
-		/// <para>[-0,+0,m]</para>
-		/// </summary>
-		/// <param name="name">key to register</param>
-		/// <typeparam name="F">function to register</typeparam>
-		/// <param name="index">valid index where to register</param>
-		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-	    template<CppFunction F, class T>
-        requires lua::func::detail::Pushable<State, T>
-		void RegisterFunc(T name, int index, void* upval = nullptr)
+	    /// <summary>
+	    /// registers the member function F via the key name in index. The object will take up upvalue 1.
+	    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
+	    /// <para>needs a non const object, because lua does not have const userdata.</para>
+	    /// <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
+	    /// <para>[-0,+0,m]</para>
+	    /// </summary>
+	    /// <typeparam name="O">object type</typeparam>
+	    /// <typeparam name="F">member function to register</typeparam>
+	    /// <param name="obj">object</param>
+	    /// <param name="name">key to register</param>
+	    /// <param name="index"></param>
+	    template<auto F, class T>
+        requires func::detail::Pushable<State, T> && func::IsLuaMemberFunction<State, decltype(F)>
+        void RegisterFunc(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, T name, int index)
 		{
-			RegisterFunc(name, &CppToCFunction<F>, index, upval);
-		}
-		/// <summary>
-		/// registers the function f via the key name in the global environment.
-		/// <para>[-0,+0,m]</para>
-		/// </summary>
-		/// <param name="name">key to register</param>
-		/// <typeparam name="F">function to register</typeparam>
-		/// <param name="upval">if != nullptr, gets added as only upvalue for the function</param>
-	    template<CppFunction F, class T>
-        requires lua::func::detail::Pushable<State, T>
-		void RegisterFunc(T name, void* upval = nullptr)
-		{
-			RegisterFunc(name, &CppToCFunction<F>, upval);
-		}
-		/// <summary>
-		/// registers the member function F via the key name in the global environment. The object will take up upvalue 1.
-		/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-		/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
-		/// <para>[-0,+0,m]</para>
-		/// </summary>
-		/// <typeparam name="O">object type</typeparam>
-		/// <typeparam name="F">member function to register</typeparam>
-		/// <param name="obj">object</param>
-		/// <param name="name">key to register</param>
-	    template<class O, int(O::* F)(State L), class T>
-        requires lua::func::detail::Pushable<State, T>
-		[[deprecated]] void RegisterFunc(O& obj, T name)
-		{
-			RegisterFunc(name, &CppToCFunction<MemberClosure<O, F>>, &obj);
-		}
-		/// <summary>
-		/// registers the member function F via the key name in the global environment. The object will take up upvalue 1.
-		/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-		/// <para>needs a non const object, because lua does not have const userdata.</para>
-		/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
-		/// <para>[-0,+0,m]</para>
-		/// </summary>
-		/// <typeparam name="O">object type</typeparam>
-		/// <typeparam name="F">member function to register</typeparam>
-		/// <param name="obj">object</param>
-		/// <param name="name">key to register</param>
-	    template<class O, int(O::* F)(State L) const, class T>
-        requires lua::func::detail::Pushable<State, T>
-		[[deprecated]] void RegisterFunc(O& obj, T name)
-		{
-			RegisterFunc(name, &CppToCFunction<MemberClosure<O, F>>, &obj);
+		    Push(name);
+		    Push<F>(obj);
+		    B::SetTableRaw(index);
 		}
 	    /// <summary>
 	    /// registers the member function F via the key name in the global environment. The object will take up upvalue 1.
 	    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
 	    /// <para>needs a non const object, because lua does not have const userdata.</para>
-	    /// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
+	    /// <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
 	    /// <para>[-0,+0,m]</para>
 	    /// </summary>
 	    /// <typeparam name="O">object type</typeparam>
@@ -1296,8 +1205,9 @@ namespace lua::decorator {
         requires func::detail::Pushable<State, T> && func::IsLuaMemberFunction<State, decltype(F)>
         void RegisterFunc(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, T name)
 		{
-			using O = func::ObjectTypeOfMemberFunc<decltype(F)>;
-		    RegisterFunc(name, &CppToCFunction<MemberClosure<O, F>>, &obj);
+		    Push(name);
+		    Push<F>(obj);
+		    SetGlobal(name);
 		}
 		/// <summary>
 		/// registers all functions in funcs into index.
@@ -1308,8 +1218,14 @@ namespace lua::decorator {
 		/// <param name="index">valid index where to register</param>
 		template<class T>
 		void RegisterFuncs(const T& funcs, int index) {
-			for (const FuncReference& f : funcs) {
-				RegisterFunc(f.Name, f.Func, index, f.Upvalue);
+		    for (const FuncReference& f : funcs) {
+		        std::visit([&]<class N>(N n) {
+                    Push(n);
+                }, f.Name);
+			    if (f.Upvalue != nullptr)
+			        B::PushLightUserdata(f.Upvalue);
+			    B::Push(f.Func, f.Upvalue == nullptr ? 0 : 1);
+			    B::SetTableRaw(index);
 			}
 		}
 		/// <summary>
@@ -1319,8 +1235,14 @@ namespace lua::decorator {
 		/// <param name="funcs">iterable containing FuncReference to register</param>
 		template<class T>
 		void RegisterFuncs(const T& funcs) {
-			for (const FuncReference& f : funcs) {
-				RegisterFunc(f.Name, f.Func, f.Upvalue);
+		    for (const FuncReference& f : funcs) {
+		        std::visit([&]<class N>(N n) {
+                    Push(n);
+                }, f.Name);
+			    if (f.Upvalue != nullptr)
+			        B::PushLightUserdata(f.Upvalue);
+			    B::Push(f.Func, f.Upvalue == nullptr ? 0 : 1);
+			    SetGlobal();
 			}
 		}
 		/// <summary>
@@ -2584,109 +2506,109 @@ namespace lua::decorator {
 					RegisterFunc<userdata::Finalizer<State, T>>(B::MetaEvent::Finalizer, -3);
 
 				if constexpr (userdata::EquatableCpp<State, T>)
-					RegisterFunc<T::Equals>(B::MetaEvent::Equals, -3);
+					RegisterFunc<&T::Equals, T>(B::MetaEvent::Equals, -3);
 				else if constexpr (userdata::EquatableOp<T>)
 					RegisterFunc<userdata::EqualsOperator<State, T>>(B::MetaEvent::Equals, -3);
 
 				if constexpr (userdata::LessThanCpp<State, T>)
-					RegisterFunc<T::LessThan>(B::MetaEvent::LessThan, -3);
+					RegisterFunc<&T::LessThan, T>(B::MetaEvent::LessThan, -3);
 				else if constexpr (userdata::LessThanOp<T>)
 					RegisterFunc<userdata::LessThanOperator<State, T>>(B::MetaEvent::LessThan, -3);
 
 				if constexpr (userdata::LessThanEqualsCpp<State, T>)
-					RegisterFunc<T::LessOrEquals>(B::MetaEvent::LessOrEquals, -3);
+					RegisterFunc<&T::LessOrEquals, T>(B::MetaEvent::LessOrEquals, -3);
 				else if constexpr (userdata::LessThanEqualsOp<T>)
 					RegisterFunc<userdata::LessThanEqualsOperator<State, T>>(B::MetaEvent::LessOrEquals, -3);
 
 				if constexpr (userdata::AddCpp<State, T>)
-					RegisterFunc<T::Add>(B::MetaEvent::Add, -3);
+					RegisterFunc<&T::Add, T>(B::MetaEvent::Add, -3);
 				else if constexpr (userdata::AddOp<T>)
 					RegisterFunc<userdata::AddOperator<State, T>>(B::MetaEvent::Add, -3);
 
 				if constexpr (userdata::SubtractCpp<State, T>)
-					RegisterFunc<T::Subtract>(B::MetaEvent::Subtract, -3);
+					RegisterFunc<&T::Subtract, T>(B::MetaEvent::Subtract, -3);
 				else if constexpr (userdata::SubtractOp<T>)
 					RegisterFunc<userdata::SubtractOperator<State, T>>(B::MetaEvent::Subtract, -3);
 
 				if constexpr (userdata::MultiplyCpp<State, T>)
-					RegisterFunc<T::Multiply>(B::MetaEvent::Multiply, -3);
+					RegisterFunc<&T::Multiply, T>(B::MetaEvent::Multiply, -3);
 				else if constexpr (userdata::MultiplyOp<T>)
 					RegisterFunc<userdata::MultiplyOperator<State, T>>(B::MetaEvent::Multiply, -3);
 
 				if constexpr (userdata::DivideCpp<State, T>)
-					RegisterFunc<T::Divide>(B::MetaEvent::Divide, -3);
+					RegisterFunc<&T::Divide, T>(B::MetaEvent::Divide, -3);
 				else if constexpr (userdata::DivideOp<T>)
 					RegisterFunc<userdata::DivideOperator<State, T>>(B::MetaEvent::Divide, -3);
 
 				if constexpr (B::Capabilities::NativeIntegers) {
 					if constexpr (userdata::IntegerDivideCpp<State, T>)
-						RegisterFunc<T::IntegerDivide>(B::MetaEvent::IntegerDivide, -3);
+						RegisterFunc<&T::IntegerDivide, T>(B::MetaEvent::IntegerDivide, -3);
 				}
 
 				if constexpr (B::Capabilities::MetatableLengthModulo) {
 					if constexpr (userdata::ModuloCpp<State, T>)
-						RegisterFunc<T::Modulo>(B::MetaEvent::Modulo, -3);
+						RegisterFunc<&T::Modulo, T>(B::MetaEvent::Modulo, -3);
 				}
 
 				if constexpr (userdata::PowCpp<State, T>)
-					RegisterFunc<T::Pow>(B::MetaEvent::Pow, -3);
+					RegisterFunc<&T::Pow, T>(B::MetaEvent::Pow, -3);
 
 				if constexpr (userdata::UnaryMinusCpp<State, T>)
-					RegisterFunc<T::UnaryMinus>(B::MetaEvent::UnaryMinus, -3);
+					RegisterFunc<&T::UnaryMinus, T>(B::MetaEvent::UnaryMinus, -3);
 				else if constexpr (userdata::UnaryMinusOp<T>)
 					RegisterFunc<userdata::UnaryMinusOperator<State, T>>(B::MetaEvent::UnaryMinus, -3);
 
 				if constexpr (B::Capabilities::NativeIntegers) {
 					if constexpr (userdata::BitwiseAndCpp<State, T>)
-						RegisterFunc<T::BitwiseAnd>(B::MetaEvent::BitwiseAnd, -3);
+						RegisterFunc<&T::BitwiseAnd, T>(B::MetaEvent::BitwiseAnd, -3);
 					else if constexpr (userdata::BitwiseAndOp<T>)
 						RegisterFunc<userdata::BitwiseAndOperator<State, T>>(B::MetaEvent::BitwiseAnd, -3);
 
 					if constexpr (userdata::BitwiseOrCpp<State, T>)
-						RegisterFunc<T::BitwiseOr>(B::MetaEvent::BitwiseOr, -3);
+						RegisterFunc<&T::BitwiseOr, T>(B::MetaEvent::BitwiseOr, -3);
 					else if constexpr (userdata::BitwiseOrOp<T>)
 						RegisterFunc<userdata::BitwiseOrOperator<State, T>>(B::MetaEvent::BitwiseOr, -3);
 
 					if constexpr (userdata::BitwiseXOrCpp<State, T>)
-						RegisterFunc<T::BitwiseXOr>(B::MetaEvent::BitwiseXOr, -3);
+						RegisterFunc<&T::BitwiseXOr, T>(B::MetaEvent::BitwiseXOr, -3);
 					else if constexpr (userdata::BitwiseXOrOp<T>)
 						RegisterFunc<userdata::BitwiseXOrOperator<State, T>>(B::MetaEvent::BitwiseXOr, -3);
 
 					if constexpr (userdata::BitwiseNotCpp<State, T>)
-						RegisterFunc<T::BitwiseNot>(B::MetaEvent::BitwiseNot, -3);
+						RegisterFunc<&T::BitwiseNot, T>(B::MetaEvent::BitwiseNot, -3);
 					else if constexpr (userdata::BitwiseNotOp<T>)
 						RegisterFunc<userdata::BitwiseNotOperator<State, T>>(B::MetaEvent::BitwiseNot, -3);
 
 					if constexpr (userdata::ShiftLeftCpp<State, T>)
-						RegisterFunc<T::ShiftLeft>(B::MetaEvent::ShiftLeft, -3);
+						RegisterFunc<&T::ShiftLeft, T>(B::MetaEvent::ShiftLeft, -3);
 					else if constexpr (userdata::ShiftLeftOp<T>)
 						RegisterFunc<userdata::ShiftLeftOperator<State, T>>(B::MetaEvent::ShiftLeft, -3);
 
 					if constexpr (userdata::ShiftRightCpp<State, T>)
-						RegisterFunc<T::ShiftRight>(B::MetaEvent::ShiftRight, -3);
+						RegisterFunc<&T::ShiftRight, T>(B::MetaEvent::ShiftRight, -3);
 					else if constexpr (userdata::ShiftRightOp<T>)
 						RegisterFunc<userdata::ShiftRightOperator<State, T>>(B::MetaEvent::ShiftRight, -3);
 				}
 
 				if constexpr (B::Capabilities::MetatableLengthModulo) {
 					if constexpr (userdata::LengthCpp<State, T>)
-						RegisterFunc<T::Length>(B::MetaEvent::Length, -3);
+						RegisterFunc<&T::Length, T>(B::MetaEvent::Length, -3);
 				}
 
 				if constexpr (userdata::ConcatCpp<State, T>)
-					RegisterFunc<T::Concat>(B::MetaEvent::Concat, -3);
+					RegisterFunc<&T::Concat, T>(B::MetaEvent::Concat, -3);
 
 				if constexpr (userdata::NewIndexCpp<State, T>)
-					RegisterFunc<T::NewIndex>(B::MetaEvent::NewIndex, -3);
+					RegisterFunc<&T::NewIndex, T>(B::MetaEvent::NewIndex, -3);
 
 				if constexpr (userdata::CallCpp<State, T>)
-					RegisterFunc<T::Call>(B::MetaEvent::Call, -3);
+					RegisterFunc<&T::Call, T>(B::MetaEvent::Call, -3);
 
 				if constexpr (userdata::ToStringCpp<State, T>)
-					RegisterFunc<T::ToString>(B::MetaEvent::ToString, -3);
+					RegisterFunc<&T::ToString, T>(B::MetaEvent::ToString, -3);
 
 			    if constexpr (userdata::SerializeCpp<State, T>)
-			        RegisterFunc<T::Serialize>(B::MetaEvent::Serialize, -3);
+			        RegisterFunc<&T::Serialize, T>(B::MetaEvent::Serialize, -3);
 
 			    if constexpr (userdata::HasLuaMetaMethods<T>)
 				    RegisterFuncs(T::LuaMetaMethods, -3);

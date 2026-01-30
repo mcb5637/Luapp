@@ -70,6 +70,12 @@ namespace lua::func
         template<class State, class P>
         concept Pushable = requires(State s, P p) { s.Push(p); };
 
+        template<class State, auto F>
+        concept FuncPushable = requires(State s) { s.template Push<F>(); };
+
+        template<class State, auto F, class UC>
+        concept FuncPushableUC = !std::same_as<UC, void> && requires(State s) { s.template Push<F, UC>(); };
+
         template<class State, class R>
         concept Checkable = requires(State s, R r, int i) {
             { s.template Check<R>(i) } -> std::same_as<R>;

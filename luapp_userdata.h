@@ -5,6 +5,18 @@ namespace lua::userdata {
 	template<class S>
 	using CppFunction = int(*)(S L);
 
+    template<class T>
+    concept UserClassOperatorTranslate = T::UserClassOperatorTranslate;
+
+    template<class T>
+    concept UserClassMetaMethods = T::UserClassMetaMethods;
+
+    template<class S, auto F, class UC>
+    concept Registerable = requires (S L, std::string_view n)
+    {
+        L.template RegisterFunc<F, UC>(n);
+    };
+
 	/// <summary>
 	/// checks if a type has methods to register for a userdata type via LuaMethods.
 	/// </summary>
@@ -25,218 +37,218 @@ namespace lua::userdata {
 	/// checks if a type has a userdata equals defined manually via Equals static member.
 	/// </summary>
 	template<class S, class T>
-	concept EquatableCpp = std::is_same_v<CppFunction<S>, decltype(&T::Equals)> || std::is_same_v<CFunction, decltype(&T::Equals)>;
+	concept EquatableCpp = UserClassMetaMethods<T> && Registerable<S, &T::Equals, T>;
 	/// <summary>
 	/// checks if a type has a userdata equals defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept EquatableOp = std::equality_comparable<T>;
+	concept EquatableOp = UserClassOperatorTranslate<T> && std::equality_comparable<T>;
 	/// <summary>
 	/// checks if a type has a userdata lessthan defined manually via LessThan static member.
 	/// </summary>
 	template<class S, class T>
-	concept LessThanCpp = std::is_same_v<CppFunction<S>, decltype(&T::LessThan)> || std::is_same_v<CFunction, decltype(&T::LessThan)>;
+	concept LessThanCpp = UserClassMetaMethods<T> && Registerable<S, &T::LessThan, T>;
 	/// <summary>
 	/// checks if a type has a userdata lessthan defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept LessThanOp = requires (T a, T b) {
+	concept LessThanOp = UserClassOperatorTranslate<T> && requires (T a, T b) {
 		{a < b} -> std::same_as<bool>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata lessthan equals defined manually via LessOrEquals static member.
 	/// </summary>
 	template<class S, class T>
-	concept LessThanEqualsCpp = std::is_same_v<CppFunction<S>, decltype(&T::LessOrEquals)> || std::is_same_v<CFunction, decltype(&T::LessOrEquals)>;
+	concept LessThanEqualsCpp = UserClassMetaMethods<T> && Registerable<S, &T::LessOrEquals, T>;
 	/// <summary>
 	/// checks if a type has a userdata lessthan equals defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept LessThanEqualsOp = requires (T a, T b) {
+	concept LessThanEqualsOp = UserClassOperatorTranslate<T> && requires (T a, T b) {
 		{a <= b} -> std::same_as<bool>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata add defined manually via Add static member.
 	/// </summary>
 	template<class S, class T>
-	concept AddCpp = std::is_same_v<CppFunction<S>, decltype(&T::Add)> || std::is_same_v<CFunction, decltype(&T::Add)>;
+	concept AddCpp = UserClassMetaMethods<T> && Registerable<S, &T::Add, T>;
 	/// <summary>
 	/// checks if a type has a userdata add defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept AddOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+	concept AddOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
 		{a + b} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata subtract defined manually via Subtract static member.
 	/// </summary>
 	template<class S, class T>
-	concept SubtractCpp = std::is_same_v<CppFunction<S>, decltype(&T::Subtract)> || std::is_same_v<CFunction, decltype(&T::Subtract)>;
+	concept SubtractCpp = UserClassMetaMethods<T> && Registerable<S, &T::Subtract, T>;
 	/// <summary>
 	/// checks if a type has a userdata subtract defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept SubtractOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+	concept SubtractOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
 		{a - b} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata multiply defined manually via Multiply static member.
 	/// </summary>
 	template<class S, class T>
-	concept MultiplyCpp = std::is_same_v<CppFunction<S>, decltype(&T::Multiply)> || std::is_same_v<CFunction, decltype(&T::Multiply)>;
+	concept MultiplyCpp = UserClassMetaMethods<T> && Registerable<S, &T::Multiply, T>;
 	/// <summary>
 	/// checks if a type has a userdata multiply defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept MultiplyOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+	concept MultiplyOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
 		{a* b} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata divide defined manually via Divide static member.
 	/// </summary>
 	template<class S, class T>
-	concept DivideCpp = std::is_same_v<CppFunction<S>, decltype(&T::Divide)> || std::is_same_v<CFunction, decltype(&T::Divide)>;
+	concept DivideCpp = UserClassMetaMethods<T> && Registerable<S, &T::Divide, T>;
 	/// <summary>
 	/// checks if a type has a userdata divide defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept DivideOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+	concept DivideOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
 		{a / b} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata integer divide defined manually via IntegerDivide static member.
 	/// </summary>
 	template<class S, class T>
-	concept IntegerDivideCpp = std::is_same_v<CppFunction<S>, decltype(&T::IntegerDivide)> || std::is_same_v<CFunction, decltype(&T::IntegerDivide)>;
+	concept IntegerDivideCpp = UserClassMetaMethods<T> && Registerable<S, &T::IntegerDivide, T>;
 	/// <summary>
 	/// checks if a type has a userdata modulo defined manually via Modulo static member.
 	/// </summary>
 	template<class S, class T>
-	concept ModuloCpp = std::is_same_v<CppFunction<S>, decltype(&T::Modulo)> || std::is_same_v<CFunction, decltype(&T::Modulo)>;
+	concept ModuloCpp = UserClassMetaMethods<T> && Registerable<S, &T::Modulo, T>;
 	/// <summary>
 	/// checks if a type has a userdata pow defined manually via Pow static member.
 	/// </summary>
 	template<class S, class T>
-	concept PowCpp = std::is_same_v<CppFunction<S>, decltype(&T::Pow)> || std::is_same_v<CFunction, decltype(&T::Pow)>;
+	concept PowCpp = UserClassMetaMethods<T> && Registerable<S, &T::Pow, T>;
 	/// <summary>
 	/// checks if a type has a userdata unary minus defined manually via UnaryMinus static member.
 	/// </summary>
 	template<class S, class T>
-	concept UnaryMinusCpp = std::is_same_v<CppFunction<S>, decltype(&T::UnaryMinus)> || std::is_same_v<CFunction, decltype(&T::UnaryMinus)>;
+	concept UnaryMinusCpp = UserClassMetaMethods<T> && Registerable<S, &T::UnaryMinus, T>;
 	/// <summary>
 	/// checks if a type has a userdata unary minus defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept UnaryMinusOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
+	concept UnaryMinusOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
 		{-a} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary and defined manually via BitwiseAnd static member.
 	/// </summary>
 	template<class S, class T>
-	concept BitwiseAndCpp = std::is_same_v<CppFunction<S>, decltype(&T::BitwiseAnd)> || std::is_same_v<CFunction, decltype(&T::BitwiseAnd)>;
+	concept BitwiseAndCpp = UserClassMetaMethods<T> && Registerable<S, &T::BitwiseAnd, T>;
 	/// <summary>
 	/// checks if a type has a userdata binary and defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept BitwiseAndOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+	concept BitwiseAndOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
 		{a& b} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary or defined manually via BitwiseOr static member.
 	/// </summary>
 	template<class S, class T>
-	concept BitwiseOrCpp = std::is_same_v<CppFunction<S>, decltype(&T::BitwiseOr)> || std::is_same_v<CFunction, decltype(&T::BitwiseOr)>;
+	concept BitwiseOrCpp = UserClassMetaMethods<T> && Registerable<S, &T::BitwiseOr, T>;
 	/// <summary>
 	/// checks if a type has a userdata binary or defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept BitwiseOrOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+	concept BitwiseOrOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
 		{a | b} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary xor defined manually via BitwiseXOr static member.
 	/// </summary>
 	template<class S, class T>
-	concept BitwiseXOrCpp = std::is_same_v<CppFunction<S>, decltype(&T::BitwiseXOr)> || std::is_same_v<CFunction, decltype(&T::BitwiseXOr)>;
+	concept BitwiseXOrCpp = UserClassMetaMethods<T> && Registerable<S, &T::BitwiseXOr, T>;
 	/// <summary>
 	/// checks if a type has a userdata binary xor defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept BitwiseXOrOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+	concept BitwiseXOrOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
 		{a^ b} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary not defined manually via BitwiseNot static member.
 	/// </summary>
 	template<class S, class T>
-	concept BitwiseNotCpp = std::is_same_v<CppFunction<S>, decltype(&T::BitwiseNot)> || std::is_same_v<CFunction, decltype(&T::BitwiseNot)>;
+	concept BitwiseNotCpp = UserClassMetaMethods<T> && Registerable<S, &T::BitwiseNot, T>;
 	/// <summary>
 	/// checks if a type has a userdata binary not defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept BitwiseNotOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
+	concept BitwiseNotOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
 		{~a} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary shift left defined manually via ShiftLeft static member.
 	/// </summary>
 	template<class S, class T>
-	concept ShiftLeftCpp = std::is_same_v<CppFunction<S>, decltype(&T::ShiftLeft)> || std::is_same_v<CFunction, decltype(&T::ShiftLeft)>;
+	concept ShiftLeftCpp = UserClassMetaMethods<T> && Registerable<S, &T::ShiftLeft, T>;
 	/// <summary>
 	/// checks if a type has a userdata binary shift left defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept ShiftLeftOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+	concept ShiftLeftOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
 		{a << b} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary shift right defined manually via ShiftRight static member.
 	/// </summary>
 	template<class S, class T>
-	concept ShiftRightCpp = std::is_same_v<CppFunction<S>, decltype(&T::ShiftRight)> || std::is_same_v<CFunction, decltype(&T::ShiftRight)>;
+	concept ShiftRightCpp = UserClassMetaMethods<T> && Registerable<S, &T::ShiftRight, T>;
 	/// <summary>
 	/// checks if a type has a userdata binary shift right defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept ShiftRightOp = std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
+	concept ShiftRightOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
 		{a >> b} -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata length defined manually via Length static member.
 	/// </summary>
 	template<class S, class T>
-	concept LengthCpp = std::is_same_v<CppFunction<S>, decltype(&T::Length)> || std::is_same_v<CFunction, decltype(&T::Length)>;
+	concept LengthCpp = UserClassMetaMethods<T> && Registerable<S, &T::Length, T>;
 	/// <summary>
 	/// checks if a type has a userdata concat defined manually via Concat static member.
 	/// </summary>
 	template<class S, class T>
-	concept ConcatCpp = std::is_same_v<CppFunction<S>, decltype(&T::Concat)> || std::is_same_v<CFunction, decltype(&T::Concat)>;
+	concept ConcatCpp = UserClassMetaMethods<T> && Registerable<S, &T::Concat, T>;
 	/// <summary>
 	/// checks if a type has a userdata newindex defined manually via NewIndex static member.
 	/// </summary>
 	template<class S, class T>
-	concept NewIndexCpp = std::is_same_v<CppFunction<S>, decltype(&T::NewIndex)> || std::is_same_v<CFunction, decltype(&T::NewIndex)>;
+	concept NewIndexCpp = UserClassMetaMethods<T> && Registerable<S, &T::NewIndex, T>;
 	/// <summary>
 	/// checks if a type has a userdata call defined manually via Call static member.
 	/// </summary>
 	template<class S, class T>
-	concept CallCpp = std::is_same_v<CppFunction<S>, decltype(&T::Call)> || std::is_same_v<CFunction, decltype(&T::Call)>;
+	concept CallCpp = UserClassMetaMethods<T> && Registerable<S, &T::Call, T>;
 	/// <summary>
 	/// checks if a type has a userdata index defined manually via Index static member.
 	/// </summary>
 	template<class S, class T>
-	concept IndexCpp = std::is_same_v<CppFunction<S>, decltype(&T::Index)> || std::is_same_v<CFunction, decltype(&T::Index)>;
+	concept IndexCpp = UserClassMetaMethods<T> && Registerable<S, &T::Index, T>;
 	/// <summary>
 	/// checks if a type has a userdata tostring defined manually via ToString static member.
 	/// </summary>
 	template<class S, class T>
-    concept ToStringCpp = std::is_same_v<CppFunction<S>, decltype(&T::ToString)> || std::is_same_v<CFunction, decltype(&T::ToString)>;
+    concept ToStringCpp = UserClassMetaMethods<T> && Registerable<S, &T::ToString, T>;
     /// <summary>
     /// checks if a type has a userdata serialize defined manually via Serialize static member.
     /// </summary>
     template<class S, class T>
-    concept SerializeCpp = std::is_same_v<CppFunction<S>, decltype(&T::Serialize)> || std::is_same_v<CFunction, decltype(&T::Serialize)>;
+    concept SerializeCpp = UserClassMetaMethods<T> && Registerable<S, &T::Serialize, T>;
 
     /// <summary>
     /// checks if a type has base classes defined for userdata type
@@ -415,8 +427,12 @@ namespace lua::userdata {
 		if constexpr (std::is_same_v<CppFunction<State>, decltype(&T::Index)>) {
 			return T::Index(L);
 		}
-		else {
+		else if constexpr (std::is_same_v<CFunction, decltype(&T::Index)>) {
 			return T::Index(L.L);
+		}
+		else
+		{
+			return State::template AutoTranslateAPI<&T::Index, 0, T>(L);
 		}
 	}
 	template<class T>
