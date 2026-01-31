@@ -98,19 +98,8 @@ namespace lua::decorator {
 		/// <typeparam name="F">member function pointer to push</typeparam>
 		/// <param name="L">state</param>
 		/// <returns>number of return values on the stack</returns>
-		template<class O, int(O::* F)(State L)>
-		static int MemberClosure(State L) {
-			auto* o = static_cast<O*>(L.ToUserdata(B::Upvalueindex(1)));
-			return std::invoke(F, o, L);
-		}
-		/// <summary>
-		/// adapts a member function to a CppFunction by storing the object in upvalue 1.
-		/// </summary>
-		/// <typeparam name="O">object type</typeparam>
-		/// <typeparam name="F">member function pointer to push</typeparam>
-		/// <param name="L">state</param>
-		/// <returns>number of return values on the stack</returns>
-		template<class O, int(O::* F)(State L) const>
+		template<class O, auto F>
+	    requires func::IsLuaMemberFunction<State, decltype(F)>
 		static int MemberClosure(State L) {
 			auto* o = static_cast<O*>(L.ToUserdata(B::Upvalueindex(1)));
 			return std::invoke(F, o, L);
@@ -2811,6 +2800,39 @@ namespace lua::decorator {
 	    UC Check(int i)
         {
             return UC{CheckUserClass<typename UC::UserClass>(i)};
+        }
+
+	    /// <summary>
+	    /// pushes a lambda onto the stack. (by pushing a function calling its call operator with the lambda itself stored in upvalue 1).
+	    /// The object gets inserted as upvalue 1, and all others shifted up by 1.
+	    /// <para>does take ownership of the lambda, and stores it in a full userdata (with finalizer, if required).</para>
+	    /// <para>the lambda may either directly be a CppMemberFunction or translatable with AutoTranslateAPI.</para>
+	    /// <para>note: any valid object + member function combination is accepted, not just lambdas.</para>
+	    /// <para>[-0,+1,m]</para>
+	    /// </summary>
+	    /// <typeparam name="OL">member function</typeparam>
+	    /// <typeparam name="F">object type</typeparam>
+	    /// <param name="f">object</param>
+	    template<class F, auto OL = &F::operator()>
+	    requires (func::IsLuaMemberFunction<State, decltype(OL)> || func::detail::AutoTranslateEnabled<State, decltype(OL), 1>)
+	        && std::same_as<F, func::ObjectTypeOfMemberFunc<decltype(OL)>>
+	    void PushLambda(F f, int nups = 0)
+        {
+            new (B::NewUserdata(sizeof(F))) F(std::move(f));
+
+            if constexpr (!std::is_trivially_destructible_v<F>)
+            {
+                B::NewTable();
+                RegisterFunc<func::detail::LambdaFinalizer<State, F>>(B::MetaEvent::Finalizer, -3);
+                B::SetMetatable(-2);
+            }
+
+            B::Insert(-nups - 1);
+
+            if constexpr (func::IsLuaMemberFunction<State, decltype(OL)>)
+                Push<MemberClosure<F, OL>>(1 + nups);
+            else
+                Push<AutoTranslateAPI<OL, 1>>(1 + nups);
         }
 	};
 

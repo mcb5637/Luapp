@@ -109,5 +109,13 @@ namespace lua::func
                          : CheckableOrUserClass<State, typename FunctionTraits<F>::template ArgumentType<Is>, UC>) &&
                     ...);
         }(std::make_index_sequence<FunctionTraits<F>::Arity>{});
+
+        template<class State, class F>
+        int LambdaFinalizer(State L)
+        {
+            auto* f = static_cast<F*>(L.ToUserdata(1));
+            f->~F();
+            return 0;
+        }
     } // namespace detail
 } // namespace lua::func
