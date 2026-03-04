@@ -5,6 +5,7 @@
 #include <set>
 #include <map>
 #include <functional>
+#include <variant>
 
 #include "constexprTypename.h"
 #include "luapp_common.h"
