@@ -36,7 +36,7 @@ namespace lua::cast_detail
                 return std::nullopt;
             }
         } else if constexpr (std::numeric_limits<From>::is_signed) {
-            if (f < 0 || static_cast<std::make_unsigned_t<From>::t>(f) > std::numeric_limits<To>::max()) {
+            if (f < 0 || static_cast<std::make_unsigned_t<From>>(f) > std::numeric_limits<To>::max()) {
                 return std::nullopt;
             }
         } else {
