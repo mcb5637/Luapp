@@ -31,15 +31,24 @@ namespace lua::cast_detail
             if (exp > std::numeric_limits<To>::digits && f != std::numeric_limits<To>::min()) {
                 return std::nullopt;
             }
-        } else if constexpr (std::numeric_limits<To>::is_signed == std::numeric_limits<From>::is_signed) {
+        }
+        else if constexpr (std::floating_point<To>)
+        {
+            if (-std::numeric_limits<To>::max() > f || f > std::numeric_limits<To>::max()) {
+                return std::nullopt;
+            }
+        }
+        else if constexpr (std::numeric_limits<To>::is_signed == std::numeric_limits<From>::is_signed) {
             if (std::numeric_limits<To>::min() > f || f > std::numeric_limits<To>::max()) {
                 return std::nullopt;
             }
-        } else if constexpr (std::numeric_limits<From>::is_signed) {
+        }
+        else if constexpr (std::numeric_limits<From>::is_signed) {
             if (f < 0 || static_cast<std::make_unsigned_t<From>>(f) > std::numeric_limits<To>::max()) {
                 return std::nullopt;
             }
-        } else {
+        }
+        else {
             if (f > std::numeric_limits<To>::max()) {
                 return std::nullopt;
             }
