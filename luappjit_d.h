@@ -62,6 +62,7 @@ namespace lua::jit {
 			static constexpr bool JIT = true;
 			/// <summary>
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for lua functions.
+			/// if false, these functions get emulated and access the upvalue `_ENV` (which might not exist).
 			/// </summary>
 			static constexpr bool Environments = lua::v51::State::Capabilities::Environments;
 			/// <summary>

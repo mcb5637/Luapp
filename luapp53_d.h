@@ -442,8 +442,9 @@ namespace lua::v53 {
 			static constexpr bool JIT = false;
 			/// <summary>
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for lua functions.
+			/// if false, these functions get emulated and access the upvalue `_ENV` (which might not exist).
 			/// </summary>
-			static constexpr bool Environments = true;
+			static constexpr bool Environments = false;
 			/// <summary>
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for c functions, threads and userdata.
 			/// </summary>
@@ -1007,7 +1008,7 @@ namespace lua::v53 {
 		void GetEnvironment(int idx);
 		/// <summary>
 		/// sets the table at the top of the stack as the upvalue _ENV of the function at idx and pops it.
-		/// if idx is not a lua func, returns false.
+		/// if idx is not a lua func with an _ENV upvalue, returns false.
 		/// <para>[-1,+0,-]</para>
 		/// </summary>
 		/// <param name="idx"></param>

@@ -43,8 +43,9 @@ namespace lua::serialization
      * @tparam IO read/write funcs
      * @tparam State lua state
      * @tparam DataOnly if true, throws on serializing/deserializing functions or userdata
+     * @tparam TurnGlobalEnvToNormalEnv if true, serializes the global env when encountered, else restores it to the global env of the deserializing state
      */
-    template<IsIO IO, class State, bool DataOnly = false>
+    template<IsIO IO, class State, bool DataOnly = false, bool TurnGlobalEnvToNormalEnv = false>
     class LuaSerializer
     {
         struct Reference {
@@ -72,6 +73,8 @@ namespace lua::serialization
         static constexpr LType UpvalueReferenceType = static_cast<LType>(-3);
         // lua::Integer
         static constexpr LType IntegerType = static_cast<LType>(-5);
+        // reference to the deserializers global env
+        static constexpr LType GlobalsRefType = static_cast<LType>(-6);
 
 		static constexpr int FileVersion = 3;
 
@@ -143,7 +146,7 @@ namespace lua::serialization
         {
             auto r = ReadPrimitive<LType>();
             if ((static_cast<int>(r) < static_cast<int>(LType::Nil) || static_cast<int>(r) > static_cast<int>(LType::Thread))
-                && r != ReferenceType && r != UpvalueReferenceType && r != IntegerType)
+                && r != ReferenceType && r != UpvalueReferenceType && r != IntegerType && r != GlobalsRefType)
                 throw std::format_error{ "error reading lua type, not a valid type" };
             return r;
         }
@@ -368,40 +371,59 @@ namespace lua::serialization
         };
     };
 
-    template <IsIO IO, class State, bool DataOnly>
-    void LuaSerializer<IO, State, DataOnly>::SerializeTable(int idx, bool isglobal){
+    template<IsIO IO, class State, bool DataOnly, bool TurnGlobalEnvToNormalEnv>
+    void LuaSerializer<IO, State, DataOnly, TurnGlobalEnvToNormalEnv>::SerializeTable(int idx, bool isglobal) {
         Reference r{ LType::Table, L.ToPointer(idx) };
         auto refn = RefToNumber.find(r);
-        if (refn == RefToNumber.end()) {
-            L.CheckStack(5);
-            int refnum = NextReferenceNumber++;
-            RefToNumber.insert(std::make_pair(r, refnum));
-            WritePrimitive(LType::Table);
-            SerializeReference(refnum);
-            idx = L.ToAbsoluteIndex(idx);
-            for ([[maybe_unused]] auto _ : L.Pairs(idx)) {
-                if (CanSerialize(-1) && CanSerialize(-2)) {
-                    if (isglobal && L.IsString(-2) && IsGlobalSkipped(L.ToString(-2)))
-                        continue;
-                    SerializeAnything(-2);
-                    SerializeAnything(-1);
-                }
-            }
-            WritePrimitive(LType::Nil); // i use serialized nil as end of table
-            if (L.GetMetatable(-1)) {
-                SerializeAnything(-1);
-                L.Pop(1);
-            }
-            else
-                WritePrimitive(LType::Nil);
-        }
-        else {
+        if (refn != RefToNumber.end()) {
             WritePrimitive(ReferenceType);
             SerializeReference(refn->second);
+            return;
         }
+
+        L.CheckStack(5);
+        idx = L.ToAbsoluteIndex(idx);
+
+        if constexpr (!TurnGlobalEnvToNormalEnv)
+        {
+            if (!isglobal)
+            {
+                L.PushGlobalTable();
+                if (L.RawEqual(idx, -1))
+                {
+                    WritePrimitive(GlobalsRefType);
+                    L.Pop(1);
+                    return;
+                }
+                L.Pop(1);
+            }
+        }
+
+        int refnum = NextReferenceNumber++;
+        RefToNumber.insert(std::make_pair(r, refnum));
+        WritePrimitive(LType::Table);
+        SerializeReference(refnum);
+        for ([[maybe_unused]] auto _ : L.Pairs(idx))
+        {
+            if (CanSerialize(-1) && CanSerialize(-2))
+            {
+                if (isglobal && L.IsString(-2) && IsGlobalSkipped(L.ToString(-2)))
+                    continue;
+                SerializeAnything(-2);
+                SerializeAnything(-1);
+            }
+        }
+        WritePrimitive(LType::Nil); // i use serialized nil as end of table
+        if (L.GetMetatable(-1))
+        {
+            SerializeAnything(-1);
+            L.Pop(1);
+        }
+        else
+            WritePrimitive(LType::Nil);
     }
-    template <IsIO IO, class State, bool DataOnly>
-    void LuaSerializer<IO, State, DataOnly>::DeserializeTable(bool create) {
+    template<IsIO IO, class State, bool DataOnly, bool TurnGlobalEnvToNormalEnv>
+    void LuaSerializer<IO, State, DataOnly, TurnGlobalEnvToNormalEnv>::DeserializeTable(bool create) {
         int ref = DeserializeReferenceRaw();
         if (create) {
             L.NewTable();
@@ -427,8 +449,8 @@ namespace lua::serialization
             L.Pop(1);
     }
 
-    template <IsIO IO, class State, bool DataOnly>
-    void LuaSerializer<IO, State, DataOnly>::SerializeFunction(int idx) {
+    template<IsIO IO, class State, bool DataOnly, bool TurnGlobalEnvToNormalEnv>
+    void LuaSerializer<IO, State, DataOnly, TurnGlobalEnvToNormalEnv>::SerializeFunction(int idx) {
         if constexpr (DataOnly)
         {
             throw std::format_error{ "functions not allowed" };
@@ -458,8 +480,14 @@ namespace lua::serialization
             }, this);
             WriteLenPrefixed(std::array<char, 0>{});
             L.Pop(1);
-            WritePrimitive(i.NumUpvalues);
+            if constexpr (State::Capabilities::Environments)
+            {
+                L.GetEnvironment(idx);
+                SerializeAnything(-1);
+                L.Pop(1);
+            }
             if constexpr (State::Capabilities::UpvalueId) {
+                WritePrimitive(i.NumUpvalues);
                 for (int n = 1; n <= i.NumUpvalues; ++n) {
                     const void* id = L.Debug_UpvalueID(idx, n);
                     auto uref = UpRefs.find(id);
@@ -482,8 +510,8 @@ namespace lua::serialization
             SerializeReference(refn->second);
         }
     }
-    template<IsIO IO, class State, bool DataOnly>
-    void LuaSerializer<IO, State, DataOnly>::DeserializeFunction()
+    template<IsIO IO, class State, bool DataOnly, bool TurnGlobalEnvToNormalEnv>
+    void LuaSerializer<IO, State, DataOnly, TurnGlobalEnvToNormalEnv>::DeserializeFunction()
     {
         if constexpr (DataOnly)
             throw std::format_error{ "functions not allowed" };
@@ -506,8 +534,13 @@ namespace lua::serialization
         }
         L.PushValue(-1);
         L.SetTableRaw(IndexOfReferenceHolder, ref);
-        int n_upvalues = ReadPrimitive<int>();
+        if constexpr (State::Capabilities::Environments)
+        {
+            DeserializeAnything();
+            L.SetEnvironment(-2);
+        }
         if constexpr (State::Capabilities::UpvalueId) {
+            int n_upvalues = ReadPrimitive<int>();
             for (int n = 1; n <= n_upvalues; ++n) {
                 LType t = DeserializeType();
                 if (t == UpvalueReferenceType) {
@@ -525,17 +558,13 @@ namespace lua::serialization
                 }
             }
         }
-        else {
-            if (n_upvalues > 0)
-                throw std::format_error{ "attempting to deserialize func with upvalues when upvalue serialization is not available" };
-        }
     }
 
-    template<IsIO IO, class State, bool DataOnly>
-    void LuaSerializer<IO, State, DataOnly>::SerializeUserdata(int idx)
+    template<IsIO IO, class State, bool DataOnly, bool TurnGlobalEnvToNormalEnv>
+    void LuaSerializer<IO, State, DataOnly, TurnGlobalEnvToNormalEnv>::SerializeUserdata(int idx)
     {
         if constexpr (DataOnly)
-            throw std::format_error{ "functions not allowed" };
+            throw std::format_error{ "userdata not allowed" };
         Reference r{ LType::Userdata, L.ToPointer(idx) };
         auto refn = RefToNumber.find(r);
         if (refn == RefToNumber.end()) {
@@ -561,11 +590,11 @@ namespace lua::serialization
             SerializeReference(refn->second);
         }
     }
-    template<IsIO IO, class State, bool DataOnly>
-    void LuaSerializer<IO, State, DataOnly>::DeserializeUserdata()
+    template<IsIO IO, class State, bool DataOnly, bool TurnGlobalEnvToNormalEnv>
+    void LuaSerializer<IO, State, DataOnly, TurnGlobalEnvToNormalEnv>::DeserializeUserdata()
     {
         if (DataOnly)
-            throw std::format_error{ "functions not allowed" };
+            throw std::format_error{ "userdata not allowed" };
         int ref = DeserializeReferenceRaw();
 
         if (DeserializeType() != LType::String)
@@ -582,8 +611,8 @@ namespace lua::serialization
         L.SetTableRaw(IndexOfReferenceHolder, ref);
     }
 
-    template<IsIO IO, class State, bool DataOnly>
-    void LuaSerializer<IO, State, DataOnly>::SerializeAnything(int idx)
+    template<IsIO IO, class State, bool DataOnly, bool TurnGlobalEnvToNormalEnv>
+    void LuaSerializer<IO, State, DataOnly, TurnGlobalEnvToNormalEnv>::SerializeAnything(int idx)
     {
         switch (L.Type(idx)) {
         case LType::Nil:
@@ -611,8 +640,8 @@ namespace lua::serialization
             throw std::format_error{ "invalid type" };
         }
     }
-    template<IsIO IO, class State, bool DataOnly>
-    void LuaSerializer<IO, State, DataOnly>::DeserializeAnything(LType t)
+    template<IsIO IO, class State, bool DataOnly, bool TurnGlobalEnvToNormalEnv>
+    void LuaSerializer<IO, State, DataOnly, TurnGlobalEnvToNormalEnv>::DeserializeAnything(LType t)
     {
         switch (t) {
         case LType::Nil:
@@ -641,6 +670,9 @@ namespace lua::serialization
             break;
         case ReferenceType:
             DeserializeReference();
+            break;
+        case GlobalsRefType:
+            L.PushGlobalTable();
             break;
         default:
             throw std::format_error{ "invalid type" };
