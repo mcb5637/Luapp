@@ -2056,6 +2056,36 @@ namespace lua::decorator {
 
 	    using C<State<B, C...>>::Check...;
 
+	    /// <summary>
+	    /// if idx is none or nil, returns std::nullopt. otherwise checks for T.
+	    /// <para>[-0,+0,v]</para>
+	    /// </summary>
+	    /// <param name="idx">acceptable index to check</param>
+	    /// <returns>optional</returns>
+	    /// <exception cref="lua::LuaException">if invalid</exception>
+	    template<class T>
+        requires std::same_as<T, std::optional<typename T::value_type>> && func::detail::Checkable<State, typename T::value_type>
+        T Check(int idx)
+	    {
+	        if (B::IsNoneOrNil(idx))
+	            return std::nullopt;
+	        return Check<typename T::value_type>(idx);
+	    }
+	    /// <summary>
+	    /// pushes nil, if v is std::nullopt, and *v otherwise.
+	    /// <para>[-0,+0,m]</para>
+	    /// </summary>
+	    /// <param name="v">value to push</param>
+	    template<class T>
+	    requires func::detail::Pushable<State, T>
+	    void Push(std::optional<T> v)
+	    {
+	        if (v.has_value())
+	            Push(*v);
+	        else
+	            Push();
+	    }
+
 		/// <summary>
 		/// converts idx to a string, pushes it and returns it.
 		/// calls ToString metamethod, if possible.
