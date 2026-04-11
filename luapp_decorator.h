@@ -2630,6 +2630,9 @@ namespace lua::decorator {
 			    if constexpr (userdata::SerializeCpp<State, T>)
 			        RegisterFunc<&T::Serialize, T>(B::MetaEvent::Serialize, -3);
 
+			    if constexpr (userdata::DeserializeCpp<State, T>)
+			        RegisterFunc<&T::Deserialize, T>(B::MetaEvent::Deserialize, -3);
+
 			    if constexpr (userdata::HasLuaMetaMethods<T>)
 				    RegisterFuncs(T::LuaMetaMethods, -3);
 

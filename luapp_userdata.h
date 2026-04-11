@@ -249,6 +249,11 @@ namespace lua::userdata {
     /// </summary>
     template<class S, class T>
     concept SerializeCpp = UserClassMetaMethods<T> && Registerable<S, &T::Serialize, T>;
+    /// <summary>
+    /// checks if a type has a userdata deserialize defined manually via Deserialize static member.
+    /// </summary>
+    template<class S, class T>
+    concept DeserializeCpp = UserClassMetaMethods<T> && Registerable<S, &T::Deserialize, T>;
 
     /// <summary>
     /// checks if a type has base classes defined for userdata type

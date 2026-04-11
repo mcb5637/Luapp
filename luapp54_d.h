@@ -161,7 +161,11 @@ namespace lua::v54 {
         /// <summary>
         /// userdata serializer (luapp only).
         /// </summary>
-        Serialize,
+	    Serialize,
+        /// <summary>
+        /// userdata deserializer (luapp only).
+        /// </summary>
+        Deserialize,
 	};
 	/// <summary>
 	/// options which fields of DebugInfo to fill.
@@ -1348,6 +1352,8 @@ namespace lua::v54 {
 			    return "__name";
 			case MetaEvent::Serialize:
 			    return "__serialize";
+			case MetaEvent::Deserialize:
+			    return "__deserialize";
 			default:
 				return "";
 			};

@@ -68,5 +68,7 @@ UserClass:
   - `LuaMethods` of parent classes are registered before own, so overriding methods is possible
   - (note that subclasses with no own methods should define an empty `LuaMethods`, otherwise the parents methods will be registered multiple times)
   - all other metatable entries are only generated for the child class (but their underlying operators/functions may be inherited)
+  - (note that `CheckUserClass<ParentA>` and `OptionalUserClass<ParentA>` work without using dynamic_cast, so no virtual functions are required)
+  - (since every UserClass type gets its own metatable, virtual destructors are also not required and if one exists, it forces inclusion of a `__gc` metamethod, even if it would not be necessary without virtual destructor)
   - create with `L.NewUserClass<T>(...)` which calls the constructor with the supplied parameters
   - access with `L.CheckUserClass<T>(index)` (note that `L.ToUserdata(index)` may return a different pointer, to allow for polymorphism)

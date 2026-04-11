@@ -35,11 +35,15 @@ namespace lua::serialization
      * lua serialization and deserialization.
      * generally, serialize writes the type (so it can write a reference instead) and deserialize checks type then
      * dispatches. To serialize Userdata:
-     * - put a serializer function into metatable[UserdataSerializerMetaEvent], func(ud)->typenameString, anything.
-     * - and registry a deserializer for that name in GetUserdataDeserializer(typenameString) ->
-     * lua::CppToCFunction<...>, func(anything)->ud
+     * - put a serializer function into the type metatable[MetaEvent::Serialize], func(ud)->typenameString, anything.
+     * - and register a deserializer function for that name in GetUserdataDeserializer(typenameString) ->
+     * lua::CppToCFunction<...>, func(anything)->ud.
+     * - or put a deserializer function into the type metatable[MetaEvent::Deserialize], same signature as above,
+     * and prepare the type before loading via PrepareUserClassType().
+     * (puts the type metatable at registry[typenameString].)
      * - anything can be any serializable lua value, including a table, but may not reference the to-be-serialized
      * userdata (other serializable userdata is allowed).
+     * - typenameString of UserClass type T is typename_details::type_name<T>().
      * @tparam IO read/write funcs
      * @tparam State lua state
      * @tparam DataOnly if true, throws on serializing/deserializing functions or userdata
@@ -600,10 +604,32 @@ namespace lua::serialization
         if (DeserializeType() != LType::String)
             throw std::format_error{ "deserialize udata name error" };
         auto tn = ReadLenPrefixed();
-        auto f = GetUserdataDeserializer(std::string_view(tn.data(), tn.size()));
-        if (f == nullptr)
-            throw std::format_error{ "deserialize udata name not found" };
-        L.Push(f);
+        bool done = false;
+        L.GetMetaTableFromRegistry(std::string_view(tn.data(), tn.size()));
+        if (L.IsNil(-1))
+        {
+            L.Pop(1);
+        }
+        else
+        {
+            L.GetTableRaw(-1, State::GetMetaEventName(State::MetaEvent::Deserialize));
+            if (L.IsFunction(-1))
+            {
+                L.Remove(-2);
+                done = true;
+            }
+            else
+            {
+                L.Pop(2);
+            }
+        }
+        if (!done)
+        {
+            auto f = GetUserdataDeserializer(std::string_view(tn.data(), tn.size()));
+            if (f == nullptr)
+                throw std::format_error{ "deserialize udata name not found" };
+            L.Push(f);
+        }
         DeserializeAnything();
         L.TCall(1, 1);
 
