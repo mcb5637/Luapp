@@ -1,5 +1,7 @@
 #pragma once
 #include <stdexcept>
+// ReSharper disable once CppUnusedIncludeDirective
+#include <string_view>
 
 // create a lua::State from this to interact with it
 struct lua_State;
@@ -13,17 +15,45 @@ struct lua_Debug;
 #define LUAPP_FUNCNAME __PRETTY_FUNCTION__
 #endif
 
+#ifndef LUAPP_EXCEPT
+#define LUAPP_EXCEPT true
+#endif
+
+#if defined(__has_feature) && !defined(__GXX_RTTI)
+#if __has_feature(cxx_rtti)
+#define __GXX_RTTI
+#endif
+#endif
+
+#if defined(__GXX_RTTI) || defined(_CPPRTTI)
+#define LUAPP_TYPEID true
+#else
+#define LUAPP_TYPEID false
+#endif
+
 namespace lua {
 	/// <summary>
 	/// turn on/off exception handling at compile time
 	/// if active, CppToCFunction catches any c++ exceptions and converts them to lua exceptions
 	/// (this gets used internally as well)
 	/// </summary>
-	constexpr bool CatchExceptions = true;
+	constexpr bool CatchExceptions = LUAPP_EXCEPT;
 	/// <summary>
 	/// enable/disable type checks on API methods, as well as some stack space checks
 	/// </summary>
-	constexpr bool TypeChecks = true;
+    constexpr bool TypeChecks = true;
+    /// <summary>
+    /// has RTTI (typeid) enabled
+    /// </summary>
+    constexpr bool TypeId =
+#if defined(__has_feature)
+    __has_feature(cxx_rtti)
+#elif defined(__GXX_RTTI) || defined(_CPPRTTI)
+    true
+#else
+    false
+#endif
+    ;
 
 	/// <summary>
 	/// all values in lua are of one of these types:

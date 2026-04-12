@@ -54,6 +54,7 @@ namespace lua::decorator {
 		/// <returns>number of return values on the stack</returns>
 		template<CppFunction F>
 		static int CppToCFunction(lua_State* l) {
+		    static_assert(std::is_trivially_destructible_v<State>);
 			if constexpr (CatchExceptions) {
 				bool err = false;
 				State L{ l }; // trivial, no destructor to call, so its save
@@ -63,7 +64,7 @@ namespace lua::decorator {
 						ret = F(L);
 					}
 					catch (const std::exception& e) {
-						L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), LUAPP_FUNCNAME);
+						L.PushFString("%s: %s in %s", func::detail::try_get_dynamic_typename(e), e.what(), LUAPP_FUNCNAME);
 						err = true;
 					}
 					catch (...) {
@@ -290,7 +291,7 @@ namespace lua::decorator {
 						F(L, typename B::ActivationRecord{ ar });
 					}
 					catch (const std::exception& e) {
-						L.PushFString("%s: %s in %s", typeid(e).name(), e.what(), LUAPP_FUNCNAME);
+						L.PushFString("%s: %s in %s", func::detail::try_get_dynamic_typename(e), e.what(), LUAPP_FUNCNAME);
 						err = true;
 					}
 					catch (...) {

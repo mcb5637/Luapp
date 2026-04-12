@@ -117,5 +117,20 @@ namespace lua::func
             f->~F();
             return 0;
         }
+
+        template<typename T>
+        const char* try_get_dynamic_typename([[maybe_unused]] const T& t)
+        {
+            if constexpr (TypeId)
+            {
+                // ReSharper disable once CppDFAUnreachableCode
+                return typeid(t).name();
+            }
+            else
+            {
+                // ReSharper disable once CppDFAUnreachableCode
+                return typename_details::type_name<T>().data();
+            }
+        }
     } // namespace detail
 } // namespace lua::func
