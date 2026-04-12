@@ -19,18 +19,6 @@ struct lua_Debug;
 #define LUAPP_EXCEPT true
 #endif
 
-#if defined(__has_feature) && !defined(__GXX_RTTI)
-#if __has_feature(cxx_rtti)
-#define __GXX_RTTI
-#endif
-#endif
-
-#if defined(__GXX_RTTI) || defined(_CPPRTTI)
-#define LUAPP_TYPEID true
-#else
-#define LUAPP_TYPEID false
-#endif
-
 namespace lua {
 	/// <summary>
 	/// turn on/off exception handling at compile time
