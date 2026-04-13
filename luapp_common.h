@@ -30,18 +30,6 @@ namespace lua {
 	/// enable/disable type checks on API methods, as well as some stack space checks
 	/// </summary>
     constexpr bool TypeChecks = true;
-    /// <summary>
-    /// has RTTI (typeid) enabled
-    /// </summary>
-    constexpr bool TypeId =
-#if defined(__has_feature)
-    __has_feature(cxx_rtti)
-#elif defined(__GXX_RTTI) || defined(_CPPRTTI)
-    true
-#else
-    false
-#endif
-    ;
 
 	/// <summary>
 	/// all values in lua are of one of these types:
