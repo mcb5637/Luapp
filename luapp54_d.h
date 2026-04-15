@@ -149,7 +149,11 @@ namespace lua::v54 {
 		/// <summary>
 		/// weak table modes.
 		/// </summary>
-		WeakTable,
+	    WeakTable,
+        /// <summary>
+        /// to-be-closed handler.
+        /// </summary>
+        Close,
 		/// <summary>
 		/// function to convert to a string.
 		/// </summary>
@@ -1345,7 +1349,9 @@ namespace lua::v54 {
 			case MetaEvent::Finalizer:
 				return "__gc";
 			case MetaEvent::WeakTable:
-				return "__mode";
+			    return "__mode";
+			case MetaEvent::Close:
+			    return "__close";
 			case MetaEvent::ToString:
 				return "__tostring";
 			case MetaEvent::Name:
