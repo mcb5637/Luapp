@@ -10,7 +10,7 @@ namespace lua {
 	using State = decorator::State<v50::State>;
 	using CppFunction = State::CppFunction;
 	using ComparisonOperator = State::ComparisonOperator;
-	using ArihmeticOperator = State::ArihmeticOperator;
+	using ArithmeticOperator = State::ArithmeticOperator;
 	using DebugInfo = State::DebugInfo;
 	using DebugInfoOptions = State::DebugInfoOptions;
 	using MetaEvent = State::MetaEvent;

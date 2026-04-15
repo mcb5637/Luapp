@@ -262,7 +262,7 @@ namespace lua::v51 {
 	/// <summary>
 	/// operators for arithmetic operations.
 	/// </summary>
-	enum class ArihmeticOperator : int {
+	enum class ArithmeticOperator : int {
 		/// <summary>
 		/// + operator
 		/// </summary>
@@ -393,7 +393,7 @@ namespace lua::v51 {
 		};
 		using ErrorCode = ErrorCode;
 		using ComparisonOperator = ComparisonOperator;
-		using ArihmeticOperator = ArihmeticOperator;
+		using ArithmeticOperator = ArithmeticOperator;
 		using DebugInfo = DebugInfo;
 		using DebugInfoOptions = DebugInfoOptions;
 		using MetaEvent = MetaEvent;

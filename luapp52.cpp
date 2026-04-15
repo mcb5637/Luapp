@@ -59,13 +59,13 @@ namespace lua::v52 {
 	static_assert(ComparisonOperator::LessThanOrEquals == static_cast<ComparisonOperator>(LUA_OPLE));
 	static_assert(State::REGISTRY_MAINTHREAD == LUA_RIDX_MAINTHREAD);
 	static_assert(State::REGISTRY_GLOBALS == LUA_RIDX_GLOBALS);
-	static_assert(ArihmeticOperator::Add == static_cast<ArihmeticOperator>(LUA_OPADD));
-	static_assert(ArihmeticOperator::Subtract == static_cast<ArihmeticOperator>(LUA_OPSUB));
-	static_assert(ArihmeticOperator::Multiply == static_cast<ArihmeticOperator>(LUA_OPMUL));
-	static_assert(ArihmeticOperator::Divide == static_cast<ArihmeticOperator>(LUA_OPDIV));
-	static_assert(ArihmeticOperator::Modulo == static_cast<ArihmeticOperator>(LUA_OPMOD));
-	static_assert(ArihmeticOperator::Pow == static_cast<ArihmeticOperator>(LUA_OPPOW));
-	static_assert(ArihmeticOperator::UnaryNegation == static_cast<ArihmeticOperator>(LUA_OPUNM));
+	static_assert(ArithmeticOperator::Add == static_cast<ArithmeticOperator>(LUA_OPADD));
+	static_assert(ArithmeticOperator::Subtract == static_cast<ArithmeticOperator>(LUA_OPSUB));
+	static_assert(ArithmeticOperator::Multiply == static_cast<ArithmeticOperator>(LUA_OPMUL));
+	static_assert(ArithmeticOperator::Divide == static_cast<ArithmeticOperator>(LUA_OPDIV));
+	static_assert(ArithmeticOperator::Modulo == static_cast<ArithmeticOperator>(LUA_OPMOD));
+	static_assert(ArithmeticOperator::Pow == static_cast<ArithmeticOperator>(LUA_OPPOW));
+	static_assert(ArithmeticOperator::UnaryNegation == static_cast<ArithmeticOperator>(LUA_OPUNM));
 
     ExConverterT ExceptionConverter = nullptr;
 

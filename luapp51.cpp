@@ -366,36 +366,36 @@ namespace lua::v51 {
 	}
 	int State::Arithmetic_Unprotected(lua_State* L)
 	{
-		auto op = static_cast<ArihmeticOperator>(static_cast<int>(lua_tonumber(L, -1)));
+		auto op = static_cast<ArithmeticOperator>(static_cast<int>(lua_tonumber(L, -1)));
 		lua_pop(L, 1);
 		switch (op)
 		{
-		case ArihmeticOperator::Add:
+		case ArithmeticOperator::Add:
 			luaL_dostring(L, "return function(a, b) return a + b; end");
 			break;
-		case ArihmeticOperator::Subtract:
+		case ArithmeticOperator::Subtract:
 			luaL_dostring(L, "return function(a, b) return a - b; end");
 			break;
-		case ArihmeticOperator::Multiply:
+		case ArithmeticOperator::Multiply:
 			luaL_dostring(L, "return function(a, b) return a * b; end");
 			break;
-		case ArihmeticOperator::Divide:
+		case ArithmeticOperator::Divide:
 			luaL_dostring(L, "return function(a, b) return a / b; end");
 			break;
-		case ArihmeticOperator::Modulo:
+		case ArithmeticOperator::Modulo:
 			luaL_dostring(L, "return function(a, b) return a % b; end");
 			break;
-		case ArihmeticOperator::Pow:
+		case ArithmeticOperator::Pow:
 			luaL_dostring(L, "return function(a, b) return a ^ b; end");
 			break;
-		case ArihmeticOperator::UnaryNegation:
+		case ArithmeticOperator::UnaryNegation:
 			luaL_dostring(L, "return function(a) return -a; end");
 			break;
 		default:
 			lua_pushnil(L);
 		}
-		lua_insert(L, op == ArihmeticOperator::UnaryNegation ? -2 : -3);
-		lua_call(L, op == ArihmeticOperator::UnaryNegation ? 1 : 2, 1);
+		lua_insert(L, op == ArithmeticOperator::UnaryNegation ? -2 : -3);
+		lua_call(L, op == ArithmeticOperator::UnaryNegation ? 1 : 2, 1);
 		return 1;
 	}
 	bool State::GetMetatable(int index)

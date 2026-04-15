@@ -725,12 +725,12 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="op">operator</param>
 		/// <exception cref="lua::LuaException">on lua error</exception>
-		void Arithmetic(B::ArihmeticOperator op) {
+		void Arithmetic(B::ArithmeticOperator op) {
 			bool hasoneparam;
 			if constexpr (B::Capabilities::NativeIntegers) 
-				hasoneparam = op == B::ArihmeticOperator::UnaryNegation || op == B::ArihmeticOperator::BitwiseNot;
+				hasoneparam = op == B::ArithmeticOperator::UnaryNegation || op == B::ArithmeticOperator::BitwiseNot;
 			else
-				hasoneparam = op == B::ArihmeticOperator::UnaryNegation;
+				hasoneparam = op == B::ArithmeticOperator::UnaryNegation;
 			B::Push(&B::Arithmetic_Unprotected);
 			B::Insert(hasoneparam ? -2 : -3);
 			Push(static_cast<int>(op));
@@ -1103,8 +1103,20 @@ namespace lua::decorator {
 			B::Remove(ehsi); // DefaultErrorDecorator
 			return B::GetTop() - t;
 		}
+	    /// <summary>
+	    /// calls a function. does catch lua exceptions, and throws an LuaException.
+	    /// first push the function, then call.
+	    /// pops the function and its arguments, then pushes its results.
+	    /// automatically translates parameters and return values.
+	    /// <para>[-1,+sizeof...(R)|0,t]</para>
+	    /// </summary>
+	    /// <typeparam name="R...">result types</typeparam>
+	    /// <typeparam name="P...">parameter types</typeparam>
+	    /// <param name="arg">parameters</param>
+	    /// <returns>results (as std::tuple, if more than 1)</returns>
+	    /// <exception cref="lua::LuaException">on lua error</exception>
 	    template<class... R, class... P>
-	    std::tuple<R...> TCall(P... arg)
+	    auto TCall(P... arg)
 		{
 		    int t = B::GetTop();
 		    Push<DefaultErrorDecorator>();
@@ -1120,10 +1132,21 @@ namespace lua::decorator {
 		        throw LuaException{ msg };
 		    }
 		    B::Remove(ehsi); // DefaultErrorDecorator
-		    auto f = [this, t]<int... I>(std::integer_sequence<int, I...>) {
-		        return std::tuple<R...>(this->template Check<R>(t + I)...);
-		    };
-		    return f(std::make_integer_sequence<int, sizeof...(R)>{});
+		    if constexpr (sizeof...(R) == 0)
+		    {
+		        return;
+		    }
+		    else if constexpr (sizeof...(R) == 1)
+		    {
+		        return this->template Check<std::tuple_element_t<0, std::tuple<R...>>>(t);
+		    }
+		    else
+		    {
+		        auto f = [this, t]<int... I>(std::integer_sequence<int, I...>) {
+		            return std::tuple<R...>(this->template Check<R>(t + I)...);
+		        };
+		        return f(std::make_integer_sequence<int, sizeof...(R)>{});
+		    }
 		}
 
 
