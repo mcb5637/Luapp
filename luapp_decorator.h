@@ -2876,6 +2876,16 @@ namespace lua::decorator {
 	        && std::same_as<F, func::ObjectTypeOfMemberFunc<decltype(OL)>>
 	    void PushLambda(F f, int nups = 0)
         {
+            if constexpr (func::detail::IsLambdaFuncPointer<F, decltype(OL)>)
+            {
+                using P = func::detail::LambdaAsFuncPointer<decltype(OL)>::type;
+                if constexpr (std::same_as<P, CppFunction>)
+                    Push<static_cast<P>(f)>(nups);
+                else
+                    Push<AutoTranslateAPI<static_cast<P>(f), 0>>(nups);
+                return;
+            }
+
             new (B::NewUserdata(sizeof(F))) F(std::move(f));
 
             if constexpr (!std::is_trivially_destructible_v<F>)

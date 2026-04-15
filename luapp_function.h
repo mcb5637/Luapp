@@ -30,12 +30,14 @@ namespace lua::func
     template<class C, class R, class... Args>
     struct FunctionTraits<R (C::*)(Args...)> : FunctionTraits<R(C*, Args...)>
     {
+        using ArgumentTypesWithoutThis = std::tuple<Args...>;
     };
 
     // const member function pointer
     template<class C, class R, class... Args>
     struct FunctionTraits<R (C::*)(Args...) const> : FunctionTraits<R(const C*, Args...)>
     {
+        using ArgumentTypesWithoutThis = std::tuple<Args...>;
     };
 
     namespace detail
@@ -117,6 +119,29 @@ namespace lua::func
             f->~F();
             return 0;
         }
+
+        template<class T>
+        struct TypeContainer
+        {
+            using type = T;
+        };
+        template<class Op>
+        struct LambdaAsFuncPointer
+        {
+            using R = FunctionTraits<Op>::ReturnType;
+            using P = FunctionTraits<Op>::ArgumentTypesWithoutThis;
+            static constexpr size_t Arity = std::tuple_size_v<P>;
+
+            using type = decltype([]<size_t... Is>(std::index_sequence<Is...>)
+            {
+                return TypeContainer<R(*)(std::tuple_element_t<Is, P>...)>{};
+            }(std::make_index_sequence<Arity>()))::type;
+        };
+        template<class F, class Op>
+        concept IsLambdaFuncPointer = requires(F f)
+        {
+            static_cast<LambdaAsFuncPointer<Op>::type>(f);
+        };
 
         template<typename T>
         const char* try_get_dynamic_typename([[maybe_unused]] const T& t)
