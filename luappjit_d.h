@@ -79,8 +79,8 @@ namespace lua::jit {
 		/// <summary>
         /// creates a State from a lua_State* (usually from external APIs).
         /// </summary>
-        /// <param name="L">state pointer</param>
-        explicit State(lua_State* L);
+        /// <param name="l">state pointer</param>
+        explicit State(lua_State* l);
 		/// <summary>
         /// opens a new lua state.
         /// </summary>

@@ -7,10 +7,19 @@
 extern "C" {
 #endif
 #include "../lua55/lua.h"
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#endif
 #include "../lua55/lauxlib.h"
+#ifdef __clang__
 #pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 #include "../lua55/lualib.h"
 #ifndef LUA_CPPLINKAGE
 }
@@ -126,11 +135,10 @@ namespace lua::v55 {
 		trg.CallInfo = src.i_ci;
 	}
 
-	State::State(lua_State* L)
+	State::State(lua_State* l) : L(l)
 	{
 		static_assert(REFNILI == LUA_REFNIL);
 		static_assert(NOREFI == LUA_NOREF);
-		this->L = L;
 	}
 
 	State::State(bool io, bool debug)
@@ -590,10 +598,19 @@ namespace lua::v55 {
 	}
 	void* State::GetExtraSpace()
 	{
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#endif
 	    return lua_getextraspace(L);
+#ifdef __clang__
 #pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 	}
 
 	const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
@@ -779,9 +796,8 @@ namespace lua::v55 {
 			return i;
 		return GetTop() + i + 1;
 	}
-	ActivationRecord::ActivationRecord(lua_Debug* ar)
+	ActivationRecord::ActivationRecord(lua_Debug* a) : ar(a)
 	{
-		this->ar = ar;
 	}
 	HookEvent ActivationRecord::Event() const
 	{

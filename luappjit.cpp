@@ -3,10 +3,21 @@
 #ifndef LUA_CPPLINKAGE
 extern "C" {
 #endif
+#ifdef __clang__
+#pragma clang diagnostic push
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wduplicated-branches"
+#endif
 #include "../luajit/lua.h"
 #include "../luajit/lauxlib.h"
 #include "../luajit/lualib.h"
 #include "../luajit/luajit.h"
+#ifdef __clang__
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 #ifndef LUA_CPPLINKAGE
 }
 #endif
@@ -54,7 +65,7 @@ namespace lua::jit {
 	static_assert(JITMode::Flush == static_cast<JITMode>(LUAJIT_MODE_FLUSH));
 
 
-	State::State(lua_State* L) : lua::v51::State(L) {
+	State::State(lua_State* l) : lua::v51::State(l) {
 		static_assert(REFNILI == LUA_REFNIL);
 		static_assert(NOREFI == LUA_NOREF);
 	}

@@ -5,10 +5,19 @@
 extern "C" {
 #endif
 #include "../lua53/lua.h"
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#endif
 #include "../lua53/lauxlib.h"
+#ifdef __clang__
 #pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 #include "../lua53/lualib.h"
 #ifndef LUA_CPPLINKAGE
 }
@@ -121,11 +130,10 @@ namespace lua::v53 {
 		trg.CallInfo = src.i_ci;
 	}
 
-	State::State(lua_State* L)
+    State::State(lua_State* l) : L(l)
 	{
-		static_assert(REFNILI == LUA_REFNIL);
-		static_assert(NOREFI == LUA_NOREF);
-		this->L = L;
+	    static_assert(REFNILI == LUA_REFNIL);
+	    static_assert(NOREFI == LUA_NOREF);
 	}
 
 	State::State(bool io, bool debug)
@@ -312,10 +320,19 @@ namespace lua::v53 {
 	}
 	bool State::NumberToInteger(Number n, Integer& i)
 	{
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
-		return lua_numbertointeger(n, &i);
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#endif
+	    return lua_numbertointeger(n, &i);
+#ifdef __clang__
 #pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 	}
 	size_t State::StringToNumber(const char* s)
 	{
@@ -575,10 +592,19 @@ namespace lua::v53 {
 	}
 	void* State::GetExtraSpace()
 	{
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
-		return lua_getextraspace(L);
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#endif
+	    return lua_getextraspace(L);
+#ifdef __clang__
 #pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 	}
 	const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
 	{
@@ -762,9 +788,8 @@ namespace lua::v53 {
 			return i;
 		return GetTop() + i + 1;
 	}
-	ActivationRecord::ActivationRecord(lua_Debug* ar)
+    ActivationRecord::ActivationRecord(lua_Debug* a) : ar(a)
 	{
-		this->ar = ar;
 	}
 	HookEvent ActivationRecord::Event() const
 	{

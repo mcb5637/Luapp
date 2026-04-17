@@ -669,6 +669,10 @@ namespace lua::serialization
     template<IsIO IO, class State, bool DataOnly, bool TurnGlobalEnvToNormalEnv>
     void LuaSerializer<IO, State, DataOnly, TurnGlobalEnvToNormalEnv>::DeserializeAnything(LType t)
     {
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wswitch"
+#endif
         switch (t) {
         case LType::Nil:
             L.Push();
@@ -703,5 +707,8 @@ namespace lua::serialization
         default:
             throw std::format_error{ "invalid type" };
         }
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
     }
 } // namespace lua::serialization

@@ -480,7 +480,7 @@ namespace lua::userdata {
     public:
         using UserClass = UC;
 
-        explicit UserClassChecked(UC* Data) : Data(Data) {}
+        explicit UserClassChecked(UC* d) : Data(d) {}
 
         UC* Get()
         {

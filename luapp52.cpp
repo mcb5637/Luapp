@@ -110,11 +110,10 @@ namespace lua::v52 {
 		trg.CallInfo = src.i_ci;
 	}
 
-	State::State(lua_State* L)
+    State::State(lua_State* l) : L(l)
 	{
-		static_assert(REFNILI == LUA_REFNIL);
-		static_assert(NOREFI == LUA_NOREF);
-		this->L = L;
+	    static_assert(REFNILI == LUA_REFNIL);
+	    static_assert(NOREFI == LUA_NOREF);
 	}
 
 	State::State(bool io, bool debug)
@@ -727,9 +726,8 @@ namespace lua::v52 {
 	{
 		return static_cast<ErrorCode>(luaL_loadfile(L, filename));
 	}
-	ActivationRecord::ActivationRecord(lua_Debug* ar)
+    ActivationRecord::ActivationRecord(lua_Debug* a) : ar(a)
 	{
-		this->ar = ar;
 	}
 	HookEvent ActivationRecord::Event() const
 	{

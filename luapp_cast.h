@@ -15,6 +15,9 @@ namespace lua::cast_detail
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdouble-promotion"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdouble-promotion"
 #endif
         if constexpr (std::floating_point<From> && !std::floating_point<To>) {
             // from https://stackoverflow.com/questions/25857843/how-do-i-convert-an-arbitrary-double-to-an-integer-while-avoiding-undefined-beha
@@ -55,6 +58,8 @@ namespace lua::cast_detail
         }
 #ifdef __clang__
 #pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
 #endif
         return static_cast<To>(f);
     }

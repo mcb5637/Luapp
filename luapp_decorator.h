@@ -252,9 +252,8 @@ namespace lua::decorator {
 			int r;
 
 		public:
-			constexpr explicit Reference(int r)
+			constexpr explicit Reference(int i) : r(i)
 			{
-				this->r = r;
 			}
 			// initialized with noref
 			constexpr Reference()
@@ -2171,7 +2170,7 @@ namespace lua::decorator {
 			int Index;
 			bool HasNext = false;
 
-			PairsIter(State L, int i) : L(L), Index(i) {}
+			PairsIter(State l, int i) : L(l), Index(i) {}
 		public:
 			friend class State;
 			friend class PairsHolder;
