@@ -31,6 +31,11 @@ namespace lua::serialization
 
     static_assert(IsIO<StreamIO<std::stringstream>>);
 
+#ifdef _MSC_VER
+#pragma warning( push )
+#pragma warning( disable : 4702 )
+#endif
+
     /**
      * lua serialization and deserialization.
      * generally, serialize writes the type (so it can write a reference instead) and deserialize checks type then
@@ -667,6 +672,11 @@ namespace lua::serialization
             throw std::format_error{ "invalid type" };
         }
     }
+
+#ifdef _MSC_VER
+#pragma warning( pop )
+#endif
+
     template<IsIO IO, class State, bool DataOnly, bool TurnGlobalEnvToNormalEnv>
     void LuaSerializer<IO, State, DataOnly, TurnGlobalEnvToNormalEnv>::DeserializeAnything(LType t)
     {
