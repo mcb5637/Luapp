@@ -51,6 +51,12 @@ namespace lua::func
         struct IsFunctionPointer<R (*)(Args...)> : std::true_type
         {
         };
+#ifdef _MSC_VER
+        template<class R, class... Args>
+        struct IsFunctionPointer<R (Args...)> : std::true_type
+        {
+        };
+#endif
     }
 
     template<class T>

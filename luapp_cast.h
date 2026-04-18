@@ -18,6 +18,9 @@ namespace lua::cast_detail
 #elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdouble-promotion"
+#elif defined(_MSC_VER)
+#pragma warning( push )
+#pragma warning( disable : 4018 )
 #endif
         if constexpr (std::floating_point<From> && !std::floating_point<To>) {
             // from https://stackoverflow.com/questions/25857843/how-do-i-convert-an-arbitrary-double-to-an-integer-while-avoiding-undefined-beha
@@ -56,12 +59,14 @@ namespace lua::cast_detail
                 return std::nullopt;
             }
         }
+        return static_cast<To>(f);
 #ifdef __clang__
 #pragma clang diagnostic pop
 #elif defined(__GNUC__)
 #pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning( pop )
 #endif
-        return static_cast<To>(f);
     }
     template<class To, class From>
     requires (std::integral<To> || std::floating_point<To>) && (std::integral<From> || std::floating_point<From>)

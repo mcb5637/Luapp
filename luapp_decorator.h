@@ -2882,24 +2882,25 @@ namespace lua::decorator {
                     Push<static_cast<P>(f)>(nups);
                 else
                     Push<AutoTranslateAPI<static_cast<P>(f), 0>>(nups);
-                return;
             }
-
-            new (B::NewUserdata(sizeof(F))) F(std::move(f));
-
-            if constexpr (!std::is_trivially_destructible_v<F>)
-            {
-                B::NewTable();
-                RegisterFunc<func::detail::LambdaFinalizer<State, F>>(B::MetaEvent::Finalizer, -3);
-                B::SetMetatable(-2);
-            }
-
-            B::Insert(-nups - 1);
-
-            if constexpr (func::IsLuaMemberFunction<State, decltype(OL)>)
-                Push<MemberClosure<F, OL>>(1 + nups);
             else
-                Push<AutoTranslateAPI<OL, 1>>(1 + nups);
+            {
+                new (B::NewUserdata(sizeof(F))) F(std::move(f));
+
+                if constexpr (!std::is_trivially_destructible_v<F>)
+                {
+                    B::NewTable();
+                    RegisterFunc<func::detail::LambdaFinalizer<State, F>>(B::MetaEvent::Finalizer, -3);
+                    B::SetMetatable(-2);
+                }
+
+                B::Insert(-nups - 1);
+
+                if constexpr (func::IsLuaMemberFunction<State, decltype(OL)>)
+                    Push<MemberClosure<F, OL>>(1 + nups);
+                else
+                    Push<AutoTranslateAPI<OL, 1>>(1 + nups);
+            }
         }
 	};
 

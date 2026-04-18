@@ -187,7 +187,8 @@ namespace lua::serialization
         {
             if constexpr (!State::Capabilities::NativeIntegers)
                 throw std::format_error{ "cannot read integer, not supported by state" };
-            L.Push(ReadPrimitive<Integer>());
+            else
+                L.Push(ReadPrimitive<Integer>());
         }
 
         void SerializeString(int idx)
@@ -672,6 +673,9 @@ namespace lua::serialization
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch"
+#elif defined(_MSC_VER)
+#pragma warning( push )
+#pragma warning( disable : 4063 )
 #endif
         switch (t) {
         case LType::Nil:
@@ -709,6 +713,8 @@ namespace lua::serialization
         }
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning( pop )
 #endif
     }
 } // namespace lua::serialization
