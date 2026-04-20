@@ -107,6 +107,52 @@ namespace lua::decorator {
 			return std::invoke(F, o, L);
 		}
 
+	    /// <summary>
+	    /// figures out, how to turn F into a CFunction.
+	    /// options are:
+	    /// - CFunction, 0 bindings
+	    /// - CppFunction, 0 bindings
+	    /// - IsLuaMemberFunction, 1 binding (this)
+	    /// - IsLuaMemberFunction, 0 binding (this as 1st param)
+	    /// - arbitrary translatable function
+	    /// </summary>
+	    /// <typeparam name="F">function to adapt</typeparam>
+	    /// <typeparam name="NumBindings">number of parameters bound to upvalues</typeparam>
+	    /// <typeparam name="UC">type to automatically check as UserClass</typeparam>
+	    /// <returns>adapted function</returns>
+	    template<auto F, size_t NumBindings, class UC = void>
+	    requires func::AdaptableFunc<State, decltype(F), NumBindings, UC>
+	    static consteval CFunction AdaptFunction()
+		{
+		    using FT = decltype(F);
+		    if constexpr (std::same_as<FT, CFunction> && NumBindings == 0)
+		    {
+		        return F;
+		    }
+		    else if constexpr (std::same_as<FT, CppFunction> && NumBindings == 0)
+		    {
+		        return &CppToCFunction<F>;
+		    }
+		    else if constexpr (func::IsLuaMemberFunction<State, FT> && NumBindings == 1)
+		    {
+		        using O = func::ObjectTypeOfMemberFunc<FT>;
+		        return &CppToCFunction<MemberClosure<O, F>>;
+		    }
+		    else if constexpr (func::IsLuaMemberFunction<State, FT> && NumBindings == 0)
+		    {
+		        using O = func::ObjectTypeOfMemberFunc<FT>;
+		        return &CppToCFunction<userdata::MemberFuncAdaptor<State, O, F>>;
+		    }
+		    else if constexpr ((func::IsFunctionPointer<FT> || func::IsMemberFunctionPointer<FT>) && func::detail::AutoTranslateEnabled<State, FT, NumBindings, UC>)
+		    {
+		        return CppToCFunction<AutoTranslateAPI<F, NumBindings, UC>>;
+		    }
+		    else
+		    {
+		        throw std::logic_error("unreachable");
+		    }
+		}
+
 		/// <summary>
 		/// info to register a function to lua.
 		/// </summary>
@@ -121,123 +167,43 @@ namespace lua::decorator {
 			}
 
 			/// <summary>
-			/// A reference to a CppFunction.
+			/// A reference to an adaptable Function with no bindings.
 			/// </summary>
 			/// <typeparam name="F"></typeparam>
 			/// <param name="name"></param>
 			/// <returns></returns>
-			template<CppFunction F, class N>
+			template<auto F, class N>
+		    requires func::AdaptableFunc<State, decltype(F), 0, void>
 			constexpr static FuncReference GetRef(N name) {
-				return { name, &CppToCFunction<F> };
-			}
-			/// <summary>
-			/// A Reference to a CFunction.
-			/// </summary>
-			/// <typeparam name="F"></typeparam>
-			/// <param name="name"></param>
-			/// <returns></returns>
-			template<CFunction F, class N>
-			constexpr static FuncReference GetRef(N name) {
-				return { name, F };
+				return { name, AdaptFunction<F, 0>() };
 			}
 		    /// <summary>
-		    /// A Reference to an arbitrary function.
-		    /// </summary>
-		    /// <typeparam name="F"></typeparam>
-		    /// <param name="name"></param>
-		    /// <returns></returns>
-		    template<auto F, class N>
-	        requires func::IsFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F)>
-            constexpr static FuncReference GetRef(N name) {
-			    return { name, &CppToCFunction<AutoTranslateAPI<F>> };
-			}
-		    /// <summary>
-		    /// A Reference to an arbitrary member function bound as CppFunction.
+		    /// A Reference to an adaptable Function with 1 binding.
 		    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-		    /// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
+		    /// <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
 		    /// </summary>
 		    /// <typeparam name="F"></typeparam>
 			/// <param name="obj"></param>
 		    /// <param name="name"></param>
 		    /// <returns></returns>
 		    template<auto F, class N>
-            requires func::IsMemberFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F), 1>
+		    requires func::IsMemberFunctionPointer<decltype(F)> && func::AdaptableFunc<State, decltype(F), 1, void>
             constexpr static FuncReference GetRef(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, N name) {
-			    return { name, &CppToCFunction<AutoTranslateAPI<F, 1>>, &obj };
-			}
-			/// <summary>
-			/// A reference to a Member function bound as CppFunction.
-			/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-			/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
-			/// </summary>
-			/// <typeparam name="O"></typeparam>
-			/// <typeparam name="F"></typeparam>
-			/// <param name="obj"></param>
-			/// <param name="name"></param>
-			/// <returns></returns>
-			template<class O, int(O::* F)(State L)>
-			[[deprecated]] constexpr static FuncReference GetRef(O& obj, std::string_view name) {
-				return { name, &CppToCFunction<MemberClosure<O, F>>, &obj };
-			}
-			/// <summary>
-			/// A reference to a Member function bound as CppFunction.
-			/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-			/// <para>needs a non const object, because lua does not have const userdata.</para>
-			/// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
-			/// </summary>
-			/// <typeparam name="O"></typeparam>
-			/// <typeparam name="F"></typeparam>
-			/// <param name="obj"></param>
-			/// <param name="name"></param>
-			/// <returns></returns>
-			template<class O, int(O::* F)(State L) const>
-			[[deprecated]] constexpr static FuncReference GetRef(O& obj, std::string_view name) {
-				return { name, &CppToCFunction<MemberClosure<O, F>>, &obj };
-			}
-		    /// <summary>
-		    /// A reference to a Member function bound as CppFunction.
-		    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-		    /// <para>needs a non const object, because lua does not have const userdata.</para>
-		    /// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
-		    /// </summary>
-		    /// <typeparam name="O"></typeparam>
-		    /// <typeparam name="F"></typeparam>
-		    /// <param name="obj"></param>
-		    /// <param name="name"></param>
-		    /// <returns></returns>
-		    template<auto F, class N>
-		    requires func::IsLuaMemberFunction<State, decltype(F)>
-		    constexpr static FuncReference GetRef(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, N name) {
-			    using O = func::ObjectTypeOfMemberFunc<decltype(F)>;
-			    return { name, &CppToCFunction<MemberClosure<O, F>>, &obj };
+			    return { name, AdaptFunction<F, 1>(), &obj };
 			}
 
 		    /// <summary>
-		    /// A reference to a Member function.
-		    /// <para>checks its first parameter with CheckUserClass.</para>
-		    /// </summary>
-		    /// <typeparam name="F"></typeparam>
-		    /// <param name="name"></param>
-		    /// <returns></returns>
-		    template<auto F, class N>
-		    requires func::IsLuaMemberFunction<State, decltype(F)>
-            constexpr static FuncReference GetUCRef(N name) {
-			    using O = func::ObjectTypeOfMemberFunc<decltype(F)>;
-			    return { name, &CppToCFunction<userdata::MemberFuncAdaptor<State, O, F>> };
-			}
-
-		    /// <summary>
-		    /// A Reference to an arbitrary member function bound as CppFunction.
+		    /// A reference to an adaptable Function with no bindings.
 		    /// <para>checks its first parameter (and any other parameters of the same type) with CheckUserClass.</para>
 		    /// </summary>
 		    /// <typeparam name="F"></typeparam>
 		    /// <param name="name"></param>
 		    /// <returns></returns>
 		    template<auto F, class N>
-            requires func::detail::AutoTranslateEnabled<State, decltype(F), 0, func::ObjectTypeOfMemberFunc<decltype(F)>>
+		    requires func::IsMemberFunctionPointer<decltype(F)> && func::AdaptableFunc<State, decltype(F), 0, func::ObjectTypeOfMemberFunc<decltype(F)>>
             constexpr static FuncReference GetUCRef(N name) {
 			    using UC = func::ObjectTypeOfMemberFunc<decltype(F)>;
-			    return { name, &CppToCFunction<AutoTranslateAPI<F, 0, UC>> };
+			    return { name, AdaptFunction<F, 0, UC>() };
 			}
 
 			auto operator<=>(const FuncReference&) const = default;
@@ -344,74 +310,35 @@ namespace lua::decorator {
         explicit State(State<B, D...> s) : B(s.GetState()) {}
 
 		/// <summary>
-		/// pushes a CFunction or CClosure (function with upvalues) onto the stack.
+		/// Pushes an adaptable Function or Closure (function with upvalues) with no bindings onto the stack.
 		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
 		/// <para>[-nups,+1,m]</para>
 		/// </summary>
 		/// <typeparam name="F">function</typeparam>
 		/// <param name="nups">number of upvalues</param>
-		template<CFunction F>
+		template<auto F>
+	    requires func::AdaptableFunc<State, decltype(F), 0, void>
 		void Push(int nups = 0)
 		{
-			B::Push(F, nups);
-		}
-		/// <summary>
-		/// pushes a CppFunction or CppClosure (function with upvalues) onto the stack.
-		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
-		/// <para>[-nups,+1,m]</para>
-		/// </summary>
-		/// <typeparam name="F">function</typeparam>
-		/// <param name="nups">number of upvalues</param>
-		template<CppFunction F>
-		void Push(int nups = 0)
-		{
-			B::Push(&CppToCFunction<F>, nups);
+			B::Push(AdaptFunction<F, 0>(), nups);
 		}
 	    /// <summary>
-	    /// pushes an arbitrary function onto the stack, automatically translating its parameters and return values.
-	    /// <para>[-0,+1,m]</para>
-	    /// </summary>
-	    /// <typeparam name="F">function</typeparam>
-	    template<auto F>
-	    requires func::IsFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F)>
-        void Push()
-		{
-		    B::Push(&CppToCFunction<AutoTranslateAPI<F>>, 0);
-		}
-	    /// <summary>
-	    /// pushes an arbitrary member function pointer bound to an object onto the stack, automatically translating its parameters and return values.
+	    /// Pushes an adaptable Function or Closure (function with upvalues) with 1 binding onto the stack. the bound object takes up upvalue 1.
+	    /// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
 	    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
 	    /// <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
-	    /// <para>[-0,+1,m]</para>
-	    /// </summary>
-	    /// <typeparam name="F">function</typeparam>
-	    template<auto F>
-        requires func::IsMemberFunctionPointer<decltype(F)> && func::detail::AutoTranslateEnabled<State, decltype(F), 1>
-        void Push(std::remove_cvref_t<std::remove_pointer_t<std::tuple_element_t<0, typename func::FunctionTraits<decltype(F)>::ArgumentTypes>>>& obj)
-		{
-			B::PushLightUserdata(&obj);
-		    B::Push(&CppToCFunction<AutoTranslateAPI<F, 1>>, 1);
-		}
-	    /// <summary>
-	    /// pushes a member function pointer bound to a object onto the stack. the bound object takes up upvalue 1.
-	    /// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
-	    /// The object gets inserted as upvalue 1, and all others shifted up by 1.
-	    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-	    /// <para>needs a non const object, because lua does not have const userdata.</para>
-	    /// <para>if you need GC on a object, a userdata type with call operator might be more appropriate.</para>
 	    /// <para>[-nups,+1,m]</para>
 	    /// </summary>
-	    /// <typeparam name="O">object type</typeparam>
 	    /// <typeparam name="F">function</typeparam>
 	    /// <param name="obj">object</param>
-	    /// <param name="nups">number of upvalues</param>
+	    /// <param name="nups">number of upvalues (excluding bindings)</param>
 	    template<auto F>
-	    requires func::IsLuaMemberFunction<State, decltype(F)>
-        void Push(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, int nups = 0) {
-		    using O = func::ObjectTypeOfMemberFunc<decltype(F)>;
-		    B::PushLightUserdata(&obj);
+        requires func::IsMemberFunctionPointer<decltype(F)> && func::AdaptableFunc<State, decltype(F), 1, void>
+        void Push(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, int nups = 0)
+		{
+			B::PushLightUserdata(&obj);
 		    B::Insert(-nups - 1);
-		    Push<MemberClosure<O, F>>(nups + 1);
+		    B::Push(AdaptFunction<F, 1>(), nups + 1);
 		}
 	    /// <summary>
 	    /// pushes an arbitrary UserClass member function onto the stack, automatically translating its parameters and return values.
@@ -419,10 +346,10 @@ namespace lua::decorator {
 	    /// </summary>
 	    /// <typeparam name="F">function</typeparam>
 	    template<auto F, class UC>
-        requires func::detail::AutoTranslateEnabled<State, decltype(F), 0, UC>
-        void Push()
+	    requires func::AdaptableFunc<State, decltype(F), 0, UC>
+        void PushUC()
 		{
-		    B::Push(&CppToCFunction<AutoTranslateAPI<F, 0, UC>>, 0);
+		    B::Push(AdaptFunction<F, 0, UC>(), 0);
 		}
 		/// <summary>
 		/// pushes a std::string_view.
@@ -1158,13 +1085,13 @@ namespace lua::decorator {
 		/// <typeparam name="F">function to register</typeparam>
 		/// <param name="index">valid index where to register</param>
 	    template<auto F, class UC = void, class T>
-        requires lua::func::detail::Pushable<State, T> && (func::detail::FuncPushable<State, F> || func::detail::FuncPushableUC<State, F, UC>)
+        requires lua::func::detail::Pushable<State, T> && func::AdaptableFunc<State, decltype(F), 0, UC>
 		void RegisterFunc(T name, int index) {
 		    Push(name);
 		    if constexpr (func::detail::FuncPushable<State, F>)
 			    Push<F>();
 		    else
-		        Push<F, UC>();
+		        PushUC<F, UC>();
 		    B::SetTableRaw(index);
 		}
 	    /// <summary>
@@ -1174,13 +1101,13 @@ namespace lua::decorator {
 	    /// <param name="name">key to register</param>
 	    /// <typeparam name="F">function to register</typeparam>
 	    template<auto F, class UC = void, class T>
-        requires lua::func::detail::Pushable<State, T> && (func::detail::FuncPushable<State, F> || func::detail::FuncPushableUC<State, F, UC>)
+        requires lua::func::detail::Pushable<State, T> && func::AdaptableFunc<State, decltype(F), 0, UC>
         void RegisterFunc(T name) {
 		    Push(name);
 		    if constexpr (func::detail::FuncPushable<State, F>)
 		        Push<F>();
 		    else
-		        Push<F, UC>();
+		        PushUC<F, UC>();
 		    SetGlobal();
 		}
 	    /// <summary>
@@ -1196,31 +1123,12 @@ namespace lua::decorator {
 	    /// <param name="name">key to register</param>
 	    /// <param name="index"></param>
 	    template<auto F, class T>
-        requires func::detail::Pushable<State, T> && func::IsLuaMemberFunction<State, decltype(F)>
+        requires func::detail::Pushable<State, T> && func::AdaptableFunc<State, decltype(F), 1, void>
         void RegisterFunc(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, T name, int index)
 		{
 		    Push(name);
 		    Push<F>(obj);
 		    B::SetTableRaw(index);
-		}
-	    /// <summary>
-	    /// registers the member function F via the key name in the global environment. The object will take up upvalue 1.
-	    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-	    /// <para>needs a non const object, because lua does not have const userdata.</para>
-	    /// <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
-	    /// <para>[-0,+0,m]</para>
-	    /// </summary>
-	    /// <typeparam name="O">object type</typeparam>
-	    /// <typeparam name="F">member function to register</typeparam>
-	    /// <param name="obj">object</param>
-	    /// <param name="name">key to register</param>
-	    template<auto F, class T>
-        requires func::detail::Pushable<State, T> && func::IsLuaMemberFunction<State, decltype(F)>
-        void RegisterFunc(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, T name)
-		{
-		    Push(name);
-		    Push<F>(obj);
-		    SetGlobal(name);
 		}
 		/// <summary>
 		/// registers all functions in funcs into index.
@@ -2728,12 +2636,17 @@ namespace lua::decorator {
 	    template<class T, size_t NumBindings, class UC>
         T CheckAll()
 	    {
+	        auto off = []<size_t... I>(std::index_sequence<I...>) {
+	            return ((I >= NumBindings && std::same_as<std::tuple_element_t<I, T>, State> ? 1 : 0) + ... + 0);
+	        };
 	        auto s = [&]<size_t I>() -> std::tuple_element_t<I, T>
 	        {
 	            using E = std::tuple_element_t<I, T>;
-	            auto i = static_cast<int>(I - NumBindings) + 1;
+	            constexpr auto i = static_cast<int>(I - NumBindings - off(std::make_index_sequence<I>{})) + 1;
 	            if constexpr (I < NumBindings)
 	                return static_cast<E>(this->ToUserdata(B::Upvalueindex(1)));
+	            else if constexpr (std::same_as<E, State>)
+	                return *this;
 	            else if constexpr (func::detail::IsUserClass<E, UC> && std::is_pointer_v<E>)
 	                return this->CheckUserClass<std::remove_cvref_t<std::remove_pointer_t<E>>>(i);
 	            else if constexpr (func::detail::IsUserClass<E, UC>)
@@ -2870,6 +2783,7 @@ namespace lua::decorator {
 	    /// <typeparam name="OL">member function</typeparam>
 	    /// <typeparam name="F">object type</typeparam>
 	    /// <param name="f">object</param>
+	    /// <param name="nups">number of upvalues (excluding the lambda itself)</param>
 	    template<class F, auto OL = &F::operator()>
 	    requires (func::IsLuaMemberFunction<State, decltype(OL)> || func::detail::AutoTranslateEnabled<State, decltype(OL), 1>)
 	        && std::same_as<F, func::ObjectTypeOfMemberFunc<decltype(OL)>>

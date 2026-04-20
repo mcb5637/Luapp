@@ -99,7 +99,7 @@ namespace lua::func
             (std::same_as<T, UC*> || std::same_as<T, UC&> || std::same_as<T, const UC*> || std::same_as<T, const UC&>);
 
         template<class State, class P, class UC>
-        concept CheckableOrUserClass = Checkable<State, P> || IsUserClass<P, UC>;
+        concept CheckableOrUserClass = Checkable<State, P> || IsUserClass<P, UC> || std::same_as<P, State>;
 
         template<class State, class F, std::size_t NumBindings = 0, class UC = void>
         concept AutoTranslateEnabled =
@@ -116,7 +116,8 @@ namespace lua::func
                          ? std::is_pointer_v<typename FunctionTraits<F>::template ArgumentType<Is>>
                          : CheckableOrUserClass<State, typename FunctionTraits<F>::template ArgumentType<Is>, UC>) &&
                     ...);
-        }(std::make_index_sequence<FunctionTraits<F>::Arity>{});
+        }(std::make_index_sequence<FunctionTraits<F>::Arity>{}) &&
+            !std::same_as<F, typename State::CppFunction> && !std::same_as<F, CFunction>;
 
         template<class State, class F>
         int LambdaFinalizer(State L)
@@ -167,4 +168,11 @@ namespace lua::func
 #undef LUAPP_RTTI
         }
     } // namespace detail
+
+    template<class State, class FT, size_t NumBindings, class UC>
+    concept AdaptableFunc = (std::same_as<FT, CFunction> && NumBindings == 0)
+        || (std::same_as<FT, typename State::CppFunction> && NumBindings == 0)
+        || (func::IsLuaMemberFunction<State, FT> && NumBindings == 1)
+        || (func::IsLuaMemberFunction<State, FT> && NumBindings == 0)
+        || ((func::IsFunctionPointer<FT> || func::IsMemberFunctionPointer<FT>) && func::detail::AutoTranslateEnabled<State, FT, NumBindings, UC>);
 } // namespace lua::func
