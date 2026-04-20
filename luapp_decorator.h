@@ -2636,13 +2636,13 @@ namespace lua::decorator {
 	    template<class T, size_t NumBindings, class UC>
         T CheckAll()
 	    {
-	        auto off = []<size_t... I>(std::index_sequence<I...>) {
+	        static constexpr auto off = []<size_t... I>(std::index_sequence<I...>) {
 	            return ((I >= NumBindings && std::same_as<std::tuple_element_t<I, T>, State> ? 1 : 0) + ... + 0);
 	        };
 	        auto s = [&]<size_t I>() -> std::tuple_element_t<I, T>
 	        {
 	            using E = std::tuple_element_t<I, T>;
-	            constexpr auto i = static_cast<int>(I - NumBindings - off(std::make_index_sequence<I>{})) + 1;
+	            static constexpr auto i = static_cast<int>(I - NumBindings - off(std::make_index_sequence<I>{})) + 1;
 	            if constexpr (I < NumBindings)
 	                return static_cast<E>(this->ToUserdata(B::Upvalueindex(1)));
 	            else if constexpr (std::same_as<E, State>)
