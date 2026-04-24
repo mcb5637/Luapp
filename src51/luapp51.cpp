@@ -4,9 +4,16 @@
 #ifndef LUA_CPPLINKAGE
 extern "C" {
 #endif
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wduplicated-branches"
+#endif
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 #ifndef LUA_CPPLINKAGE
 }
 #endif
