@@ -1,0 +1,6 @@
+/conan_provider.cmake
+/CMakeUserPresets.json
+/.idea
+/lua
+/lua50_builder/lua/
+/lua50_builder/build/

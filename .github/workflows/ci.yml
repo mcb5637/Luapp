@@ -1,0 +1,87 @@
+name: ci
+on:
+  pull_request:
+  push:
+
+jobs:
+  Test:
+    name: ${{matrix.os}} ${{matrix.compiler}}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        include:
+          - os: ubuntu-latest
+            compiler: llvm-21.1.8
+
+          - os: ubuntu-latest
+            compiler: gcc-14
+
+          - os: windows-latest
+            compiler: msvc
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Setup Cpp
+        uses: aminya/setup-cpp@v1
+        with:
+          compiler: ${{ matrix.compiler }}
+          vcvarsall: ${{ contains(matrix.os, 'windows' )}}
+
+          cmake: 4.2.2
+          ninja: true
+          vcpkg: false
+          ccache: false
+          clangtidy: false
+          conan: true
+
+
+          cppcheck: false
+
+          gcovr: false
+          opencppcoverage: false
+
+      - uses: actions/cache@v5
+        with:
+          key: ${{ matrix.os }}-${{matrix.compiler}}-lua
+          path: |
+            lua
+            ~/.conan2/p
+
+      - name: setup lua
+        if: runner.os != 'Windows'
+        run:
+          ./setup_lua.sh
+
+      - name: setup lua win
+        if: runner.os == 'Windows'
+        run:
+          ./setup_lua.bat
+
+      - name: Get dependency provider
+        uses: dice-group/cpp-conan-release-reusable-workflow/.github/actions/add_conan_provider@main
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B ./build "-DCMAKE_BUILD_TYPE=Debug" "-DBUILD_TESTING=ON" "-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=conan_provider.cmake"
+
+      - name: Build
+        run: |
+          cmake --build ./build --parallel 4
+
+      - name: Test Linux
+        if: runner.os != 'Windows'
+        working-directory: ./build
+        run: |
+          ctest --verbose
+
+      - name: Test Windows
+        if: runner.os == 'Windows'
+        working-directory: ./build
+        run: |
+          ctest --verbose -C Debug
