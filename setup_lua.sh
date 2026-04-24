@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ ! -d "./lua" ]; then
+  mkdir "./lua"
+fi
+
 download_lua() {
   local link="$1"
   local out="./lua/$2"
@@ -25,16 +29,16 @@ download_lua "https://sourceforge.net/projects/luabinaries/files/5.1.5/Linux%20L
 download_lua "https://sourceforge.net/projects/luabinaries/files/5.0.3/Linux%20Libraries/lua5_0_3_Linux26g4_64_lib.tar.gz/download" "lua50"
 
 if [ ! -d "./LuappDev/luajit" ]; then
-  cd "./luajit_src/src" || exit 1
+  cd "./luajit_builder/src" || exit 1
   make all
   cd "../.." || exit 1
   mkdir "./lua/luajit"
-  cp "./luajit_src/src/libluajit.a" "./LuappDev/luajit"
-  cp "./luajit_src/src/lua.h" "./LuappDev/luajit"
-  cp "./luajit_src/src/lauxlib.h" "./LuappDev/luajit"
-  cp "./luajit_src/src/lualib.h" "./LuappDev/luajit"
-  cp "./luajit_src/src/luajit.h" "./LuappDev/luajit"
-  cp "./luajit_src/src/luaconf.h" "./LuappDev/luajit"
+  cp "./luajit_builder/src/libluajit.a" "./LuappDev/luajit"
+  cp "./luajit_builder/src/lua.h" "./LuappDev/luajit"
+  cp "./luajit_builder/src/lauxlib.h" "./LuappDev/luajit"
+  cp "./luajit_builder/src/lualib.h" "./LuappDev/luajit"
+  cp "./luajit_builder/src/luajit.h" "./LuappDev/luajit"
+  cp "./luajit_builder/src/luaconf.h" "./LuappDev/luajit"
 else
   echo "luajit already exists"
 fi

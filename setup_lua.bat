@@ -31,16 +31,16 @@ if exist lua\lua50 (
 if exist lua\luajit (
     echo "luajit already exists"
 ) else (
-    cd .\luajit_src\src
+    cd .\luajit_builder\src
     msvcbuild mixed
     cd ..\..
     mkdir lua\luajit
-    copy luajit_src\src\lua51.lib lua\luajit\luajit.lib
-    copy luajit_src\src\lua.h lua\luajit
-    copy luajit_src\src\lauxlib.h lua\luajit
-    copy luajit_src\src\lualib.h lua\luajit
-    copy luajit_src\src\luajit.h lua\luajit
-    copy luajit_src\src\luaconf.h lua\luajit
+    copy luajit_builder\src\lua51.lib lua\luajit\luajit.lib
+    copy luajit_builder\src\lua.h lua\luajit
+    copy luajit_builder\src\lauxlib.h lua\luajit
+    copy luajit_builder\src\lualib.h lua\luajit
+    copy luajit_builder\src\luajit.h lua\luajit
+    copy luajit_builder\src\luaconf.h lua\luajit
 )
 
 EXIT /B %ERRORLEVEL%
