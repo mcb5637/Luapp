@@ -1,11 +1,13 @@
 #pragma once
+#include <optional>
 
-#include "luappjit_d.h"
-#include "luapp_decorator.h"
+#include <luapp/luapp52_d.h>
+#include <luapp/luapp_decorator.h>
 
-#ifdef LuaIsJIT
+#ifndef LuaVersion
+#define LuaVersion 5.2
 namespace lua {
-	using State = decorator::State<jit::State>;
+	using State = decorator::State<v52::State>;
 	using CppFunction = State::CppFunction;
 	using ComparisonOperator = State::ComparisonOperator;
 	using ArithmeticOperator = State::ArithmeticOperator;
@@ -16,7 +18,7 @@ namespace lua {
 	using ErrorCode = State::ErrorCode;
 	using ActivationRecord = State::ActivationRecord;
 	using HookEvent = State::HookEvent;
-	using UniqueState = decorator::UniqueState<jit::State>;
+	using UniqueState = decorator::UniqueState<v52::State>;
 	using Reference = State::Reference;
 }
 #endif

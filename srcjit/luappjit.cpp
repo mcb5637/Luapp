@@ -1,4 +1,4 @@
-#include "luappjit_d.h"
+#include <luapp/luappjit_d.h>
 
 #ifndef LUA_CPPLINKAGE
 extern "C" {
@@ -9,10 +9,10 @@ extern "C" {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wduplicated-branches"
 #endif
-#include "../luajit/lua.h"
-#include "../luajit/lauxlib.h"
-#include "../luajit/lualib.h"
-#include "../luajit/luajit.h"
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+#include <luajit.h>
 #ifdef __clang__
 #pragma clang diagnostic pop
 #elif defined(__GNUC__)

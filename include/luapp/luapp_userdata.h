@@ -1,5 +1,5 @@
 #pragma once
-#include "luapp_common.h"
+#include <luapp/luapp_common.h>
 
 namespace lua::userdata {
 	template<class S>

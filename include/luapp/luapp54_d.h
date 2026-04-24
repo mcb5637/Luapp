@@ -1,14 +1,13 @@
 #pragma once
-#include <limits>
 #include <optional>
 
-#include "luapp_common.h"
+#include <luapp/luapp_common.h>
 
 namespace lua::decorator {
 	template<class B, template<class> class... C>
 	class State;
 }
-namespace lua::v55 {
+namespace lua::v54 {
 	using ExConverterT = std::string(*)(std::string_view funcsig);
 	/// <summary>
 	/// called in exception conversion from c++ to lua (that do not inherit from std::exception).
@@ -256,8 +255,8 @@ namespace lua::v55 {
 		int LastLineDefined = 0;
 		bool IsVarArg = false;
 		bool IsTailCall = false;
-		int FirstValueTransferred = 0;
-		int NumberTransferred = 0;
+		unsigned short FirstValueTransferred = 0;
+		unsigned short NumberTransferred = 0;
 		char ShortSrc[SHORTSRC_SIZE] = {};
 	private:
 		void* CallInfo = nullptr;
@@ -377,7 +376,7 @@ namespace lua::v55 {
 		friend class decorator::State;
 		friend class State;
 		lua_Debug* ar;
-        explicit ActivationRecord(lua_Debug* a);
+        explicit ActivationRecord(lua_Debug* ar);
 
 	public:
 		/// <summary>
@@ -460,11 +459,11 @@ namespace lua::v55 {
 			/// <summary>
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for c functions, threads and userdata.
 			/// </summary>
-			static constexpr bool NonFunctionEnvironments = false;
+		    static constexpr bool NonFunctionEnvironments = false;
 		    /// <summary>
 		    /// if true, supports State::PushExternalString.
 		    /// </summary>
-		    static constexpr bool ExternalString = true;
+		    static constexpr bool ExternalString = false;
 		};
 		using ErrorCode = ErrorCode;
 		using ComparisonOperator = ComparisonOperator;
@@ -478,8 +477,8 @@ namespace lua::v55 {
 		/// <summary>
         /// creates a State from a lua_State* (usually from external APIs).
         /// </summary>
-        /// <param name="l">state pointer</param>
-        explicit State(lua_State* l);
+        /// <param name="L">state pointer</param>
+        explicit State(lua_State* L);
 		/// <summary>
         /// opens a new lua state.
         /// </summary>
@@ -509,7 +508,7 @@ namespace lua::v55 {
 		/// use light userdata with adresses of something in your code, or strings prefixed with your library name as keys.
 		/// integer keys are reserved for the Reference mechanism.
 		/// </summary>
-		constexpr static int REGISTRYINDEX = -(std::numeric_limits<int>::max() / 2 + 1000);
+		constexpr static int REGISTRYINDEX = -1000000-1000;
 		/// <summary>
 		/// passing this to call signals to return all values.
 		/// </summary>
@@ -517,7 +516,7 @@ namespace lua::v55 {
 		/// <summary>
 		/// index in the registry, where the main thread of a state is stored (the thread created with the state).
 		/// </summary>
-		constexpr static int REGISTRY_MAINTHREAD = 3;
+		constexpr static int REGISTRY_MAINTHREAD = 1;
 		/// <summary>
 		/// index in the registry, where the global environment(table) is stored.
 		/// </summary>
@@ -863,15 +862,7 @@ namespace lua::v55 {
 		/// </summary>
 		/// <param name="s">string</param>
 		/// <param name="l">string length</param>
-	    void Push(const char* s, size_t l);
-	    /// <summary>
-	    /// pushes a string onto the stack. the string can contain embedded 0s.
-	    /// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
-	    /// <para>[-0,+1,m]</para>
-	    /// </summary>
-	    /// <param name="s">string</param>
-	    /// <param name="l">string length</param>
-	    void PushExternalString(const char* s, size_t l);
+		void Push(const char* s, size_t l);
 		/// <summary>
 		/// pushes nil onto the stack.
 		/// <para>[-0,+1,-]</para>

@@ -1,4 +1,4 @@
-#include "luapp50_d.h"
+#include "luapp/luapp50_d.h"
 #include <cstring>
 
 #ifdef LUA_BUILD_AS_DLL
@@ -7,9 +7,9 @@
 #ifndef LUA_CPPLINKAGE
 extern "C" {
 #endif
-#include "../lua50/lua.h"
-#include "../lua50/lauxlib.h"
-#include "../lua50/lualib.h"
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 #ifndef LUA_CPPLINKAGE
 }
 #endif
@@ -18,7 +18,7 @@ extern "C" {
 #include <sstream>
 #include <format>
 
-#include "lookup_table.h"
+#include <luapp/lookup_table.h>
 
 namespace lua::v50 {
 	// make sure all the constants match

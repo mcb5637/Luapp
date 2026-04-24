@@ -1,8 +1,8 @@
 #pragma once
 #include <optional>
 
-#include "luapp51_d.h"
-#include "luapp_decorator.h"
+#include <luapp/luapp51_d.h>
+#include <luapp/luapp_decorator.h>
 
 #ifndef LuaVersion
 #define LuaVersion 5.1

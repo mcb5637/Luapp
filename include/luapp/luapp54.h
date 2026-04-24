@@ -1,13 +1,12 @@
 #pragma once
-#include <optional>
 
-#include "luapp50_d.h"
-#include "luapp_decorator.h"
+#include <luapp/luapp54_d.h>
+#include <luapp/luapp_decorator.h>
 
 #ifndef LuaVersion
-#define LuaVersion 5.0
+#define LuaVersion 5.4
 namespace lua {
-	using State = decorator::State<v50::State>;
+	using State = decorator::State<v54::State>;
 	using CppFunction = State::CppFunction;
 	using ComparisonOperator = State::ComparisonOperator;
 	using ArithmeticOperator = State::ArithmeticOperator;
@@ -18,7 +17,7 @@ namespace lua {
 	using ErrorCode = State::ErrorCode;
 	using ActivationRecord = State::ActivationRecord;
 	using HookEvent = State::HookEvent;
-	using UniqueState = decorator::UniqueState<v50::State>;
+	using UniqueState = decorator::UniqueState<v54::State>;
 	using Reference = State::Reference;
 }
 #endif

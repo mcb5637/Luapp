@@ -4,7 +4,7 @@
 #include <limits>
 #include <cmath>
 
-#include "luapp_common.h"
+#include <luapp/luapp_common.h>
 
 namespace lua::cast_detail
 {

@@ -5,7 +5,7 @@
 #define LuaVersion 5.1
 #endif
 
-#include "luapp51_d.h"
+#include <luapp/luapp51_d.h>
 
 namespace lua::jit {
 	enum class JITMode : int {

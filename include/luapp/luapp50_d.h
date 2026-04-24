@@ -1,13 +1,13 @@
 #pragma once
 #include <optional>
 
-#include "luapp_common.h"
+#include <luapp/luapp_common.h>
 
 namespace lua::decorator {
 	template<class B, template<class> class... C>
 	class State;
 }
-namespace lua::v52 {
+namespace lua::v50 {
 	using ExConverterT = std::string(*)(std::string_view funcsig);
 	/// <summary>
 	/// called in exception conversion from c++ to lua (that do not inherit from std::exception).
@@ -23,35 +23,27 @@ namespace lua::v52 {
 		/// <summary>
 		/// no error.
 		/// </summary>
-		Success = 0,
-		/// <summary>
-		/// thread yielded (paused).
-		/// </summary>
-		Yield = 1,
+		Success,
 		/// <summary>
 		/// lua error at runtime.
 		/// </summary>
-		Runtime = 2,
-		/// <summary>
-		/// syntax error parsing lua code.
-		/// </summary>
-		Syntax = 3,
-		/// <summary>
-		/// out of memory.
-		/// </summary>
-		Memory = 4,
-		/// <summary>
-		/// error in a finalizer metamethod. (has no relation to the current chunk)
-		/// </summary>
-		GarbageCollection = 5,
-		/// <summary>
-		/// error processing an error handler.
-		/// </summary>
-		ErrorHandler = 6,
+		Runtime,
 		/// <summary>
 		/// IO error reading or writing files.
 		/// </summary>
 		File,
+		/// <summary>
+		/// syntax error parsing lua code.
+		/// </summary>
+		Syntax,
+		/// <summary>
+		/// out of memory.
+		/// </summary>
+		Memory,
+		/// <summary>
+		/// error processing an error handler.
+		/// </summary>
+		ErrorHandler,
 	};
 	/// <summary>
 	/// metaevents used in metatables.
@@ -78,10 +70,6 @@ namespace lua::v52 {
 		/// </summary>
 		Pow,
 		/// <summary>
-		/// % operator.
-		/// </summary>
-		Modulo,
-		/// <summary>
 		/// unary - operator.
 		/// </summary>
 		UnaryMinus,
@@ -89,10 +77,6 @@ namespace lua::v52 {
 		/// .. operator.
 		/// </summary>
 		Concat,
-		/// <summary>
-		/// # operator.
-		/// </summary>
-		Length,
 		/// <summary>
 		/// == operator
 		/// </summary>
@@ -127,7 +111,7 @@ namespace lua::v52 {
 		/// </summary>
 		WeakTable,
 		/// <summary>
-		/// function to convert to a string.
+		/// function to convert to a string. only used in ConvertToString Luapp methods.
 		/// </summary>
 		ToString,
 		/// <summary>
@@ -157,7 +141,7 @@ namespace lua::v52 {
 		/// </summary>
 		Name = 1,
 		/// <summary>
-		/// What, Source, LineDefined, LastLineDefined, ShortSrc fields.
+		/// What, Source, LineDefined, ShortSrc fields.
 		/// </summary>
 		Source = 2,
 		/// <summary>
@@ -165,13 +149,9 @@ namespace lua::v52 {
 		/// </summary>
 		Line = 4,
 		/// <summary>
-		/// NumUpvalues, NumParameters, IsVarArg fields.
+		/// NumUpvalues field.
 		/// </summary>
 		Upvalues = 8,
-		/// <summary>
-		/// IsTailCall field.
-		/// </summary>
-		TailCall = 16,
 	};
 	/// <summary>
 	/// events in DebugInfo::Event and as condition specifier for Debug_SetHook.
@@ -198,11 +178,11 @@ namespace lua::v52 {
 		/// </summary>
 		Count = 8,
 		/// <summary>
-		/// calling a function via a tail return
-		/// (meaning lua will skipp the return of this function)
-		/// (requested via Call)
+		/// leaving a function via a tail return
+		/// (meaning lua skipped the stack frame of that function, which makes any calls to Debug_GetInfoFromAR useless)
+		/// (requested via Return)
 		/// </summary>
-		TailCall = 16,
+		TailReturn = 16,
 	};
 	/// <summary>
 	/// debug info for a function/stack level. see DebugInfoOptions for what to fill.
@@ -217,14 +197,10 @@ namespace lua::v52 {
 		const char* Source = nullptr;
 		int CurrentLine = 0;
 		int NumUpvalues = 0;
-		int NumParameters = 0;
 		int LineDefined = 0;
-		int LastLineDefined = 0;
-		bool IsVarArg = false;
-		bool IsTailCall = false;
 		char ShortSrc[SHORTSRC_SIZE] = {};
 	private:
-		void* CallInfo = nullptr;
+		int CallInfo = 0;
 
 		friend class State;
 		friend void CopyDebugInfo(const lua_Debug& src, DebugInfo& trg);
@@ -354,24 +330,24 @@ namespace lua::v52 {
 			/// <summary>
 			/// if true, supports Debug_UpvalueID and Debug_UpvalueJoin.
 			/// </summary>
-			static constexpr bool UpvalueId = true;
+			static constexpr bool UpvalueId = false;
 			/// <summary>
 			/// if true, has State::GLOBALSINDEX to directly access globals. if false, it needs to be queried via State::REGISTRY_GLOBALS from the registry.
 			/// <para>note that in both cases, functions like State::SetGlobal are provided.</para>
 			/// </summary>
-			static constexpr bool GlobalsIndex = false;
+			static constexpr bool GlobalsIndex = true;
 			/// <summary>
 			/// if true, lua::MetaEvent::Length and lua::MetaEvent::Modulo are available, as well as the % operator (instead of math.mod).
 			/// </summary>
-			static constexpr bool MetatableLengthModulo = true;
+			static constexpr bool MetatableLengthModulo = false;
 			/// <summary>
 			/// if true, State::ObjLength calls lua::MetaEvent::Length for tables.
 			/// </summary>
-			static constexpr bool MetatableLengthOnTables = true;
+			static constexpr bool MetatableLengthOnTables = false;
 			/// <summary>
 			/// if true, supports at least one uservalue per userdata (might technically be a environment).
 			/// </summary>
-			static constexpr bool Uservalues = true;
+			static constexpr bool Uservalues = false;
 			/// <summary>
 			/// if true, supports a fixed number of uservalues per userdata, specified at userdata creation.
 			/// </summary>
@@ -383,7 +359,7 @@ namespace lua::v52 {
 			/// <summary>
 			/// if true, supports State::REGISTRY_LOADED_TABLE.
 			/// </summary>
-			static constexpr bool LoadedTable = true;
+			static constexpr bool LoadedTable = false;
 			/// <summary>
 			/// if true, supports State::SetJITMode functions.
 			/// </summary>
@@ -392,7 +368,7 @@ namespace lua::v52 {
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for lua functions.
 			/// if false, these functions get emulated and access the upvalue `_ENV` (which might not exist).
 			/// </summary>
-			static constexpr bool Environments = false;
+			static constexpr bool Environments = true;
 			/// <summary>
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for c functions, threads and userdata.
 			/// </summary>
@@ -439,25 +415,21 @@ namespace lua::v52 {
 		/// </summary>
 		constexpr static int MINSTACK = 20;
 		/// <summary>
+		/// pseudoindex to access the global environment.
+		/// </summary>
+		constexpr static int GLOBALSINDEX = -10001;
+		/// <summary>
 		/// pseudoindex to access the registry.
 		/// you can store lua values here that you want to access from C++ code, but should not be available to lua.
 		/// use light userdata with adresses of something in your code, or strings prefixed with your library name as keys.
 		/// integer keys are reserved for the Reference mechanism.
 		/// </summary>
 		/// <see cref="lua::State::Ref"/>
-		constexpr static int REGISTRYINDEX = -1000000-1000;
+		constexpr static int REGISTRYINDEX = -10000;
 		/// <summary>
 		/// passing this to call signals to return all values.
 		/// </summary>
 		constexpr static int MULTIRET = -1;
-		/// <summary>
-		/// index in the registry, where the main thread of a state is stored (the threac created with the state).
-		/// </summary>
-		constexpr static int REGISTRY_MAINTHREAD = 1;
-		/// <summary>
-		/// index in the registry, where the global environment(table) is stored.
-		/// </summary>
-		constexpr static int REGISTRY_GLOBALS = 2;
 		/// <summary>
 		/// returns the pseudoindex to access upvalue i.
 		/// </summary>
@@ -465,16 +437,8 @@ namespace lua::v52 {
 		/// <returns>pseudoindex</returns>
 		constexpr static int Upvalueindex(int i)
 		{
-			return REGISTRYINDEX - i;
+			return GLOBALSINDEX - i;
 		}
-		/// <summary>
-		/// key in the registry, where the loaded table is stored (used by require)
-		/// </summary>
-		constexpr static std::string_view REGISTRY_LOADED_TABLE = "_LOADED";
-		/// <summary>
-		/// key in the registry, where the preloaded table is stored (used by require)
-		/// </summary>
-		constexpr static std::string_view REGISTRY_PRELOADED_TABLE = "_PRELOAD";
 
 		/// <summary>
 		/// gets the top of the stack (the highest valid stack position).
@@ -731,18 +695,12 @@ namespace lua::v52 {
 		/// <summary>
 		/// returns the length of an object. for strings this is the number of bytes (==chars if each char is one byte).
 		/// for tables this is one less than the first integer key with a nil value (except if manualy set to something else).
-		/// for full userdata, it is the size of the allocated block of memory.
-		/// pushes the result onto the stack.
-		/// <para>[-0,+1,-]</para>
+		/// <para>[-0,+0,-]</para>
 		/// </summary>
-		/// <param name="index">index to query</param>
+		/// <param name="index">valid index to query</param>
 		/// <returns>size</returns>
 		size_t RawLength(int index);
 
-	protected:
-		static int ObjLen_Unprotected(lua_State* L);
-
-	public:
 		/// <summary>
 		/// pushes a boolean onto the stack.
 		/// <para>[-0,+1,-]</para>
@@ -756,7 +714,7 @@ namespace lua::v52 {
 		/// <param name="n">number</param>
 		void Push(Number n);
 		/// <summary>
-		/// pushes an integer onto the stack.
+		/// pushes an number onto the stack. (integer gets converted to number).
 		/// <para>[-0,+1,-]</para>
 		/// </summary>
 		/// <param name="i">int</param>
@@ -797,7 +755,7 @@ namespace lua::v52 {
 		void PushLightUserdata(void* ud);
 		/// <summary>
 		/// pushes a formatted string onto the stack. similar to snprintf, but with no extra buffer.
-		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char, %p pointer as hex number</para>
+		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char.</para>
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">format string</param>
@@ -806,7 +764,7 @@ namespace lua::v52 {
 		const char* PushVFString(const char* s, va_list argp);
 		/// <summary>
 		/// pushes a formatted string onto the stack. similar to snprintf, but with no extra buffer.
-		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char, %p pointer as hex number</para>
+		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %d int, %c int as single char.</para>
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">format string</param>
@@ -842,20 +800,6 @@ namespace lua::v52 {
 		/// <see cref="lua::State:NewUserData"/>
 		/// <returns>userdata pointer</returns>
 		void* NewUserdata(size_t s);
-		/// <summary>
-		/// pushes the uservalue of an userdata and returns its type.
-		/// if the uservalue does not exist, pushes nil and returns None.
-		/// <para>[-0,+1,-]</para>
-		/// </summary>
-		/// <param name="index">valid index of the userdata</param>
-		/// <returns>type</returns>
-		LType GetUserValue(int index);
-		/// <summary>
-		/// pops a value from the stack and sets it as the uservalue of an userdata.
-		/// <para>[-1,+0,-]</para>
-		/// </summary>
-		/// <param name="index">valid index of the userdata</param>
-		void SetUserValue(int index);
 
 		/// <summary>
 		/// loads a lua chunk via a reader function.
@@ -926,14 +870,14 @@ namespace lua::v52 {
 
 	public:
 		/// <summary>
-		/// pushes the upvalue _ENV of the function at idx (the global if it is a C function).
+		/// pushes the environment of the function at idx (the global if it is a C function).
 		/// <para>[-0,+1,-]</para>
 		/// </summary>
 		/// <param name="idx"></param>
 		void GetEnvironment(int idx);
 		/// <summary>
-		/// sets the table at the top of the stack as the upvalue _ENV of the function at idx and pops it.
-		/// if idx is not a lua func with an _ENV upvalue, returns false.
+		/// sets the table at the top of the stack as the environment of the function at idx and pops it.
+		/// if idx is not a lua func, returns false.
 		/// <para>[-1,+0,-]</para>
 		/// </summary>
 		/// <param name="idx"></param>
@@ -1112,24 +1056,6 @@ namespace lua::v52 {
 		/// <param name="upnum">number of upvalue</param>
 		/// <returns>upvalue name</returns>
 		const char* Debug_SetUpvalue(int index, int upnum);
-		/// <summary>
-		/// allows to check if upvalues of (possibly different) functions share the same upvalue.
-		/// shared upvalues return the same identifier.
-		/// <para>[-0,+0,-]</para>
-		/// </summary>
-		/// <param name="index">valid index to set the upvalue of</param>
-		/// <param name="upnum">number of upvalue, needs to be valid</param>
-		/// <returns>upvalue identifier</returns>
-		const void* Debug_UpvalueID(int index, int upnum);
-		/// <summary>
-		/// makes the upMod upvalue of funcMod refer to the upTar upvalue of funcTar.
-		/// <para>[-0,+0,-]</para>
-		/// </summary>
-		/// <param name="funcMod">valid index to modify the upvalue of</param>
-		/// <param name="upMod">number of upvalue to modify, needs to be valid</param>
-		/// <param name="funcTar">valid index to target the upvalue of</param>
-		/// <param name="upTar">number of upvalue to target, needs to be valid</param>
-		void Debug_UpvalueJoin(int funcMod, int upMod, int funcTar, int upTar);
 	protected:
 		void Debug_SetHook(CHook hook, HookEvent mask, int count);
 	public:
@@ -1186,16 +1112,12 @@ namespace lua::v52 {
 				return "__mul";
 			case MetaEvent::Divide:
 				return "__div";
-			case MetaEvent::Modulo:
-				return "__mod";
 			case MetaEvent::Pow:
 				return "__pow";
 			case MetaEvent::UnaryMinus:
 				return "__unm";
 			case MetaEvent::Concat:
 				return "__concat";
-			case MetaEvent::Length:
-				return "__len";
 			case MetaEvent::Equals:
 				return "__eq";
 			case MetaEvent::LessThan:

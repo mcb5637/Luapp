@@ -1,24 +1,12 @@
-#include "luapp53_d.h"
+#include <luapp/luapp51_d.h>
 #include <cstring>
 
 #ifndef LUA_CPPLINKAGE
 extern "C" {
 #endif
-#include "../lua53/lua.h"
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-#endif
-#include "../lua53/lauxlib.h"
-#ifdef __clang__
-#pragma clang diagnostic pop
-#elif defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-#include "../lua53/lualib.h"
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 #ifndef LUA_CPPLINKAGE
 }
 #endif
@@ -26,9 +14,9 @@ extern "C" {
 #include <cstdlib>
 #include <sstream>
 
-#include "lookup_table.h"
+#include <luapp/lookup_table.h>
 
-namespace lua::v53 {
+namespace lua::v51 {
 	// make sure all the constants match
 	// i do define them new to avoid having to include the c lua files and having all their funcs/defines in global namespace
 	static_assert(State::MINSTACK == LUA_MINSTACK);
@@ -43,9 +31,10 @@ namespace lua::v53 {
 	static_assert(LType::Thread == static_cast<LType>(LUA_TTHREAD));
 	static_assert(LType::LightUserdata == static_cast<LType>(LUA_TLIGHTUSERDATA));
 	static_assert(std::same_as<Number, lua_Number>);
-	static_assert(std::same_as<Integer, lua_Integer>);
 	static_assert(std::same_as<CFunction, lua_CFunction>);
 	static_assert(std::same_as<CHook, lua_Hook>);
+	static_assert(State::GLOBALSINDEX == LUA_GLOBALSINDEX);
+	static_assert(State::ENVIRONINDEX == LUA_ENVIRONINDEX);
 	static_assert(State::MULTIRET == LUA_MULTRET);
 	static_assert(ErrorCode::Success == static_cast<ErrorCode>(0));
 	static_assert(ErrorCode::Runtime == static_cast<ErrorCode>(LUA_ERRRUN));
@@ -54,7 +43,6 @@ namespace lua::v53 {
 	static_assert(ErrorCode::Syntax == static_cast<ErrorCode>(LUA_ERRSYNTAX));
 	static_assert(ErrorCode::File == static_cast<ErrorCode>(LUA_ERRFILE));
 	static_assert(ErrorCode::Yield == static_cast<ErrorCode>(LUA_YIELD));
-	static_assert(ErrorCode::GarbageCollection == static_cast<ErrorCode>(LUA_ERRGCMM));
 	static_assert(State::Upvalueindex(1) == lua_upvalueindex(1));
 	static_assert(State::Upvalueindex(500) == lua_upvalueindex(500));
 	static_assert(State::REGISTRYINDEX == LUA_REGISTRYINDEX);
@@ -64,35 +52,13 @@ namespace lua::v53 {
 	static_assert(HookEvent::Return == static_cast<HookEvent>(LUA_MASKRET));
 	static_assert(HookEvent::Line == static_cast<HookEvent>(LUA_MASKLINE));
 	static_assert(HookEvent::Count == static_cast<HookEvent>(LUA_MASKCOUNT));
-	static_assert(ComparisonOperator::Equals == static_cast<ComparisonOperator>(LUA_OPEQ));
-	static_assert(ComparisonOperator::LessThan == static_cast<ComparisonOperator>(LUA_OPLT));
-	static_assert(ComparisonOperator::LessThanOrEquals == static_cast<ComparisonOperator>(LUA_OPLE));
-	static_assert(State::REGISTRY_MAINTHREAD == LUA_RIDX_MAINTHREAD);
-	static_assert(State::REGISTRY_GLOBALS == LUA_RIDX_GLOBALS);
-	static_assert(State::REGISTRY_LOADED_TABLE == LUA_LOADED_TABLE);
-	static_assert(State::REGISTRY_PRELOADED_TABLE == LUA_PRELOAD_TABLE);
-	static_assert(ArithmeticOperator::Add == static_cast<ArithmeticOperator>(LUA_OPADD));
-	static_assert(ArithmeticOperator::Subtract == static_cast<ArithmeticOperator>(LUA_OPSUB));
-	static_assert(ArithmeticOperator::Multiply == static_cast<ArithmeticOperator>(LUA_OPMUL));
-	static_assert(ArithmeticOperator::Modulo == static_cast<ArithmeticOperator>(LUA_OPMOD));
-	static_assert(ArithmeticOperator::Pow == static_cast<ArithmeticOperator>(LUA_OPPOW));
-	static_assert(ArithmeticOperator::Divide == static_cast<ArithmeticOperator>(LUA_OPDIV));
-	static_assert(ArithmeticOperator::IntegerDivide == static_cast<ArithmeticOperator>(LUA_OPIDIV));
-	static_assert(ArithmeticOperator::BitwiseAnd == static_cast<ArithmeticOperator>(LUA_OPBAND));
-	static_assert(ArithmeticOperator::BitwiseOr == static_cast<ArithmeticOperator>(LUA_OPBOR));
-	static_assert(ArithmeticOperator::BitwiseXOr == static_cast<ArithmeticOperator>(LUA_OPBXOR));
-	static_assert(ArithmeticOperator::ShiftLeft == static_cast<ArithmeticOperator>(LUA_OPSHL));
-	static_assert(ArithmeticOperator::ShiftRight == static_cast<ArithmeticOperator>(LUA_OPSHR));
-	static_assert(ArithmeticOperator::UnaryNegation == static_cast<ArithmeticOperator>(LUA_OPUNM));
-	static_assert(ArithmeticOperator::BitwiseNot == static_cast<ArithmeticOperator>(LUA_OPBNOT));
-	static_assert(State::EXTRASPACE == LUA_EXTRASPACE);
 
     ExConverterT ExceptionConverter = nullptr;
 
 	HookEvent LuaHookToEvent(int ev) {
 		static_assert(static_cast<HookEvent>(1 << LUA_HOOKCALL) == HookEvent::Call);
 		static_assert(static_cast<HookEvent>(1 << LUA_HOOKRET) == HookEvent::Return);
-		static_assert(static_cast<HookEvent>(1 << LUA_HOOKTAILCALL) == HookEvent::TailCall);
+		static_assert(static_cast<HookEvent>(1 << LUA_HOOKTAILRET) == HookEvent::TailReturn);
 		static_assert(static_cast<HookEvent>(1 << LUA_HOOKLINE) == HookEvent::Line);
 		static_assert(static_cast<HookEvent>(1 << LUA_HOOKCOUNT) == HookEvent::Count);
 		return static_cast<HookEvent>(1 << ev);
@@ -107,9 +73,6 @@ namespace lua::v53 {
 		d.nups = 0;
 		d.linedefined = 0;
 		d.lastlinedefined = 0;
-		d.nparams = 0;
-		d.isvararg = 0;
-		d.istailcall = 0;
 		d.short_src[0] = '\0';
 	}
 	void CopyDebugInfo(const lua_Debug& src, DebugInfo& trg) {
@@ -122,9 +85,6 @@ namespace lua::v53 {
 		trg.NumUpvalues = src.nups;
 		trg.LineDefined = src.linedefined;
 		trg.LastLineDefined = src.lastlinedefined;
-		trg.NumParameters = src.nparams;
-		trg.IsVarArg = src.isvararg;
-		trg.IsTailCall = src.istailcall;
 		std::memcpy(trg.ShortSrc, src.short_src, DebugInfo::SHORTSRC_SIZE);
 		trg.ShortSrc[DebugInfo::SHORTSRC_SIZE - 1] = '\0';
 		trg.CallInfo = src.i_ci;
@@ -139,19 +99,33 @@ namespace lua::v53 {
 	State::State(bool io, bool debug)
 	{
 		L = luaL_newstate();
-		luaL_requiref(L, "_G", luaopen_base, true);
-		luaL_requiref(L, LUA_COLIBNAME, luaopen_coroutine, true);
-		luaL_requiref(L, LUA_TABLIBNAME, luaopen_table, true);
-		luaL_requiref(L, LUA_STRLIBNAME, luaopen_string, true);
-		luaL_requiref(L, LUA_UTF8LIBNAME, luaopen_utf8, true);
-		luaL_requiref(L, LUA_MATHLIBNAME, luaopen_math, true);
+		lua_pushcfunction(L, &luaopen_base);
+		lua_pushstring(L, "");
+		lua_call(L, 1, 0);
+		lua_pushcfunction(L, &luaopen_string);
+		lua_pushstring(L, LUA_STRLIBNAME);
+		lua_call(L, 1, 0);
+		lua_pushcfunction(L, &luaopen_table);
+		lua_pushstring(L, LUA_TABLIBNAME);
+		lua_call(L, 1, 0);
+		lua_pushcfunction(L, &luaopen_math);
+		lua_pushstring(L, LUA_MATHLIBNAME);
+		lua_call(L, 1, 0);
 		if (io) {
-			luaL_requiref(L, LUA_LOADLIBNAME, luaopen_package, true);
-			luaL_requiref(L, LUA_IOLIBNAME, luaopen_io, true);
-			luaL_requiref(L, LUA_OSLIBNAME, luaopen_os, true);
+			lua_pushcfunction(L, &luaopen_io);
+			lua_pushstring(L, LUA_IOLIBNAME);
+			lua_call(L, 1, 0);
+			lua_pushcfunction(L, &luaopen_os);
+			lua_pushstring(L, LUA_OSLIBNAME);
+			lua_call(L, 1, 0);
+			lua_pushcfunction(L, &luaopen_package);
+			lua_pushstring(L, LUA_LOADLIBNAME);
+			lua_call(L, 1, 0);
 		}
 		if (debug) {
-			luaL_requiref(L, LUA_DBLIBNAME, luaopen_debug, true);
+			lua_pushcfunction(L, &luaopen_debug);
+			lua_pushstring(L, LUA_DBLIBNAME);
+			lua_call(L, 1, 0);
 		}
 		lua_settop(L, 0);
 	}
@@ -193,7 +167,9 @@ namespace lua::v53 {
 	}
 	void State::Copy(int from, int to)
 	{
-		lua_copy(L, from, to);
+		to = ToAbsoluteIndex(to);
+		PushValue(from);
+		Replace(to);
 	}
 	void State::Pop(int num)
 	{
@@ -218,10 +194,6 @@ namespace lua::v53 {
 	bool State::IsNumber(int index)
 	{
 		return lua_isnumber(L, index);
-	}
-	bool State::IsInteger(int index)
-	{
-		return lua_isinteger(L, index);
 	}
 	bool State::IsString(int index)
 	{
@@ -251,16 +223,32 @@ namespace lua::v53 {
 	{
 		return lua_typename(L, static_cast<int>(t));
 	}
+    // ReSharper disable once CppDFAConstantFunctionResult
+    int State::Compare_Unprotected(lua_State* L)
+	{
+		auto op = static_cast<ComparisonOperator>(static_cast<int>(lua_tointeger(L, 4)));
+		bool r;
+		switch (op)
+		{
+		case ComparisonOperator::Equals:
+			r = lua_equal(L, 1, 2);
+			break;
+		case ComparisonOperator::LessThan:
+			r = lua_lessthan(L, 1, 2);
+			break;
+		case ComparisonOperator::LessThanOrEquals:
+			r = lua_equal(L, 1, 2) || lua_lessthan(L, 1, 2);
+			break;
+		default:
+			r = false;
+			break;
+		}
+		*static_cast<bool*>(lua_touserdata(L, 3)) = r;
+		return 0;
+	}
 	bool State::RawEqual(int i1, int i2)
 	{
 		return lua_rawequal(L, i1, i2);
-	}
-	int State::Compare_Unprotected(lua_State* L)
-	{
-		int op = static_cast<int>(lua_tointeger(L, 4));
-		bool r = lua_compare(L, 1, 2, op);
-		*static_cast<bool*>(lua_touserdata(L, 3)) = r;
-		return 0;
 	}
 	bool State::IsNoneOrNil(int idx)
 	{
@@ -272,19 +260,17 @@ namespace lua::v53 {
 	}
 	std::optional<Number> State::ToNumber(int index)
 	{
-		int isnum = 0;
-		Number n = lua_tonumberx(L, index, &isnum);
-		if (!isnum)
+		Number n = lua_tonumber(L, index);
+		if (n == 0 && !lua_isnumber(L, index))
 			return std::nullopt;
 		return n;
 	}
 	std::optional<Integer> State::ToInteger(int index)
 	{
-		int isnum = 0;
-		Integer n = lua_tointegerx(L, index, &isnum);
-		if (!isnum)
+		Number n = lua_tonumber(L, index);
+		if (n == 0 && !lua_isnumber(L, index))
 			return std::nullopt;
-		return n;
+		return static_cast<Integer>(n);
 	}
 	const char* State::ToString(int index, size_t* len)
 	{
@@ -309,34 +295,16 @@ namespace lua::v53 {
 	{
 		return lua_touserdata(L, index);
 	}
-	int State::ObjLen_Unprotected(lua_State* L)
-	{
-		lua_len(L, 1);
-		return 1;
-	}
 	size_t State::RawLength(int index)
 	{
-		return lua_rawlen(L, index);
+		return lua_objlen(L, index);
 	}
-	bool State::NumberToInteger(Number n, Integer& i)
+	int State::ObjLen_Unprotected(lua_State* L)
 	{
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-#endif
-	    return lua_numbertointeger(n, &i);
-#ifdef __clang__
-#pragma clang diagnostic pop
-#elif defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-	}
-	size_t State::StringToNumber(const char* s)
-	{
-		return lua_stringtonumber(L, s);
+		luaL_dostring(L, "return function(a) return #a; end");
+		lua_insert(L, -2);
+		lua_call(L, 1, 1);
+		return 1;
 	}
 	void State::Push(bool b)
 	{
@@ -348,7 +316,7 @@ namespace lua::v53 {
 	}
 	void State::Push(Integer i)
 	{
-		lua_pushinteger(L, i);
+		lua_pushnumber(L, static_cast<Number>(i));
 	}
 	void State::Push(const char* s)
 	{
@@ -391,9 +359,36 @@ namespace lua::v53 {
 	}
 	int State::Arithmetic_Unprotected(lua_State* L)
 	{
-		int op = static_cast<int>(lua_tointeger(L, -1));
+		auto op = static_cast<ArithmeticOperator>(static_cast<int>(lua_tonumber(L, -1)));
 		lua_pop(L, 1);
-		lua_arith(L, op);
+		switch (op)
+		{
+		case ArithmeticOperator::Add:
+			luaL_dostring(L, "return function(a, b) return a + b; end");
+			break;
+		case ArithmeticOperator::Subtract:
+			luaL_dostring(L, "return function(a, b) return a - b; end");
+			break;
+		case ArithmeticOperator::Multiply:
+			luaL_dostring(L, "return function(a, b) return a * b; end");
+			break;
+		case ArithmeticOperator::Divide:
+			luaL_dostring(L, "return function(a, b) return a / b; end");
+			break;
+		case ArithmeticOperator::Modulo:
+			luaL_dostring(L, "return function(a, b) return a % b; end");
+			break;
+		case ArithmeticOperator::Pow:
+			luaL_dostring(L, "return function(a, b) return a ^ b; end");
+			break;
+		case ArithmeticOperator::UnaryNegation:
+			luaL_dostring(L, "return function(a) return -a; end");
+			break;
+		default:
+			lua_pushnil(L);
+		}
+		lua_insert(L, op == ArithmeticOperator::UnaryNegation ? -2 : -3);
+		lua_call(L, op == ArithmeticOperator::UnaryNegation ? 1 : 2, 1);
 		return 1;
 	}
 	bool State::GetMetatable(int index)
@@ -410,19 +405,20 @@ namespace lua::v53 {
 	}
 	LType State::GetUserValue(int index)
 	{
-		return static_cast<LType>(lua_getuservalue(L, index));
+		lua_getfenv(L, index);
+		return Type(-1);
 	}
 	void State::SetUserValue(int index)
 	{
-		lua_setuservalue(L, index);
+		lua_setfenv(L, index);
 	}
 	ErrorCode State::Load(const char* (LUAPP_CDECL* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname)
 	{
-		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname, nullptr));
+		return static_cast<ErrorCode>(lua_load(L, reader, ud, chunkname));
 	}
 	void State::Dump(int(LUAPP_CDECL* writer)(lua_State*, const void*, size_t, void*), void* ud)
 	{
-		lua_dump(L, writer, ud, false);
+		lua_dump(L, writer, ud);
 	}
 	void State::NewTable()
 	{
@@ -475,7 +471,7 @@ namespace lua::v53 {
 	}
 	void State::PushGlobalTable()
 	{
-		lua_pushglobaltable(L);
+		PushValue(GLOBALSINDEX);
 	}
 	int State::Next_Unproteced(lua_State* L)
 	{
@@ -485,37 +481,11 @@ namespace lua::v53 {
 	}
 	void State::GetEnvironment(int idx)
 	{
-		if (!lua_isfunction(L, idx) || lua_iscfunction(L, idx)) {
-			PushGlobalTable();
-			return;
-		}
-		int l = 1;
-		while (const char* n = lua_getupvalue(L, idx, l)) {
-			if (n == std::string_view{ "_ENV" })
-				return;
-			Pop(1);
-			++l;
-		}
-		Push();
+		lua_getfenv(L, idx);
 	}
 	bool State::SetEnvironment(int idx)
 	{
-		if (!lua_isfunction(L, idx) || lua_iscfunction(L, idx)) {
-			Pop(1);
-			return false;
-		}
-		int l = 1;
-		while (const char* n = lua_getupvalue(L, idx, l)) {
-			if (n == std::string_view{ "_ENV" }) {
-				Pop(1);
-				lua_setupvalue(L, idx, l);
-				return true;
-			}
-			Pop(1);
-			++l;
-		}
-		Pop(1);
-		return false;
+		return lua_setfenv(L, idx);
 	}
 	void State::Call(int nargs, int nresults)
 	{
@@ -566,7 +536,7 @@ namespace lua::v53 {
 			if (Type(-narg - 1) != LType::Thread)
 				throw lua::LuaException{ "ResumeThread trying to resume non thread" };
 		}
-		return static_cast<ErrorCode>(lua_resume(L, nullptr, narg));
+		return static_cast<ErrorCode>(lua_resume(L, narg));
 	}
 	void State::YieldThread(int nret)
 	{
@@ -583,47 +553,26 @@ namespace lua::v53 {
 		}
 		lua_xmove(L, to.L, num);
 	}
-	bool State::IsYieldable()
-	{
-		return lua_isyieldable(L);
-	}
 	Number State::Version() {
-		return *lua_version(nullptr);
-	}
-	void* State::GetExtraSpace()
-	{
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-#endif
-	    return lua_getextraspace(L);
-#ifdef __clang__
-#pragma clang diagnostic pop
-#elif defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
+		return LUA_VERSION_NUM;
 	}
 	const char* Debug_GetOptionString(DebugInfoOptions opt, bool pushFunc, bool fromStack)
 	{
-	    static constexpr auto push = static_cast<DebugInfoOptions>(32);
-	    static constexpr auto stack = static_cast<DebugInfoOptions>(64);
+	    static constexpr auto push = static_cast<DebugInfoOptions>(16);
+	    static constexpr auto stack = static_cast<DebugInfoOptions>(32);
 	    static constexpr auto lut =
             lut_details::MakeLUT<int,
                                  static_cast<int>(DebugInfoOptions::Name | DebugInfoOptions::Source |
-                                                  DebugInfoOptions::Line | DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall | push | stack),
+                                                  DebugInfoOptions::Line | DebugInfoOptions::Upvalues | push | stack),
                                  lut_details::OptionStringElement{static_cast<int>(stack), '>'},
                                  lut_details::OptionStringElement{static_cast<int>(push), 'f'},
                                  lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Name), 'n'},
                                  lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Source), 'S'},
                                  lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Line), 'l'},
-                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Upvalues), 'u'},
-                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::TailCall), 't'}>();
+                                 lut_details::OptionStringElement{static_cast<int>(DebugInfoOptions::Upvalues), 'u'}>();
 
 	    opt = opt &
-            (DebugInfoOptions::Name | DebugInfoOptions::Source | DebugInfoOptions::Line | DebugInfoOptions::Upvalues | DebugInfoOptions::TailCall);
+            (DebugInfoOptions::Name | DebugInfoOptions::Source | DebugInfoOptions::Line | DebugInfoOptions::Upvalues);
 	    if (pushFunc)
 	        opt = opt | push;
 	    if (fromStack)
@@ -653,16 +602,16 @@ namespace lua::v53 {
 		DebugInfo r{};
 		if (!lua_getinfo(L, Debug_GetOptionString(opt, false, true), &d))
 			throw std::runtime_error("somehow the debug option string got messed up");
-		d.i_ci = nullptr;
+		d.i_ci = 0;
 		CopyDebugInfo(d, r);
 		return r;
 	}
 	bool State::Debug_PushDebugInfoFunc(const DebugInfo& info)
 	{
 		lua_Debug d;
-		if (info.CallInfo == nullptr)
+		if (info.CallInfo == 0)
 			return false;
-		d.i_ci = static_cast<decltype(d.i_ci)>(info.CallInfo);
+		d.i_ci = info.CallInfo;
 		return lua_getinfo(L, Debug_GetOptionString(DebugInfoOptions::None, true, false), &d);
 	}
 	const char* State::Debug_GetLocal(int level, int localnum)
@@ -682,17 +631,17 @@ namespace lua::v53 {
 	const char* State::Debug_GetLocal(const DebugInfo& info, int localnum)
 	{
 		lua_Debug d;
-		if (info.CallInfo == nullptr)
+		if (info.CallInfo == 0)
 			throw LuaException{ "invalid DebugInfo" };
-		d.i_ci = static_cast<decltype(d.i_ci)>(info.CallInfo);
+		d.i_ci = info.CallInfo;
 		return lua_getlocal(L, &d, localnum);
 	}
 	const char* State::Debug_SetLocal(const DebugInfo& info, int localnum)
 	{
 		lua_Debug d;
-		if (info.CallInfo == nullptr)
+		if (info.CallInfo == 0)
 			throw LuaException{ "invalid DebugInfo" };
-		d.i_ci = static_cast<decltype(d.i_ci)>(info.CallInfo);
+		d.i_ci = info.CallInfo;
 		return lua_setlocal(L, &d, localnum);
 	}
 	const char* State::Debug_GetUpvalue(int index, int upnum)
@@ -702,14 +651,6 @@ namespace lua::v53 {
 	const char* State::Debug_SetUpvalue(int index, int upnum)
 	{
 		return lua_setupvalue(L, index, upnum);
-	}
-	const void* State::Debug_UpvalueID(int index, int upnum)
-	{
-		return lua_upvalueid(L, index, upnum);
-	}
-	void State::Debug_UpvalueJoin(int funcMod, int upMod, int funcTar, int upTar)
-	{
-		lua_upvaluejoin(L, funcMod, upMod, funcTar, upTar);
 	}
 	void State::Debug_SetHook(CHook hook, HookEvent mask, int count)
 	{
@@ -739,10 +680,11 @@ namespace lua::v53 {
 	{
 		return lua_gethookcount(L);
 	}
-	void State::CheckStackHasElements(int n) {
+	void State::CheckStackHasElements(int n)
+	{
 		int t = GetTop();
 		if (t < n)
-			throw lua::LuaException{ "stack contains not enough elements" };
+			throw lua::LuaException{ "not enough stack elements" };
 	}
 	ErrorCode State::DoFile(const char* filename)
 	{

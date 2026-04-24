@@ -7,11 +7,11 @@
 #include <functional>
 #include <variant>
 
-#include "constexprTypename.h"
-#include "luapp_common.h"
-#include "luapp_userdata.h"
-#include "luapp_cast.h"
-#include "luapp_function.h"
+#include <luapp/constexprTypename.h>
+#include <luapp/luapp_common.h>
+#include <luapp/luapp_userdata.h>
+#include <luapp/luapp_cast.h>
+#include <luapp/luapp_function.h>
 
 namespace lua::decorator {
 	/// <summary>
