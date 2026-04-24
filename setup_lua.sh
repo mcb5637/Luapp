@@ -33,12 +33,12 @@ if [ ! -d "./LuappDev/luajit" ]; then
   make all
   cd "../.." || exit 1
   mkdir "./lua/luajit"
-  cp "./luajit_builder/src/libluajit.a" "./LuappDev/luajit"
-  cp "./luajit_builder/src/lua.h" "./LuappDev/luajit"
-  cp "./luajit_builder/src/lauxlib.h" "./LuappDev/luajit"
-  cp "./luajit_builder/src/lualib.h" "./LuappDev/luajit"
-  cp "./luajit_builder/src/luajit.h" "./LuappDev/luajit"
-  cp "./luajit_builder/src/luaconf.h" "./LuappDev/luajit"
+  cp "./luajit_builder/src/libluajit.a" "./lua/luajit"
+  cp "./luajit_builder/src/lua.h" "./lua/luajit"
+  cp "./luajit_builder/src/lauxlib.h" "./lua/luajit"
+  cp "./luajit_builder/src/lualib.h" "./lua/luajit"
+  cp "./luajit_builder/src/luajit.h" "./lua/luajit"
+  cp "./luajit_builder/src/luaconf.h" "./lua/luajit"
 else
   echo "luajit already exists"
 fi
