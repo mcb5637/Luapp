@@ -3,7 +3,8 @@
 #ifndef LUA_CPPLINKAGE
 extern "C" {
 #endif
-#ifdef __GNUC__
+#ifdef __clang__
+#elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wduplicated-branches"
 #endif
@@ -11,7 +12,8 @@ extern "C" {
 #include <lauxlib.h>
 #include <lualib.h>
 #include <luajit.h>
-#ifdef __GNUC__
+#ifdef __clang__
+#elif defined(__GNUC__)
 #pragma GCC diagnostic pop
 #endif
 #ifndef LUA_CPPLINKAGE
