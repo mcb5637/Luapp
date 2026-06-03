@@ -17,7 +17,7 @@ jobs:
             compiler: llvm-21.1.8
 
           - os: ubuntu-latest
-            compiler: gcc-14
+            compiler: gcc-16
 
           - os: windows-latest
             compiler: msvc
