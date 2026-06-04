@@ -9,7 +9,7 @@ namespace lua::decorator {
 	class State;
 }
 namespace lua::v55 {
-	using ExConverterT = std::string(*)(std::string_view funcsig);
+	using ExConverterT = std::string (*)(std::string_view funcSig);
 	/// <summary>
 	/// called in exception conversion from c++ to lua (that do not inherit from std::exception).
 	/// return value gets thrown as lua exception.
@@ -34,7 +34,7 @@ namespace lua::v55 {
 		/// </summary>
 		Runtime = 2,
 		/// <summary>
-		/// syntax error parsing lua code.
+		/// syntax error parsing Lua code.
 		/// </summary>
 		Syntax = 3,
 		/// <summary>
@@ -51,7 +51,7 @@ namespace lua::v55 {
 		File,
 	};
 	/// <summary>
-	/// metaevents used in metatables.
+	/// MetaEvents used in metatables.
 	/// </summary>
 	enum class MetaEvent {
 		/// <summary>
@@ -150,11 +150,11 @@ namespace lua::v55 {
 		/// <summary>
 		/// weak table modes.
 		/// </summary>
-	    WeakTable,
-        /// <summary>
-        /// to-be-closed handler.
-        /// </summary>
-        Close,
+		WeakTable,
+		/// <summary>
+		/// to-be-closed handler.
+		/// </summary>
+		Close,
 		/// <summary>
 		/// function to convert to a string.
 		/// </summary>
@@ -162,15 +162,15 @@ namespace lua::v55 {
 		/// <summary>
 		/// userdata class name.
 		/// </summary>
-	    Name,
-        /// <summary>
-        /// userdata serializer (luapp only).
-        /// </summary>
-	    Serialize,
-        /// <summary>
-        /// userdata deserializer (luapp only).
-        /// </summary>
-        Deserialize,
+		Name,
+		/// <summary>
+		/// userdata serializer (luapp only).
+		/// </summary>
+		Serialize,
+		/// <summary>
+		/// userdata deserializer (luapp only).
+		/// </summary>
+		Deserialize,
 	};
 	/// <summary>
 	/// options which fields of DebugInfo to fill.
@@ -227,7 +227,7 @@ namespace lua::v55 {
 		/// </summary>
 		Line = 4,
 		/// <summary>
-		/// every count instructions (set via sethook)
+		/// every count instructions (set via SetHook)
 		/// </summary>
 		Count = 8,
 		/// <summary>
@@ -241,7 +241,7 @@ namespace lua::v55 {
 	/// debug info for a function/stack level. see DebugInfoOptions for what to fill.
 	/// </summary>
 	struct DebugInfo {
-		static constexpr size_t SHORTSRC_SIZE = 60;
+		static constexpr size_t ShortSrcSize = 60;
 
 		HookEvent Event = HookEvent::None;
 		const char* Name = nullptr;
@@ -258,7 +258,8 @@ namespace lua::v55 {
 		bool IsTailCall = false;
 		int FirstValueTransferred = 0;
 		int NumberTransferred = 0;
-		char ShortSrc[SHORTSRC_SIZE] = {};
+		char ShortSrc[ShortSrcSize] = {};
+
 	private:
 		void* CallInfo = nullptr;
 
@@ -294,7 +295,7 @@ namespace lua::v55 {
 	/// </summary>
 	enum class ComparisonOperator : int {
 		/// <summary>
-		/// == opeator.
+		/// == operator.
 		/// </summary>
 		Equals = 0,
 		/// <summary>
@@ -370,14 +371,14 @@ namespace lua::v55 {
 
 	/// <summary>
 	/// activation record of a lua hook.
-	/// just a pointer, so pass by value prefered.
+	/// just a pointer, so pass by value preferred.
 	/// </summary>
 	class ActivationRecord {
 		template<class B, template<class> class... C>
 		friend class decorator::State;
 		friend class State;
 		lua_Debug* ar;
-        explicit ActivationRecord(lua_Debug* a);
+		explicit ActivationRecord(lua_Debug* a);
 
 	public:
 		/// <summary>
@@ -420,7 +421,7 @@ namespace lua::v55 {
 			/// </summary>
 			static constexpr bool UpvalueId = true;
 			/// <summary>
-			/// if true, has State::GLOBALSINDEX to directly access globals. if false, it needs to be queried via State::REGISTRY_GLOBALS from the registry.
+			/// if true, has State::GlobalsIndex to directly access globals. if false, it needs to be queried via State::REGISTRY_GLOBALS from the registry.
 			/// <para>note that in both cases, functions like State::SetGlobal are provided.</para>
 			/// </summary>
 			static constexpr bool GlobalsIndex = false;
@@ -433,13 +434,13 @@ namespace lua::v55 {
 			/// </summary>
 			static constexpr bool MetatableLengthOnTables = true;
 			/// <summary>
-			/// if true, supports at least one uservalue per userdata (might technically be a environment).
+			/// if true, supports at least one uservalue per userdata (might technically be an environment).
 			/// </summary>
-			static constexpr bool Uservalues = true;
+			static constexpr bool UserValues = true;
 			/// <summary>
 			/// if true, supports a fixed number of uservalues per userdata, specified at userdata creation.
 			/// </summary>
-			static constexpr bool ArbitraryUservalues = true;
+			static constexpr bool ArbitraryUserValues = true;
 			/// <summary>
 			/// if true, supports closable slots.
 			/// </summary>
@@ -461,10 +462,10 @@ namespace lua::v55 {
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for c functions, threads and userdata.
 			/// </summary>
 			static constexpr bool NonFunctionEnvironments = false;
-		    /// <summary>
-		    /// if true, supports State::PushExternalString.
-		    /// </summary>
-		    static constexpr bool ExternalString = true;
+			/// <summary>
+			/// if true, supports State::PushExternalString.
+			/// </summary>
+			static constexpr bool ExternalString = true;
 		};
 		using ErrorCode = ErrorCode;
 		using ComparisonOperator = ComparisonOperator;
@@ -476,16 +477,16 @@ namespace lua::v55 {
 		using HookEvent = HookEvent;
 
 		/// <summary>
-        /// creates a State from a lua_State* (usually from external APIs).
-        /// </summary>
-        /// <param name="l">state pointer</param>
-        explicit State(lua_State* l);
+		/// creates a State from a lua_State* (usually from external APIs).
+		/// </summary>
+		/// <param name="l">state pointer</param>
+		explicit State(lua_State* l);
 		/// <summary>
-        /// opens a new lua state.
-        /// </summary>
-        /// <param name="io">open io and os libs</param>
-        /// <param name="debug">open debug lib</param>
-        explicit State(bool io = true, bool debug = false);
+		/// opens a new lua state.
+		/// </summary>
+		/// <param name="io">open io and os libs</param>
+		/// <param name="debug">open debug lib</param>
+		explicit State(bool io = true, bool debug = false);
 
 		/// <summary>
 		/// gets the lua_State* to pass to external apis.
@@ -502,34 +503,33 @@ namespace lua::v55 {
 		/// <summary>
 		/// minimum amount of stack space you have available when entering a function. does not include parameters.
 		/// </summary>
-		constexpr static int MINSTACK = 20;
+		constexpr static int MinStack = 20;
 		/// <summary>
-		/// pseudoindex to access the registry.
+		/// PseudoIndex to access the registry.
 		/// you can store lua values here that you want to access from C++ code, but should not be available to lua.
-		/// use light userdata with adresses of something in your code, or strings prefixed with your library name as keys.
+		/// use light userdata with addresses of something in your code, or strings prefixed with your library name as keys.
 		/// integer keys are reserved for the Reference mechanism.
 		/// </summary>
-		constexpr static int REGISTRYINDEX = -(std::numeric_limits<int>::max() / 2 + 1000);
+		constexpr static int RegistryIndex = -(std::numeric_limits<int>::max() / 2 + 1000);
 		/// <summary>
 		/// passing this to call signals to return all values.
 		/// </summary>
-		constexpr static int MULTIRET = -1;
+		constexpr static int MultiRet = -1;
 		/// <summary>
 		/// index in the registry, where the main thread of a state is stored (the thread created with the state).
 		/// </summary>
-		constexpr static int REGISTRY_MAINTHREAD = 3;
+		constexpr static int RegistryMainThread = 3;
 		/// <summary>
 		/// index in the registry, where the global environment(table) is stored.
 		/// </summary>
-		constexpr static int REGISTRY_GLOBALS = 2;
+		constexpr static int RegistryGlobals = 2;
 		/// <summary>
-		/// returns the pseudoindex to access upvalue i.
+		/// returns the PseudoIndex to access upvalue i.
 		/// </summary>
 		/// <param name="i">upvalue number</param>
-		/// <returns>pseudoindex</returns>
-		constexpr static int Upvalueindex(int i)
-		{
-			return REGISTRYINDEX - i;
+		/// <returns>PseudoIndex</returns>
+		constexpr static int UpvalueIndex(int i) {
+			return RegistryIndex - i;
 		}
 		/// <summary>
 		/// key in the registry, where the loaded table is stored (used by require)
@@ -555,7 +555,7 @@ namespace lua::v55 {
 		/// <returns>could grow</returns>
 		bool CheckStack(int extra);
 		/// <summary>
-		/// <para>checks if a index represents a valid stack position.</para>
+		/// <para>checks if an index represents a valid stack position.</para>
 		/// <para>an index is valid, if it points to a stack position lower or equal to top (and not 0).</para>
 		/// <para>an index is acceptable, if it points to a stack position lower or equal to the stack space (and not 0). (there is no func to check this)</para>
 		/// <para>[-0,+0,-]</para>
@@ -564,19 +564,19 @@ namespace lua::v55 {
 		/// <returns>is valid</returns>
 		bool IsValidIndex(int i);
 		/// <summary>
-		/// converts an index to a absolute index (not depending on the stack top position).
+		/// converts an index to an absolute index (not depending on the stack top position).
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="i">index</param>
 		/// <returns>abs index</returns>
 		int ToAbsoluteIndex(int i);
 		/// <summary>
-		/// checks if a index is a pseudoindex.
+		/// checks if an index is a PseudoIndex.
 		/// </summary>
 		/// <param name="i">index</param>
-		/// <returns>is pseudoindex</returns>
+		/// <returns>is PseudoIndex</returns>
 		constexpr static bool IsPseudoIndex(int i) {
-			return i <= REGISTRYINDEX;
+			return i <= RegistryIndex;
 		}
 
 		/// <summary>
@@ -596,13 +596,13 @@ namespace lua::v55 {
 		/// removes the stack position index, and shifts elements down to fill the gap.
 		/// <para>[-1,+0,-]</para>
 		/// </summary>
-		/// <param name="index">valid index to remove (no pseudoindex)</param>
+		/// <param name="index">valid index to remove (no PseudoIndex)</param>
 		void Remove(int index);
 		/// <summary>
 		/// pops the ToS element and inserts it into index, shifting elements up to make a gap.
 		/// <para>[-1,+1,-]</para>
 		/// </summary>
-		/// <param name="index">valid index to insert to (no pseudoindex)</param>
+		/// <param name="index">valid index to insert to (no PseudoIndex)</param>
 		void Insert(int index);
 		/// <summary>
 		/// pops the ToS element and replaces index with it.
@@ -611,12 +611,12 @@ namespace lua::v55 {
 		/// <param name="index">valid index to replace</param>
 		void Replace(int index);
 		/// <summary>
-		/// copies the element at from to to, replacing it without shifting other elements.
+		/// copies the element at source to target, replacing it without shifting other elements.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
-		/// <param name="from">valid index to copy</param>
-		/// <param name="to">valid index to replace</param>
-		void Copy(int from, int to);
+		/// <param name="source">valid index to copy</param>
+		/// <param name="target">valid index to replace</param>
+		void Copy(int source, int target);
 		/// <summary>
 		/// pops num elements from the stack
 		/// <para>[-num,+0,e]</para>
@@ -629,7 +629,7 @@ namespace lua::v55 {
 		/// returns the type of the index (or None if not valid).
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
-		/// <param name="index">acceptale index to check</param>
+		/// <param name="index">acceptable index to check</param>
 		/// <returns>type</returns>
 		LType Type(int index);
 		/// <summary>
@@ -668,7 +668,7 @@ namespace lua::v55 {
 		/// <returns>is int</returns>
 		bool IsInteger(int index);
 		/// <summary>
-		/// returns if the value at index is a string or a number (always cnvertible to string).
+		/// returns if the value at index is a string or a number (always convertible to string).
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">acceptable index to check</param>
@@ -714,10 +714,10 @@ namespace lua::v55 {
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="t">type</param>
-		/// <returns>type string</returns>
+		/// <returns>string</returns>
 		const char* TypeName(LType t);
 		/// <summary>
-		/// checks primitive equality of 2 values. does not call metametods.
+		/// checks primitive equality of 2 values. does not call MetaMethods.
 		/// also returns false, if any of the indices are invalid.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
@@ -762,7 +762,7 @@ namespace lua::v55 {
 		/// <summary>
 		/// converts the value at index to a string. must be a string or a number, otherwise returns nullptr.
 		/// the return value might no longer be valid, if the lua value gets removed from the stack.
-		/// the string is guranteed to have a ending 0, but other 0es might be in the string.
+		/// the string is guaranteed to have an ending 0, but other 0es might be in the string.
 		/// <para>warning: converts the value on the stack to a string, which might confuse pairs/next</para>
 		/// <para>[-0,+0,m]</para>
 		/// </summary>
@@ -788,14 +788,14 @@ namespace lua::v55 {
 		/// <summary>
 		/// converts the value at index to a debugging pointer. must be a userdata, table, thread, or function, otherwise returns nullptr.
 		/// only useful for debugging information, cannot be converted back to its original value.
-		/// guranteed to be different for different values.
+		/// guaranteed to be different for different values.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">acceptable index to convert</param>
 		/// <returns>debug pointer</returns>
 		const void* ToPointer(int index);
 		/// <summary>
-		/// returns the data pointer of the userdata at index. returns the block adress of a full userdata, the pointer of a light userdata or nullptr.
+		/// returns the data pointer of the userdata at index. returns the block address of a full userdata, the pointer of a light userdata or nullptr.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">acceptable index to convert</param>
@@ -803,7 +803,7 @@ namespace lua::v55 {
 		void* ToUserdata(int index);
 		/// <summary>
 		/// returns the length of an object. for strings this is the number of bytes (==chars if each char is one byte).
-		/// for tables this is one less than the first integer key with a nil value (except if manualy set to something else).
+		/// for tables this is one less than the first integer key with a nil value (except if manually set to something else).
 		/// for full userdata, it is the size of the allocated block of memory.
 		/// pushes the result onto the stack.
 		/// <para>[-0,+1,-]</para>
@@ -812,7 +812,7 @@ namespace lua::v55 {
 		/// <returns>size</returns>
 		size_t RawLength(int index);
 		/// <summary>
-		/// attempts to convert a number to an interger, if it is inside the range the integer type can represent.
+		/// attempts to convert a number to an integer, if it is inside the range the integer type can represent.
 		/// </summary>
 		/// <param name="n">number to convert</param>
 		/// <param name="i">integer output</param>
@@ -862,16 +862,16 @@ namespace lua::v55 {
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">string</param>
-		/// <param name="l">string length</param>
-	    void Push(const char* s, size_t l);
-	    /// <summary>
-	    /// pushes a string onto the stack. the string can contain embedded 0s.
-	    /// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
-	    /// <para>[-0,+1,m]</para>
-	    /// </summary>
-	    /// <param name="s">string</param>
-	    /// <param name="l">string length</param>
-	    void PushExternalString(const char* s, size_t l);
+		/// <param name="l">length</param>
+		void Push(const char* s, size_t l);
+		/// <summary>
+		/// pushes a string onto the stack. the string can contain embedded 0s.
+		/// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <param name="s">string</param>
+		/// <param name="l">length</param>
+		void PushExternalString(const char* s, size_t l);
 		/// <summary>
 		/// pushes nil onto the stack.
 		/// <para>[-0,+1,-]</para>
@@ -879,12 +879,12 @@ namespace lua::v55 {
 		void Push();
 		/// <summary>
 		/// pushes a CFunction or CClosure (function with upvalues) onto the stack.
-		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
-		/// <para>[-nups,+1,m]</para>
+		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nUps.
+		/// <para>[-nUps,+1,m]</para>
 		/// </summary>
 		/// <param name="f">function</param>
-		/// <param name="nups">number of upvalues</param>
-		void Push(CFunction f, int nups = 0);
+		/// <param name="nUps">number of upvalues</param>
+		void Push(CFunction f, int nUps = 0);
 		/// <summary>
 		/// pushes a light userdata onto the stack.
 		/// <para>[-0,+1,-]</para>
@@ -893,8 +893,8 @@ namespace lua::v55 {
 		void PushLightUserdata(void* ud);
 		/// <summary>
 		/// pushes a formatted string onto the stack. similar to snprintf, but with no extra buffer.
-		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %I Integer, %d int, %c int as single char, %U long int as UTF-8 byte sequence, %p pointer as hex number</para>
-		/// <para>[-0,+1,m]</para>
+		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %I Integer, %d int, %c int as single char, %U long int as
+		/// UTF-8 byte sequence, %p pointer as hex number</para> <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">format string</param>
 		/// <param name="argp">format arguments</param>
@@ -902,8 +902,8 @@ namespace lua::v55 {
 		const char* PushVFString(const char* s, va_list argp);
 		/// <summary>
 		/// pushes a formatted string onto the stack. similar to snprintf, but with no extra buffer.
-		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %I Integer, %d int, %c int as single char, %U long int as UTF-8 byte sequence, %p pointer as hex number</para>
-		/// <para>[-0,+1,m]</para>
+		/// <para>the only format specifiers allowed are: %% escape %, %s string (zero-terminated), %f Number, %I Integer, %d int, %c int as single char, %U long int as
+		/// UTF-8 byte sequence, %p pointer as hex number</para> <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">format string</param>
 		/// <param name="...">format arguments</param>
@@ -932,33 +932,33 @@ namespace lua::v55 {
 		bool SetMetatable(int index);
 
 		/// <summary>
-		/// creates a new userdata and returns its adress.
-		/// the userdata has nuvalues associated with it.
+		/// creates a new userdata and returns its address.
+		/// the userdata has nUValues associated with it.
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">userdata size</param>
-		/// <param name="nuvalues">number of uvalues</param>
+		/// <param name="nUValues">number of uservalues</param>
 		/// <see cref="lua::State:NewUserData"/>
 		/// <returns>userdata pointer</returns>
-		void* NewUserdata(size_t s, int nuvalues = 0);
+		void* NewUserdata(size_t s, int nUValues = 0);
 		/// <summary>
-		/// pushes the uservalue of an userdata and returns its type.
+		/// pushes the uservalue of a userdata and returns its type.
 		/// if the uservalue does not exist, pushes nil and returns None.
 		/// <para>[-0,+1,-]</para>
 		/// </summary>
 		/// <param name="index">valid index of the userdata</param>
-		/// <param name="nuvalue">number of the uservalue</param>
+		/// <param name="nUValue">number of the uservalue</param>
 		/// <returns>type</returns>
-		LType GetUserValue(int index, int nuvalue = 1);
+		LType GetUserValue(int index, int nUValue = 1);
 		/// <summary>
-		/// pops a value from the stack and sets it as the uservalue of an userdata.
+		/// pops a value from the stack and sets it as the uservalue of a userdata.
 		/// returns if the uservalue exists.
 		/// <para>[-1,+0,-]</para>
 		/// </summary>
 		/// <param name="index">valid index of the userdata</param>
-		/// <param name="nuvalue">number of the uservalue</param>
+		/// <param name="nUValue">number of the uservalue</param>
 		/// <returns>successful</returns>
-		bool SetUserValue(int index, int nuvalue = 1);
+		bool SetUserValue(int index, int nUValue = 1);
 
 		/// <summary>
 		/// loads a lua chunk via a reader function.
@@ -968,9 +968,9 @@ namespace lua::v55 {
 		/// </summary>
 		/// <param name="reader">reader function</param>
 		/// <param name="ud">data, passed to reader</param>
-		/// <param name="chunkname">name of the chunk</param>
+		/// <param name="chunkName">name of the chunk</param>
 		/// <returns>error code</returns>
-		ErrorCode Load(const char* (LUAPP_CDECL* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkname);
+		ErrorCode Load(const char*(LUAPP_CDECL* reader)(lua_State*, void*, size_t*), void* ud, const char* chunkName);
 
 		/// <summary>
 		/// dumps a lua function at the top of the stack to binary, which can be loaded again via Load.
@@ -985,9 +985,11 @@ namespace lua::v55 {
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		void NewTable();
+
 	protected:
 		static int GetTable_Unprotected(lua_State* L);
 		static int SetTable_Unprotected(lua_State* L);
+
 	public:
 		/// <summary>
 		/// pops a key from the stack, and pushes the associated value in the table at index onto the stack.
@@ -1009,14 +1011,14 @@ namespace lua::v55 {
 		/// may not call metamethods.
 		/// <para>[-2,+0,mt]</para>
 		/// </summary>
-		/// <param name="index">valid index for table acccess</param>
+		/// <param name="index">valid index for table access</param>
 		void SetTableRaw(int index);
 		/// <summary>
 		/// assigns the value at the top of the stack to the key n in the table at index. pops the value from the stack.
 		/// may not call metamethods.
 		/// <para>[-1,+0,mt]</para>
 		/// </summary>
-		/// <param name="index">valid index for table acccess</param>
+		/// <param name="index">valid index for table access</param>
 		/// <param name="n">key</param>
 		void SetTableRaw(int index, int n);
 		/// <summary>
@@ -1024,8 +1026,9 @@ namespace lua::v55 {
 		/// <para>[-0,+1,-]</para>
 		/// </summary>
 		void PushGlobalTable();
+
 	protected:
-		static int Next_Unproteced(lua_State* L);
+		static int Next_Unprotected(lua_State* L);
 
 	public:
 		/// <summary>
@@ -1060,28 +1063,28 @@ namespace lua::v55 {
 		void CloseSlot(int index);
 
 		/// <summary>
-		/// calls a function. does not catch exceptions, so better use pcall or tcall instead.
+		/// calls a function. does not catch exceptions, so better use PCall or TCall instead.
 		/// first push the function, then the arguments in order, then call.
 		/// pops the function and its arguments, then pushes its results.
-		/// use MULTIRET to return all values, use GetTop tofigure out how many got returned.
-		/// <para>[-nargs+1,+nresults,et]</para>
+		/// use MULTIRET to return all values, use GetTop to figure out how many got returned.
+		/// <para>[-nArgs+1,+nResults,et]</para>
 		/// </summary>
-		/// <param name="nargs">number of parameters</param>
-		/// <param name="nresults">number of return values</param>
-		void Call(int nargs, int nresults);
+		/// <param name="nArgs">number of parameters</param>
+		/// <param name="nResults">number of return values</param>
+		void Call(int nArgs, int nResults);
 		/// <summary>
 		/// calls a function. does catch exceptions, and returns an error code.
 		/// first push the function, then the arguments in order, then call.
 		/// pops the function and its arguments, then pushes its results.
-		/// use MULTIRET to return all values, use GetTop tofigure out how many got returned.
-		/// if an error gets cought, calls the error handler (if not 0) with an error message, which returns an error message, which then gets pushed onto the stack.
-		/// <para>[-nargs+1,+nresults|1,t]</para>
+		/// use MULTIRET to return all values, use GetTop to figure out how many got returned.
+		/// if an error gets caught, calls the error handler (if not 0) with an error message, which returns an error message, which then gets pushed onto the stack.
+		/// <para>[-nArgs+1,+nResults|1,t]</para>
 		/// </summary>
-		/// <param name="nargs">number of parameters</param>
-		/// <param name="nresults">number of return values</param>
-		/// <param name="errfunc">valid index of the error handler function (no pseudoindex) or 0</param>
+		/// <param name="nArgs">number of parameters</param>
+		/// <param name="nResults">number of return values</param>
+		/// <param name="errFunc">valid index of the error handler function (no PseudoIndex) or 0</param>
 		/// <returns>error code</returns>
-		ErrorCode PCall(int nargs, int nresults, int errfunc = 0);
+		ErrorCode PCall(int nArgs, int nResults, int errFunc = 0);
 		/// <summary>
 		/// returns a string describing the error code c.
 		/// </summary>
@@ -1091,7 +1094,7 @@ namespace lua::v55 {
 
 		/// <summary>
 		/// jumps to the lua error handler (throws a lua error). uses the element at the ToS as error message.
-		/// usually its better to use the included C++ to lua error handling.
+		/// usually it's better to use the included C++ to lua error handling.
 		/// <para>[-1,+0,v]</para>
 		/// </summary>
 		[[noreturn]] void Error();
@@ -1111,9 +1114,9 @@ namespace lua::v55 {
 		/// <para>[-?,+?,t]</para>
 		/// </summary>
 		/// <param name="narg">number of arguments</param>
-		/// <param name="nresult">number of results</param>
+		/// <param name="nResult">number of results</param>
 		/// <returns>error code</returns>
-		ErrorCode ResumeThread(int narg, int& nresult);
+		ErrorCode ResumeThread(int narg, int& nResult);
 		/// <summary>
 		/// yields a thread and returns to resume. first pass the return values and then call yield with the number of return values.
 		/// this function may never return, it is not possible to yield through C boundaries in lua 5.0.
@@ -1123,7 +1126,7 @@ namespace lua::v55 {
 		[[noreturn]] void YieldThread(int nret);
 		/// <summary>
 		/// pops num values from this and pushes them onto to.
-		/// may only be used to move values between threads of the same gobal state, not between global states.
+		/// may only be used to move values between threads of the same global state, not between global states.
 		/// (otherwise breaks GC).
 		/// <para>[-num,+0,t] on this</para>
 		/// <para>[-0,+num,-] on to</para>
@@ -1142,15 +1145,16 @@ namespace lua::v55 {
 		/// </summary>
 		/// <returns>version</returns>
 		static Number Version();
-		static constexpr size_t EXTRASPACE = sizeof(void*);
+		static constexpr size_t ExtraSpace = sizeof(void*);
 		/// <summary>
-		/// raw memory associated with each state, for application use. each new thread has it initialized with a copy of the main thread. Size is EXTRASPACE (can be changed in lua config).
+		/// raw memory associated with each state, for application use. each new thread has it initialized with a copy of the main thread. Size is ExtraSpace (can be
+		/// changed in lua config).
 		/// </summary>
 		/// <returns></returns>
 		void* GetExtraSpace();
 
 		/// <summary>
-		/// checks if the stack level is valid (has a active function).
+		/// checks if the stack level is valid (has an active function).
 		/// <para>[-0,+0|1,-]</para>
 		/// </summary>
 		/// <param name="lvl"></param>
@@ -1184,87 +1188,89 @@ namespace lua::v55 {
 		/// <param name="info"></param>
 		bool Debug_PushDebugInfoFunc(const DebugInfo& info);
 		/// <summary>
-		/// gets the local value number localnum of the function at the stack level level.
+		/// gets the local value number localNum of the function at the stack level lvl.
 		/// returns the local name and pushes the current value.
-		/// returns nullptr and pushes nothing if level or localnum are invalid.
+		/// returns nullptr and pushes nothing if level or localNum are invalid.
 		/// <para>[-0,+1|0,-]</para>
 		/// </summary>
-		/// <param name="level">stack level</param>
-		/// <param name="localnum">number of local (1 based)</param>
+		/// <param name="lvl">stack level</param>
+		/// <param name="localNum">number of local (1 based)</param>
 		/// <returns>local name</returns>
-		const char* Debug_GetLocal(int level, int localnum);
+		const char* Debug_GetLocal(int lvl, int localNum);
 		/// <summary>
-		/// sets the local value number localnum of the function at the stack level level.
+		/// sets the local value number localNum of the function at the stack level lvl.
 		/// returns the local name and pops the set value.
-		/// returns nullptr and pops nothing if level or localnum are invalid.
+		/// returns nullptr and pops nothing if level or localNum are invalid.
 		/// <para>[-1|0,+0,-]</para>
 		/// </summary>
-		/// <param name="level">stack level</param>
-		/// <param name="localnum">number of local (1 based)</param>
+		/// <param name="lvl">stack level</param>
+		/// <param name="localNum">number of local (1 based)</param>
 		/// <returns>local name</returns>
-		const char* Debug_SetLocal(int level, int localnum);
+		const char* Debug_SetLocal(int lvl, int localNum);
 		/// <summary>
-		/// gets the local value number localnum of the function at the stack level level.
+		/// gets the local value number localNum of the function at the stack level info.
 		/// returns the local name and pushes the current value.
-		/// returns nullptr and pushes nothing if level or localnum are invalid.
+		/// returns nullptr and pushes nothing if level or localNum are invalid.
 		/// <para>[-0,+1|0,-]</para>
 		/// </summary>
 		/// <param name="info">stack level</param>
-		/// <param name="localnum">number of local (1 based)</param>
+		/// <param name="localNum">number of local (1 based)</param>
 		/// <returns>local name</returns>
-		const char* Debug_GetLocal(const DebugInfo& info, int localnum);
+		const char* Debug_GetLocal(const DebugInfo& info, int localNum);
 		/// <summary>
-		/// sets the local value number localnum of the function at the stack level level.
+		/// sets the local value number localNum of the function at the stack level info.
 		/// returns the local name and pops the set value.
-		/// returns nullptr and pops nothing if level or localnum are invalid.
+		/// returns nullptr and pops nothing if level or localNum are invalid.
 		/// <para>[-1|0,+0,-]</para>
 		/// </summary>
 		/// <param name="info">stack level</param>
-		/// <param name="localnum">number of local (1 based)</param>
+		/// <param name="localNum">number of local (1 based)</param>
 		/// <returns>local name</returns>
-		const char* Debug_SetLocal(const DebugInfo& info, int localnum);
+		const char* Debug_SetLocal(const DebugInfo& info, int localNum);
 		/// <summary>
-		/// gets the upvalue upnum of the function at index.
+		/// gets the upvalue upNum of the function at index.
 		/// returns the upvalue name and pushes the current value.
-		/// returns nullptr and pushes nothing, if upnum is invalid.
+		/// returns nullptr and pushes nothing, if upNum is invalid.
 		/// for C/C++ functions, uses the empty string as name for all valid upvalues.
 		/// <para>[-0,+1|0,-]</para>
 		/// </summary>
 		/// <param name="index">valid index to query the upvalue from</param>
-		/// <param name="upnum">number of upvalue (1 based)</param>
+		/// <param name="upNum">number of upvalue (1 based)</param>
 		/// <returns>upvalue name</returns>
-		const char* Debug_GetUpvalue(int index, int upnum);
+		const char* Debug_GetUpvalue(int index, int upNum);
 		/// <summary>
-		/// gets the upvalue upnum of the function at index.
+		/// gets the upvalue upNum of the function at index.
 		/// returns the upvalue name and pops the set value.
-		/// returns nullptr and pops nothing, if upnum is invalid.
+		/// returns nullptr and pops nothing, if upNum is invalid.
 		/// for C/C++ functions, uses the empty string as name for all valid upvalues.
 		/// <para>[-1|0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">valid index to set the upvalue of</param>
-		/// <param name="upnum">number of upvalue</param>
+		/// <param name="upNum">number of upvalue (1 based)</param>
 		/// <returns>upvalue name</returns>
-		const char* Debug_SetUpvalue(int index, int upnum);
+		const char* Debug_SetUpvalue(int index, int upNum);
 		/// <summary>
 		/// allows to check if upvalues of (possibly different) functions share the same upvalue.
 		/// shared upvalues return the same identifier.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">valid index to set the upvalue of</param>
-		/// <param name="upnum">number of upvalue, needs to be valid</param>
+		/// <param name="upNum">number of upvalue, needs to be valid</param>
 		/// <returns>upvalue identifier</returns>
-		const void* Debug_UpvalueID(int index, int upnum);
+		const void* Debug_UpvalueID(int index, int upNum);
 		/// <summary>
 		/// makes the upMod upvalue of funcMod refer to the upTar upvalue of funcTar.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="funcMod">valid index to modify the upvalue of</param>
-		/// <param name="upMod">number of upvalue to modify, needs to be valid</param>
+		/// <param name="upMod">number of upvalue to modify, needs to be valid.</param>
 		/// <param name="funcTar">valid index to target the upvalue of</param>
-		/// <param name="upTar">number of upvalue to target, needs to be valid</param>
+		/// <param name="upTar">number of upvalue to target, needs to be valid.</param>
 		void Debug_UpvalueJoin(int funcMod, int upMod, int funcTar, int upTar);
+
 	protected:
 		void Debug_SetHook(CHook hook, HookEvent mask, int count);
+
 	public:
 		/// <summary>
 		/// removes the currently set hook.
@@ -1300,77 +1306,75 @@ namespace lua::v55 {
 		int Debug_GetHookCount();
 
 
-
 		// auxlib (luaL_)
 
 		/// <summary>
-		/// gets the string used for a metaevent.
+		/// gets the string used for a MetaEvent.
 		/// </summary>
 		/// <param name="f">event</param>
-		/// <returns>event string</returns>
+		/// <returns>string</returns>
 		static constexpr std::string_view GetMetaEventName(MetaEvent f) {
-			switch (f)
-			{
-			case MetaEvent::Add:
-				return "__add";
-			case MetaEvent::Subtract:
-				return "__sub";
-			case MetaEvent::Multiply:
-				return "__mul";
-			case MetaEvent::Divide:
-				return "__div";
-			case MetaEvent::IntegerDivide:
-				return "__idiv";
-			case MetaEvent::Modulo:
-				return "__mod";
-			case MetaEvent::Pow:
-				return "__pow";
-			case MetaEvent::UnaryMinus:
-				return "__unm";
-			case MetaEvent::BitwiseAnd:
-				return "__band";
-			case MetaEvent::BitwiseOr:
-				return "__bor";
-			case MetaEvent::BitwiseXOr:
-				return "__bxor";
-			case MetaEvent::BitwiseNot:
-				return "__bnot";
-			case MetaEvent::ShiftLeft:
-				return "__shl";
-			case MetaEvent::ShiftRight:
-				return "__shr";
-			case MetaEvent::Concat:
-				return "__concat";
-			case MetaEvent::Length:
-				return "__len";
-			case MetaEvent::Equals:
-				return "__eq";
-			case MetaEvent::LessThan:
-				return "__lt";
-			case MetaEvent::LessOrEquals:
-				return "__le";
-			case MetaEvent::Index:
-				return "__index";
-			case MetaEvent::NewIndex:
-				return "__newindex";
-			case MetaEvent::Call:
-				return "__call";
-			case MetaEvent::Finalizer:
-				return "__gc";
-			case MetaEvent::WeakTable:
-			    return "__mode";
-			case MetaEvent::Close:
-			    return "__close";
-			case MetaEvent::ToString:
-				return "__tostring";
-			case MetaEvent::Name:
-			    return "__name";
-			case MetaEvent::Serialize:
-			    return "__serialize";
-			case MetaEvent::Deserialize:
-			    return "__deserialize";
-			default:
-				return "";
+			switch (f) {
+				case MetaEvent::Add:
+					return "__add";
+				case MetaEvent::Subtract:
+					return "__sub";
+				case MetaEvent::Multiply:
+					return "__mul";
+				case MetaEvent::Divide:
+					return "__div";
+				case MetaEvent::IntegerDivide:
+					return "__idiv";
+				case MetaEvent::Modulo:
+					return "__mod";
+				case MetaEvent::Pow:
+					return "__pow";
+				case MetaEvent::UnaryMinus:
+					return "__unm";
+				case MetaEvent::BitwiseAnd:
+					return "__band";
+				case MetaEvent::BitwiseOr:
+					return "__bor";
+				case MetaEvent::BitwiseXOr:
+					return "__bxor";
+				case MetaEvent::BitwiseNot:
+					return "__bnot";
+				case MetaEvent::ShiftLeft:
+					return "__shl";
+				case MetaEvent::ShiftRight:
+					return "__shr";
+				case MetaEvent::Concat:
+					return "__concat";
+				case MetaEvent::Length:
+					return "__len";
+				case MetaEvent::Equals:
+					return "__eq";
+				case MetaEvent::LessThan:
+					return "__lt";
+				case MetaEvent::LessOrEquals:
+					return "__le";
+				case MetaEvent::Index:
+					return "__index";
+				case MetaEvent::NewIndex:
+					return "__newindex";
+				case MetaEvent::Call:
+					return "__call";
+				case MetaEvent::Finalizer:
+					return "__gc";
+				case MetaEvent::WeakTable:
+					return "__mode";
+				case MetaEvent::Close:
+					return "__close";
+				case MetaEvent::ToString:
+					return "__tostring";
+				case MetaEvent::Name:
+					return "__name";
+				case MetaEvent::Serialize:
+					return "__serialize";
+				case MetaEvent::Deserialize:
+					return "__deserialize";
+				default:
+					return "";
 			};
 		}
 
@@ -1379,39 +1383,39 @@ namespace lua::v55 {
 
 	public:
 		/// <summary>
-		/// loads a file as lua code and executes it.
+		/// loads a file as Lua code and executes it.
 		/// <para>[-0,+?,m]</para>
 		/// </summary>
 		/// <param name="filename">file name</param>
 		/// <returns>error code</returns>
 		ErrorCode DoFile(const char* filename);
 		/// <summary>
-		/// loads a string as lua code and executes it.
+		/// loads a string as Lua code and executes it.
 		/// <para>[-0,+?,m]</para>
 		/// </summary>
-		/// <param name="code">lua code</param>
+		/// <param name="code">Lua code</param>
 		/// <returns>error code</returns>
 		ErrorCode DoString(const char* code);
 		/// <summary>
-		/// loads a string as lua code and executes it.
+		/// loads a string as Lua code and executes it.
 		/// <para>[-0,+?,m]</para>
 		/// </summary>
-		/// <param name="code">lua code</param>
-		/// <param name="l">code length</param>
+		/// <param name="code">Lua code</param>
+		/// <param name="l">length</param>
 		/// <param name="name">code name</param>
 		/// <returns>error code</returns>
 		ErrorCode DoString(const char* code, size_t l, const char* name);
 		/// <summary>
-		/// loads a buffer as lua code and leaves it on the stack to execute.
+		/// loads a buffer as Lua code and leaves it on the stack to execute.
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
-		/// <param name="code">lua code</param>
-		/// <param name="len">code length</param>
+		/// <param name="code">Lua code</param>
+		/// <param name="len">length</param>
 		/// <param name="name">code name</param>
 		/// <returns>error code</returns>
 		ErrorCode LoadBuffer(const char* code, size_t len, const char* name);
 		/// <summary>
-		/// loads a file as lua code and leaves it on the stack to execute.
+		/// loads a file as Lua code and leaves it on the stack to execute.
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="filename">file name</param>
@@ -1422,7 +1426,7 @@ namespace lua::v55 {
 	protected:
 		int RefI(int t);
 		void UnRefI(int r, int t);
-		constexpr static int NOREFI = -2;
-		constexpr static int REFNILI = -1;
+		constexpr static int NoRefI = -2;
+		constexpr static int RefNilI = -1;
 	};
-}
+} // namespace lua::v55

@@ -3,35 +3,32 @@
 
 namespace lua::userdata {
 	template<class S>
-	using CppFunction = int(*)(S L);
+	using CppFunction = int (*)(S L);
 
-    template<class T>
-    concept UserClassOperatorTranslate = T::UserClassOperatorTranslate;
+	template<class T>
+	concept UserClassOperatorTranslate = T::UserClassOperatorTranslate;
 
-    template<class T>
-    concept UserClassMetaMethods = T::UserClassMetaMethods;
+	template<class T>
+	concept UserClassMetaMethods = T::UserClassMetaMethods;
 
-    template<class S, auto F, class UC>
-    concept Registerable = requires (S L, std::string_view n)
-    {
-        L.template RegisterFunc<F, UC>(n);
-    };
+	template<class S, auto F, class UC>
+	concept Registerable = requires(S L, std::string_view n) { L.template RegisterFunc<F, UC>(n); };
 
 	/// <summary>
 	/// checks if a type has methods to register for a userdata type via LuaMethods.
 	/// </summary>
 	template<class T>
 	concept HasLuaMethods = requires {
-		{T::LuaMethods.begin()} -> std::input_iterator;
-		{T::LuaMethods.end()} -> std::input_iterator;
+		{ T::LuaMethods.begin() } -> std::input_iterator;
+		{ T::LuaMethods.end() } -> std::input_iterator;
 	};
 	/// <summary>
 	/// checks if a type has additional metamethods to register for a userdata type via LuaMetaMethods.
 	/// </summary>
 	template<class T>
 	concept HasLuaMetaMethods = requires {
-		{T::LuaMetaMethods.begin()} -> std::input_iterator;
-		{T::LuaMetaMethods.end()} -> std::input_iterator;
+		{ T::LuaMetaMethods.begin() } -> std::input_iterator;
+		{ T::LuaMetaMethods.end() } -> std::input_iterator;
 	};
 	/// <summary>
 	/// checks if a type has a userdata equals defined manually via Equals static member.
@@ -52,8 +49,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata lessthan defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept LessThanOp = UserClassOperatorTranslate<T> && requires (T a, T b) {
-		{a < b} -> std::same_as<bool>;
+	concept LessThanOp = UserClassOperatorTranslate<T> && requires(T a, T b) {
+		{ a < b } -> std::same_as<bool>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata lessthan equals defined manually via LessOrEquals static member.
@@ -64,8 +61,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata lessthan equals defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept LessThanEqualsOp = UserClassOperatorTranslate<T> && requires (T a, T b) {
-		{a <= b} -> std::same_as<bool>;
+	concept LessThanEqualsOp = UserClassOperatorTranslate<T> && requires(T a, T b) {
+		{ a <= b } -> std::same_as<bool>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata add defined manually via Add static member.
@@ -76,8 +73,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata add defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept AddOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
-		{a + b} -> std::same_as<T>;
+	concept AddOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires(const T a, const T b) {
+		{ a + b } -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata subtract defined manually via Subtract static member.
@@ -88,8 +85,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata subtract defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept SubtractOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
-		{a - b} -> std::same_as<T>;
+	concept SubtractOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires(const T a, const T b) {
+		{ a - b } -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata multiply defined manually via Multiply static member.
@@ -100,8 +97,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata multiply defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept MultiplyOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
-		{a* b} -> std::same_as<T>;
+	concept MultiplyOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires(const T a, const T b) {
+		{ a * b } -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata divide defined manually via Divide static member.
@@ -112,8 +109,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata divide defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept DivideOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
-		{a / b} -> std::same_as<T>;
+	concept DivideOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires(const T a, const T b) {
+		{ a / b } -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata integer divide defined manually via IntegerDivide static member.
@@ -139,8 +136,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata unary minus defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept UnaryMinusOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
-		{-a} -> std::same_as<T>;
+	concept UnaryMinusOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires(const T a) {
+		{ -a } -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary and defined manually via BitwiseAnd static member.
@@ -151,8 +148,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata binary and defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept BitwiseAndOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
-		{a& b} -> std::same_as<T>;
+	concept BitwiseAndOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires(const T a, const T b) {
+		{ a & b } -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary or defined manually via BitwiseOr static member.
@@ -163,8 +160,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata binary or defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept BitwiseOrOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
-		{a | b} -> std::same_as<T>;
+	concept BitwiseOrOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires(const T a, const T b) {
+		{ a | b } -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary xor defined manually via BitwiseXOr static member.
@@ -175,8 +172,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata binary xor defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept BitwiseXOrOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
-		{a^ b} -> std::same_as<T>;
+	concept BitwiseXOrOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires(const T a, const T b) {
+		{ a ^ b } -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary not defined manually via BitwiseNot static member.
@@ -187,8 +184,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata binary not defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept BitwiseNotOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a) {
-		{~a} -> std::same_as<T>;
+	concept BitwiseNotOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires(const T a) {
+		{ ~a } -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary shift left defined manually via ShiftLeft static member.
@@ -199,8 +196,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata binary shift left defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept ShiftLeftOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
-		{a << b} -> std::same_as<T>;
+	concept ShiftLeftOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires(const T a, const T b) {
+		{ a << b } -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata binary shift right defined manually via ShiftRight static member.
@@ -211,8 +208,8 @@ namespace lua::userdata {
 	/// checks if a type has a userdata binary shift right defined via c++ operator.
 	/// </summary>
 	template<class T>
-	concept ShiftRightOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires (const T a, const T b) {
-		{a >> b} -> std::same_as<T>;
+	concept ShiftRightOp = UserClassOperatorTranslate<T> && std::is_nothrow_copy_constructible_v<T> && requires(const T a, const T b) {
+		{ a >> b } -> std::same_as<T>;
 	};
 	/// <summary>
 	/// checks if a type has a userdata length defined manually via Length static member.
@@ -243,46 +240,41 @@ namespace lua::userdata {
 	/// checks if a type has a userdata tostring defined manually via ToString static member.
 	/// </summary>
 	template<class S, class T>
-    concept ToStringCpp = UserClassMetaMethods<T> && Registerable<S, &T::ToString, T>;
-    /// <summary>
-    /// checks if a type has a userdata serialize defined manually via Serialize static member.
-    /// </summary>
-    template<class S, class T>
-    concept SerializeCpp = UserClassMetaMethods<T> && Registerable<S, &T::Serialize, T>;
-    /// <summary>
-    /// checks if a type has a userdata deserialize defined manually via Deserialize static member.
-    /// </summary>
-    template<class S, class T>
-    concept DeserializeCpp = UserClassMetaMethods<T> && Registerable<S, &T::Deserialize, T>;
+	concept ToStringCpp = UserClassMetaMethods<T> && Registerable<S, &T::ToString, T>;
+	/// <summary>
+	/// checks if a type has a userdata serialize defined manually via Serialize static member.
+	/// </summary>
+	template<class S, class T>
+	concept SerializeCpp = UserClassMetaMethods<T> && Registerable<S, &T::Serialize, T>;
+	/// <summary>
+	/// checks if a type has a userdata deserialize defined manually via Deserialize static member.
+	/// </summary>
+	template<class S, class T>
+	concept DeserializeCpp = UserClassMetaMethods<T> && Registerable<S, &T::Deserialize, T>;
 
-    /// <summary>
-    /// checks if a type has base classes defined for userdata type
-    /// </summary>
-    template<class T>
-    concept InheritsDefined = requires {
-        typename T::InheritsFrom;
-    };
-    template<class To>
-    struct UserClassCast
-    {
-        template<class From>
-        static To* Cast(void* ud)
-        {
-            return &static_cast<To&>(*static_cast<From*>(ud));
-        }
-    };
+	/// <summary>
+	/// checks if a type has base classes defined for userdata type
+	/// </summary>
+	template<class T>
+	concept InheritsDefined = requires { typename T::InheritsFrom; };
+	template<class To>
+	struct UserClassCast {
+		template<class From>
+		static To* Cast(void* ud) {
+			return &static_cast<To&>(*static_cast<From*>(ud));
+		}
+	};
 
 
 	template<class State, class T>
-	int Finalizer(State L)
-	{
+	int Finalizer(State L) {
 		L.template CheckUserClass<T>(1)->~T();
 		return 0;
 	}
 	template<class State, class T>
 	requires EquatableOp<T>
-    // ReSharper disable once CppDFAConstantFunctionResult
-    int EqualsOperator(State L) {
+	// ReSharper disable once CppDFAConstantFunctionResult
+	int EqualsOperator(State L) {
 		if (L.GetTop() < 2) {
 			L.Push(false);
 			return 1;
@@ -298,7 +290,7 @@ namespace lua::userdata {
 	}
 	template<class State, class T>
 	requires LessThanOp<T>
-    // ReSharper disable once CppDFAConstantFunctionResult
+	// ReSharper disable once CppDFAConstantFunctionResult
 	int LessThanOperator(State L) {
 		if (L.GetTop() < 2) {
 			L.Push(false);
@@ -315,7 +307,7 @@ namespace lua::userdata {
 	}
 	template<class State, class T>
 	requires LessThanOp<T>
-    // ReSharper disable once CppDFAConstantFunctionResult
+	// ReSharper disable once CppDFAConstantFunctionResult
 	int LessThanEqualsOperator(State L) {
 		if (L.GetTop() < 2) {
 			L.Push(false);
@@ -435,8 +427,7 @@ namespace lua::userdata {
 		else if constexpr (std::is_same_v<CFunction, decltype(&T::Index)>) {
 			return T::Index(L.L);
 		}
-		else
-		{
+		else {
 			return State::template AutoTranslateAPI<&T::Index, 0, T>(L);
 		}
 	}
@@ -450,89 +441,82 @@ namespace lua::userdata {
 			return 0;
 	}
 	template<class State>
-	constexpr int StateMaxUservalues() {
-		if constexpr (!State::Capabilities::Uservalues)
+	constexpr int StateMaxUserValues() {
+		if constexpr (!State::Capabilities::UserValues)
 			return 0;
-		else if constexpr (!State::Capabilities::ArbitraryUservalues)
+		else if constexpr (!State::Capabilities::ArbitraryUserValues)
 			return 1;
 		else
 			return std::numeric_limits<int>::max();
 	}
 	template<class State, class T>
-	concept UserClassUserValuesValid = UserClassUserValues<T>() <= StateMaxUservalues<State>();
+	concept UserClassUserValuesValid = UserClassUserValues<T>() <= StateMaxUserValues<State>();
 
-    template<class State, class O, int(O::* F)(State L)>
-    int MemberFuncAdaptor(State L) {
-        auto* t = L.template CheckUserClass<O>(1);
-        return std::invoke(F, t, L);
-    }
-    template<class State, class O, int(O::* F)(State L) const>
-    int MemberFuncAdaptor(State L) {
-        auto* t = L.template CheckUserClass<O>(1);
-        return std::invoke(F, t, L);
-    }
+	template<class State, class O, int (O::*F)(State L)>
+	int MemberFuncAdaptor(State L) {
+		auto* t = L.template CheckUserClass<O>(1);
+		return std::invoke(F, t, L);
+	}
+	template<class State, class O, int (O::*F)(State L) const>
+	int MemberFuncAdaptor(State L) {
+		auto* t = L.template CheckUserClass<O>(1);
+		return std::invoke(F, t, L);
+	}
 
-    template<class UC>
-    class UserClassChecked
-    {
-        UC* Data;
+	template<class UC>
+	class UserClassChecked {
+		UC* Data;
 
-    public:
-        using UserClass = UC;
+	public:
+		using UserClass = UC;
 
-        explicit UserClassChecked(UC* d) : Data(d) {}
+		explicit UserClassChecked(UC* d) : Data(d) {
+		}
 
-        UC* Get()
-        {
-            return Data;
-        }
-        const UC* Get() const
-        {
-            return Data;
-        }
+		UC* Get() {
+			return Data;
+		}
+		const UC* Get() const {
+			return Data;
+		}
 
-        UC* operator->()
-        {
-            return Data;
-        }
-        const UC* operator->() const
-        {
-            return Data;
-        }
+		UC* operator->() {
+			return Data;
+		}
+		const UC* operator->() const {
+			return Data;
+		}
 
-        UC& operator*()
-        {
-            return *Data;
-        }
-        const UC& operator*() const
-        {
-            return *Data;
-        }
-    };
+		UC& operator*() {
+			return *Data;
+		}
+		const UC& operator*() const {
+			return *Data;
+		}
+	};
 
-    template<class UC, class... Arg>
-    class PushNewUserClass
-    {
-        std::tuple<Arg...> Params;
-    public:
-        explicit PushNewUserClass(std::in_place_type_t<UC>, Arg... args) : Params(std::forward<Arg>(args)...) {}
+	template<class UC, class... Arg>
+	class PushNewUserClass {
+		std::tuple<Arg...> Params;
 
-        template<class State>
-        void Push(State L)
-        {
-            auto p = [&]<size_t... I>(std::index_sequence<I...>) {
-                L.template NewUserClass<UC>(std::get<I>(Params)...);
-            };
-            p(std::make_index_sequence<sizeof...(Arg)>{});
-        }
-    };
-}
+	public:
+		explicit PushNewUserClass(std::in_place_type_t<UC>, Arg... args) : Params(std::forward<Arg>(args)...) {
+		}
 
-namespace lua
-{
-    template<class UC>
-    using UserClassChecked = userdata::UserClassChecked<UC>;
+		template<class State>
+		void Push(State L) {
+			auto p = [&]<size_t... I>(std::index_sequence<I...>) {
+				L.template NewUserClass<UC>(std::get<I>(Params)...);
+			};
+			p(std::make_index_sequence<sizeof...(Arg)>{});
+		}
+	};
+} // namespace lua::userdata
 
-    template<class UC, class... Arg>
-    using PushNewUserClass = userdata::PushNewUserClass<UC, Arg...>;
-}
+namespace lua {
+	template<class UC>
+	using UserClassChecked = userdata::UserClassChecked<UC>;
+
+	template<class UC, class... Arg>
+	using PushNewUserClass = userdata::PushNewUserClass<UC, Arg...>;
+} // namespace lua

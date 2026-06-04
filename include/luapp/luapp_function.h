@@ -2,157 +2,129 @@
 
 #include <tuple>
 
-namespace lua::func
-{
-    // as seen on http://functionalcpp.wordpress.com/2013/08/05/function-traits/
-    template<class F>
-    struct FunctionTraits;
+namespace lua::func {
+	// as seen on http://functionalcpp.wordpress.com/2013/08/05/function-traits/
+	template<class F>
+	struct FunctionTraits;
 
-    // function pointer
-    template<class R, class... Args>
-    struct FunctionTraits<R (*)(Args...)> : FunctionTraits<R(Args...)>
-    {
-    };
+	// function pointer
+	template<class R, class... Args>
+	struct FunctionTraits<R (*)(Args...)> : FunctionTraits<R(Args...)> {};
 
-    template<class R, class... Args>
-    struct FunctionTraits<R(Args...)>
-    {
-        using ReturnType = R;
+	template<class R, class... Args>
+	struct FunctionTraits<R(Args...)> {
+		using ReturnType = R;
 
-        static constexpr std::size_t Arity = sizeof...(Args);
+		static constexpr std::size_t Arity = sizeof...(Args);
 
-        using ArgumentTypes = std::tuple<Args...>;
-        template<std::size_t I>
-        using ArgumentType = std::tuple_element_t<I, ArgumentTypes>;
-    };
+		using ArgumentTypes = std::tuple<Args...>;
+		template<std::size_t I>
+		using ArgumentType = std::tuple_element_t<I, ArgumentTypes>;
+	};
 
-    // member function pointer
-    template<class C, class R, class... Args>
-    struct FunctionTraits<R (C::*)(Args...)> : FunctionTraits<R(C*, Args...)>
-    {
-        using ArgumentTypesWithoutThis = std::tuple<Args...>;
-    };
+	// member function pointer
+	template<class C, class R, class... Args>
+	struct FunctionTraits<R (C::*)(Args...)> : FunctionTraits<R(C*, Args...)> {
+		using ArgumentTypesWithoutThis = std::tuple<Args...>;
+	};
 
-    // const member function pointer
-    template<class C, class R, class... Args>
-    struct FunctionTraits<R (C::*)(Args...) const> : FunctionTraits<R(const C*, Args...)>
-    {
-        using ArgumentTypesWithoutThis = std::tuple<Args...>;
-    };
+	// const member function pointer
+	template<class C, class R, class... Args>
+	struct FunctionTraits<R (C::*)(Args...) const> : FunctionTraits<R(const C*, Args...)> {
+		using ArgumentTypesWithoutThis = std::tuple<Args...>;
+	};
 
-    namespace detail
-    {
-        template<class F>
-        struct IsFunctionPointer : std::false_type
-        {
-        };
+	namespace detail {
+		template<class F>
+		struct IsFunctionPointer : std::false_type {};
 
-        template<class R, class... Args>
-        struct IsFunctionPointer<R (*)(Args...)> : std::true_type
-        {
-        };
+		template<class R, class... Args>
+		struct IsFunctionPointer<R (*)(Args...)> : std::true_type {};
 #ifdef _MSC_VER
-        template<class R, class... Args>
-        struct IsFunctionPointer<R (Args...)> : std::true_type
-        {
-        };
+		template<class R, class... Args>
+		struct IsFunctionPointer<R(Args...)> : std::true_type {};
 #endif
-    }
+	} // namespace detail
 
-    template<class T>
-    concept IsFunctionPointer = detail::IsFunctionPointer<T>::value;
+	template<class T>
+	concept IsFunctionPointer = detail::IsFunctionPointer<T>::value;
 
-    template<class T>
-    concept IsMemberFunctionPointer = std::is_member_function_pointer_v<T>;
+	template<class T>
+	concept IsMemberFunctionPointer = std::is_member_function_pointer_v<T>;
 
-    template<class State, class F>
-    concept IsLuaMemberFunction = IsMemberFunctionPointer<F> && FunctionTraits<F>::Arity == 2
-        && std::same_as<int, typename FunctionTraits<F>::ReturnType> && std::same_as<State, typename FunctionTraits<F>::template ArgumentType<1>>;
+	template<class State, class F>
+	concept IsLuaMemberFunction = IsMemberFunctionPointer<F> && FunctionTraits<F>::Arity == 2 && std::same_as<int, typename FunctionTraits<F>::ReturnType> &&
+		std::same_as<State, typename FunctionTraits<F>::template ArgumentType<1>>;
 
-    template<class F>
-    requires IsMemberFunctionPointer<F>
-    using ObjectTypeOfMemberFunc = std::remove_cvref_t<std::remove_pointer_t<typename FunctionTraits<F>::template ArgumentType<0>>>;
+	template<class F>
+	requires IsMemberFunctionPointer<F>
+	using ObjectTypeOfMemberFunc = std::remove_cvref_t<std::remove_pointer_t<typename FunctionTraits<F>::template ArgumentType<0>>>;
 
-    namespace detail
-    {
-        template<class State, class P>
-        concept Pushable = requires(State s, P p) { s.Push(p); };
+	namespace detail {
+		template<class State, class P>
+		concept Pushable = requires(State s, P p) { s.Push(p); };
 
-        template<class State, auto F>
-        concept FuncPushable = requires(State s) { s.template Push<F>(); };
+		template<class State, auto F>
+		concept FuncPushable = requires(State s) { s.template Push<F>(); };
 
-        template<class State, auto F, class UC>
-        concept FuncPushableUC = !std::same_as<UC, void> && requires(State s) { s.template Push<F, UC>(); };
+		template<class State, auto F, class UC>
+		concept FuncPushableUC = !std::same_as<UC, void> && requires(State s) { s.template Push<F, UC>(); };
 
-        template<class State, class R>
-        concept Checkable = requires(State s, R r, int i) {
-            { s.template Check<R>(i) } -> std::same_as<R>;
-        };
+		template<class State, class R>
+		concept Checkable = requires(State s, R r, int i) {
+			{ s.template Check<R>(i) } -> std::same_as<R>;
+		};
 
-        template<class T>
-        concept IsTuple = requires {
-            { std::tuple_size<T>::value } -> std::convertible_to<std::size_t>;
-        };
+		template<class T>
+		concept IsTuple = requires {
+			// ReSharper disable once CppUseTypeTraitAlias
+			{ std::tuple_size<T>::value } -> std::convertible_to<std::size_t>;
+		};
 
-        template<class T, class UC>
-        concept IsUserClass = !std::same_as<UC, void> &&
-            (std::same_as<T, UC*> || std::same_as<T, UC&> || std::same_as<T, const UC*> || std::same_as<T, const UC&>);
+		template<class T, class UC>
+		concept IsUserClass = !std::same_as<UC, void> && (std::same_as<T, UC*> || std::same_as<T, UC&> || std::same_as<T, const UC*> || std::same_as<T, const UC&>);
 
-        template<class State, class P, class UC>
-        concept CheckableOrUserClass = Checkable<State, P> || IsUserClass<P, UC> || std::same_as<P, State>;
+		template<class State, class P, class UC>
+		concept CheckableOrUserClass = Checkable<State, P> || IsUserClass<P, UC> || std::same_as<P, State>;
 
-        template<class State, class F, std::size_t NumBindings = 0, class UC = void>
-        concept AutoTranslateEnabled =
-            (Pushable<State, typename FunctionTraits<F>::ReturnType> ||
-             std::same_as<typename FunctionTraits<F>::ReturnType, void> ||
-             (IsTuple<typename FunctionTraits<F>::ReturnType> &&
-              []<std::size_t... Is>(std::index_sequence<Is...>)
-              {
-                  return (Pushable<State, std::tuple_element_t<Is, typename FunctionTraits<F>::ReturnType>> && ...);
-              }(std::make_index_sequence<std::tuple_size_v<typename FunctionTraits<F>::ReturnType>>{}))) &&
-            []<std::size_t... Is>(std::index_sequence<Is...>)
-        {
-            return ((Is < NumBindings
-                         ? std::is_pointer_v<typename FunctionTraits<F>::template ArgumentType<Is>>
-                         : CheckableOrUserClass<State, typename FunctionTraits<F>::template ArgumentType<Is>, UC>) &&
-                    ...);
-        }(std::make_index_sequence<FunctionTraits<F>::Arity>{}) &&
-            !std::same_as<F, typename State::CppFunction> && !std::same_as<F, CFunction>;
+		template<class State, class F, std::size_t NumBindings = 0, class UC = void>
+		concept AutoTranslateEnabled = (Pushable<State, typename FunctionTraits<F>::ReturnType> || std::same_as<typename FunctionTraits<F>::ReturnType, void> ||
+										(IsTuple<typename FunctionTraits<F>::ReturnType> &&
+										 []<std::size_t... Is>(std::index_sequence<Is...>) {
+			return (Pushable<State, std::tuple_element_t<Is, typename FunctionTraits<F>::ReturnType>> && ...);
+		}(std::make_index_sequence<std::tuple_size_v<typename FunctionTraits<F>::ReturnType>>{}))) &&
+			[]<std::size_t... Is>(std::index_sequence<Is...>) {
+			return ((Is < NumBindings ? std::is_pointer_v<typename FunctionTraits<F>::template ArgumentType<Is>>
+									  : CheckableOrUserClass<State, typename FunctionTraits<F>::template ArgumentType<Is>, UC>) &&
+					...);
+		}(std::make_index_sequence<FunctionTraits<F>::Arity>{}) && !std::same_as<F, typename State::CppFunction> && !std::same_as<F, CFunction>;
 
-        template<class State, class F>
-        int LambdaFinalizer(State L)
-        {
-            auto* f = static_cast<F*>(L.ToUserdata(1));
-            f->~F();
-            return 0;
-        }
+		template<class State, class F>
+		int LambdaFinalizer(State L) {
+			auto* f = static_cast<F*>(L.ToUserdata(1));
+			f->~F();
+			return 0;
+		}
 
-        template<class T>
-        struct TypeContainer
-        {
-            using type = T;
-        };
-        template<class Op>
-        struct LambdaAsFuncPointer
-        {
-            using R = FunctionTraits<Op>::ReturnType;
-            using P = FunctionTraits<Op>::ArgumentTypesWithoutThis;
-            static constexpr size_t Arity = std::tuple_size_v<P>;
+		template<class T>
+		struct TypeContainer {
+			using type = T;
+		};
+		template<class Op>
+		struct LambdaAsFuncPointer {
+			using R = FunctionTraits<Op>::ReturnType;
+			using P = FunctionTraits<Op>::ArgumentTypesWithoutThis;
+			static constexpr size_t Arity = std::tuple_size_v<P>;
 
-            using type = decltype([]<size_t... Is>(std::index_sequence<Is...>)
-            {
-                return TypeContainer<R(*)(std::tuple_element_t<Is, P>...)>{};
-            }(std::make_index_sequence<Arity>()))::type;
-        };
-        template<class F, class Op>
-        concept IsLambdaFuncPointer = requires(F f)
-        {
-            static_cast<LambdaAsFuncPointer<Op>::type>(f);
-        };
+			using type = decltype([]<size_t... Is>(std::index_sequence<Is...>) {
+				return TypeContainer<R (*)(std::tuple_element_t<Is, P>...)>{};
+			}(std::make_index_sequence<Arity>()))::type;
+		};
+		template<class F, class Op>
+		concept IsLambdaFuncPointer = requires(F f) { static_cast<LambdaAsFuncPointer<Op>::type>(f); };
 
-        template<typename T>
-        const char* try_get_dynamic_typename([[maybe_unused]] const T& t)
-        {
+		template<typename T>
+		const char* try_get_dynamic_typename([[maybe_unused]] const T& t) {
 #if defined(__has_feature)
 #define LUAPP_RTTI __has_feature(cxx_rtti)
 #elif defined(__GXX_RTTI) || defined(_CPPRTTI)
@@ -161,18 +133,16 @@ namespace lua::func
 #define LUAPP_RTTI 0
 #endif
 #if LUAPP_RTTI
-            return typeid(t).name();
+			return typeid(t).name();
 #else
-            return typename_details::type_name<T>().data();
+			return typename_details::type_name<T>().data();
 #endif
 #undef LUAPP_RTTI
-        }
-    } // namespace detail
+		}
+	} // namespace detail
 
-    template<class State, class FT, size_t NumBindings, class UC>
-    concept AdaptableFunc = (std::same_as<FT, CFunction> && NumBindings == 0)
-        || (std::same_as<FT, typename State::CppFunction> && NumBindings == 0)
-        || (func::IsLuaMemberFunction<State, FT> && NumBindings == 1)
-        || (func::IsLuaMemberFunction<State, FT> && NumBindings == 0)
-        || ((func::IsFunctionPointer<FT> || func::IsMemberFunctionPointer<FT>) && func::detail::AutoTranslateEnabled<State, FT, NumBindings, UC>);
+	template<class State, class FT, size_t NumBindings, class UC>
+	concept AdaptableFunc = (std::same_as<FT, CFunction> && NumBindings == 0) || (std::same_as<FT, typename State::CppFunction> && NumBindings == 0) ||
+		(func::IsLuaMemberFunction<State, FT> && NumBindings == 1) || (func::IsLuaMemberFunction<State, FT> && NumBindings == 0) ||
+		((func::IsFunctionPointer<FT> || func::IsMemberFunctionPointer<FT>) && func::detail::AutoTranslateEnabled<State, FT, NumBindings, UC>);
 } // namespace lua::func

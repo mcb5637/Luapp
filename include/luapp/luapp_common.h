@@ -29,7 +29,7 @@ namespace lua {
 	/// <summary>
 	/// enable/disable type checks on API methods, as well as some stack space checks
 	/// </summary>
-    constexpr bool TypeChecks = true;
+	constexpr bool TypeChecks = true;
 
 	/// <summary>
 	/// all values in lua are of one of these types:
@@ -103,7 +103,7 @@ namespace lua {
 	/// <see cref='lua50::CppToCFunction'/>
 	/// <param name="L">lua state</param>
 	/// <returns>number of return values on the stack</returns>
-	using CFunction = int(LUAPP_CDECL*) (lua_State* L);
+	using CFunction = int(LUAPP_CDECL*)(lua_State* L);
 
 	/// <summary>
 	/// aka lua_Hook. no type conversion/exception handling. use CppHook if in doubt.
@@ -113,4 +113,4 @@ namespace lua {
 	/// <param name="L">lua state</param>
 	/// <param name="ar">activation record</param>
 	using CHook = void(LUAPP_CDECL*)(lua_State* L, lua_Debug* ar);
-}
+} // namespace lua

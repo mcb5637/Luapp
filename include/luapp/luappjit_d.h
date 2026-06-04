@@ -28,7 +28,7 @@ namespace lua::jit {
 			/// </summary>
 			static constexpr bool UpvalueId = true;
 			/// <summary>
-			/// if true, has State::GLOBALSINDEX to directly access globals. if false, it needs to be queried via State::REGISTRY_GLOBALS from the registry.
+			/// if true, has State::GlobalsIndex to directly access globals. if false, it needs to be queried via State::REGISTRY_GLOBALS from the registry.
 			/// <para>note that in both cases, functions like State::SetGlobal are provided.</para>
 			/// </summary>
 			static constexpr bool GlobalsIndex = lua::v51::State::Capabilities::GlobalsIndex;
@@ -41,13 +41,13 @@ namespace lua::jit {
 			/// </summary>
 			static constexpr bool MetatableLengthOnTables = lua::v51::State::Capabilities::MetatableLengthOnTables;
 			/// <summary>
-			/// if true, supports at least one uservalue per userdata (might technically be a environment).
+			/// if true, supports at least one uservalue per userdata (might technically be an environment).
 			/// </summary>
-			static constexpr bool Uservalues = lua::v51::State::Capabilities::Uservalues;
+			static constexpr bool UserValues = lua::v51::State::Capabilities::UserValues;
 			/// <summary>
 			/// if true, supports a fixed number of uservalues per userdata, specified at userdata creation.
 			/// </summary>
-			static constexpr bool ArbitraryUservalues = lua::v51::State::Capabilities::ArbitraryUservalues;
+			static constexpr bool ArbitraryUserValues = lua::v51::State::Capabilities::ArbitraryUserValues;
 			/// <summary>
 			/// if true, supports closable slots.
 			/// </summary>
@@ -68,25 +68,25 @@ namespace lua::jit {
 			/// <summary>
 			/// if true, supports State::SetEnvironment and State::GetEnvironment for c functions, threads and userdata.
 			/// </summary>
-		    static constexpr bool NonFunctionEnvironments = lua::v51::State::Capabilities::NonFunctionEnvironments;
-		    /// <summary>
-		    /// if true, supports State::PushExternalString.
-		    /// </summary>
-		    static constexpr bool ExternalString = false;
+			static constexpr bool NonFunctionEnvironments = lua::v51::State::Capabilities::NonFunctionEnvironments;
+			/// <summary>
+			/// if true, supports State::PushExternalString.
+			/// </summary>
+			static constexpr bool ExternalString = false;
 		};
 		using JITMode = JITMode;
 
 		/// <summary>
-        /// creates a State from a lua_State* (usually from external APIs).
-        /// </summary>
-        /// <param name="l">state pointer</param>
-        explicit State(lua_State* l);
+		/// creates a State from a lua_State* (usually from external APIs).
+		/// </summary>
+		/// <param name="l">state pointer</param>
+		explicit State(lua_State* l);
 		/// <summary>
-        /// opens a new lua state.
-        /// </summary>
-        /// <param name="io">open io and os libs</param>
-        /// <param name="debug">open debug lib</param>
-        explicit State(bool io = true, bool debug = false);
+		/// opens a new lua state.
+		/// </summary>
+		/// <param name="io">open io and os libs</param>
+		/// <param name="debug">open debug lib</param>
+		explicit State(bool io = true, bool debug = false);
 
 		/// <summary>
 		/// converts the value at index to a number. must be a number or a string convertible to a number, otherise returns 0.
@@ -122,17 +122,17 @@ namespace lua::jit {
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="index">valid index to set the upvalue of</param>
-		/// <param name="upnum">number of upvalue, needs to be valid</param>
+		/// <param name="upNum">number of upvalue, needs to be valid</param>
 		/// <returns>upvalue identifier</returns>
-		const void* Debug_UpvalueID(int index, int upnum);
+		const void* Debug_UpvalueID(int index, int upNum);
 		/// <summary>
 		/// makes the upMod upvalue of funcMod refer to the upTar upvalue of funcTar.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
 		/// <param name="funcMod">valid index to modify the upvalue of</param>
-		/// <param name="upMod">number of upvalue to modify, needs to be valid</param>
+		/// <param name="upMod">number of upvalue to modify, needs to be valid.</param>
 		/// <param name="funcTar">valid index to target the upvalue of</param>
-		/// <param name="upTar">number of upvalue to target, needs to be valid</param>
+		/// <param name="upTar">number of upvalue to target, needs to be valid.</param>
 		void Debug_UpvalueJoin(int funcMod, int upMod, int funcTar, int upTar);
 
 		/// <summary>
@@ -167,4 +167,4 @@ namespace lua::jit {
 		/// <exception cref="lua::LuaException">if failed</exception>
 		void SetJITModeForChildrenOnly(int idx, JITMode m);
 	};
-}
+} // namespace lua::jit

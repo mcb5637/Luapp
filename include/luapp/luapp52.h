@@ -20,5 +20,5 @@ namespace lua {
 	using HookEvent = State::HookEvent;
 	using UniqueState = decorator::UniqueState<v52::State>;
 	using Reference = State::Reference;
-}
+} // namespace lua
 #endif

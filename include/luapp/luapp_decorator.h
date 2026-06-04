@@ -16,7 +16,7 @@
 namespace lua::decorator {
 	/// <summary>
 	/// <para>represents a lua state.
-	/// contains only a pointer, so pass-by-value is prefered.
+	/// contains only a pointer, so pass-by-value is preferred.
 	/// you need to close this state manually.</para>
 	/// <para>the notation [-x,+y,e] is used to indicate changes in the stack:</para>
 	/// <para>x is the amount poped from the stack,</para>
@@ -30,22 +30,24 @@ namespace lua::decorator {
 	class State : public B, public C<State<B, C...>>... {
 		constexpr static std::string_view MethodsName = "Methods";
 
-		template<class State, class T> requires userdata::IndexCpp<State, T>
+		template<class State, class T>
+		requires userdata::IndexCpp<State, T>
 		friend int userdata::IndexOperator(State L);
-	public:
-	    template<template<class> class... D>
-	    using BindExtensions = State<B, D...>;
 
-	    constexpr static std::string_view RegistrySerializeKey = "luapp::SerializedRegistry";
+	public:
+		template<template<class> class... D>
+		using BindExtensions = State<B, D...>;
+
+		constexpr static std::string_view RegistrySerializeKey = "luapp::SerializedRegistry";
 
 		/// <summary>
 		/// <para>normal function to interface with lua.</para>
-		/// <para>recieves its arguments on the lua stack in direct order (first argument at 1) (with nothing else on the stack).</para>
+		/// <para>receives its arguments on the lua stack in direct order (first argument at 1) (with nothing else on the stack).</para>
 		/// <para>to return, push arguments onto the stack in direct order, and return the number of returns from the func.</para>
 		/// </summary>
 		/// <param name="L">lua state</param>
 		/// <returns>number of return values on the stack</returns>
-		using CppFunction = int(*)(State L);
+		using CppFunction = int (*)(State L);
 
 		/// <summary>
 		/// adapts a CppFunction to a CFunction (aka lua_CFunction), doing all the type conversion and exception handling.
@@ -54,10 +56,10 @@ namespace lua::decorator {
 		/// <returns>number of return values on the stack</returns>
 		template<CppFunction F>
 		static int CppToCFunction(lua_State* l) {
-		    static_assert(std::is_trivially_destructible_v<State>);
+			static_assert(std::is_trivially_destructible_v<State>);
 			if constexpr (CatchExceptions) {
 				bool err = false;
-				State L{ l }; // trivial, no destructor to call, so its save
+				State L{l}; // trivial, no destructor to call, so its save
 				int ret = 0;
 				{ // make sure all c++ objects gets their destructor called
 					try {
@@ -75,7 +77,8 @@ namespace lua::decorator {
 								L.Push(s);
 								err = true;
 							}
-							catch (...) {}
+							catch (...) {
+							}
 						}
 						if (!err) {
 							L.PushFString("unknown exception caught in %s", LUAPP_FUNCNAME);
@@ -88,8 +91,8 @@ namespace lua::decorator {
 				return ret;
 			}
 			else {
-                // ReSharper disable once CppDFAUnreachableCode
-                State L{ l };
+				// ReSharper disable once CppDFAUnreachableCode
+				State L{l};
 				return F(L);
 			}
 		}
@@ -101,56 +104,49 @@ namespace lua::decorator {
 		/// <param name="L">state</param>
 		/// <returns>number of return values on the stack</returns>
 		template<class O, auto F>
-	    requires func::IsLuaMemberFunction<State, decltype(F)>
+		requires func::IsLuaMemberFunction<State, decltype(F)>
 		static int MemberClosure(State L) {
-			auto* o = static_cast<O*>(L.ToUserdata(B::Upvalueindex(1)));
+			auto* o = static_cast<O*>(L.ToUserdata(B::UpvalueIndex(1)));
 			return std::invoke(F, o, L);
 		}
 
-	    /// <summary>
-	    /// figures out, how to turn F into a CFunction.
-	    /// options are:
-	    /// - CFunction, 0 bindings
-	    /// - CppFunction, 0 bindings
-	    /// - IsLuaMemberFunction, 1 binding (this)
-	    /// - IsLuaMemberFunction, 0 binding (this as 1st param)
-	    /// - arbitrary translatable function
-	    /// </summary>
-	    /// <typeparam name="F">function to adapt</typeparam>
-	    /// <typeparam name="NumBindings">number of parameters bound to upvalues</typeparam>
-	    /// <typeparam name="UC">type to automatically check as UserClass</typeparam>
-	    /// <returns>adapted function</returns>
-	    template<auto F, size_t NumBindings, class UC = void>
-	    requires func::AdaptableFunc<State, decltype(F), NumBindings, UC>
-	    static consteval CFunction AdaptFunction()
-		{
-		    using FT = decltype(F);
-		    if constexpr (std::same_as<FT, CFunction> && NumBindings == 0)
-		    {
-		        return F;
-		    }
-		    else if constexpr (std::same_as<FT, CppFunction> && NumBindings == 0)
-		    {
-		        return &CppToCFunction<F>;
-		    }
-		    else if constexpr (func::IsLuaMemberFunction<State, FT> && NumBindings == 1)
-		    {
-		        using O = func::ObjectTypeOfMemberFunc<FT>;
-		        return &CppToCFunction<MemberClosure<O, F>>;
-		    }
-		    else if constexpr (func::IsLuaMemberFunction<State, FT> && NumBindings == 0)
-		    {
-		        using O = func::ObjectTypeOfMemberFunc<FT>;
-		        return &CppToCFunction<userdata::MemberFuncAdaptor<State, O, F>>;
-		    }
-		    else if constexpr ((func::IsFunctionPointer<FT> || func::IsMemberFunctionPointer<FT>) && func::detail::AutoTranslateEnabled<State, FT, NumBindings, UC>)
-		    {
-		        return CppToCFunction<AutoTranslateAPI<F, NumBindings, UC>>;
-		    }
-		    else
-		    {
-		        throw std::logic_error("unreachable");
-		    }
+		/// <summary>
+		/// figures out, how to turn F into a CFunction.
+		/// options are:
+		/// - CFunction, 0 bindings
+		/// - CppFunction, 0 bindings
+		/// - IsLuaMemberFunction, 1 binding (this)
+		/// - IsLuaMemberFunction, 0 binding (this as 1st param)
+		/// - arbitrary translatable function (any amount of bindings)
+		/// </summary>
+		/// <typeparam name="F">function to adapt</typeparam>
+		/// <typeparam name="NumBindings">number of parameters bound to upvalues</typeparam>
+		/// <typeparam name="UC">type to automatically check as UserClass</typeparam>
+		/// <returns>adapted function</returns>
+		template<auto F, size_t NumBindings, class UC = void>
+		requires func::AdaptableFunc<State, decltype(F), NumBindings, UC>
+		static consteval CFunction AdaptFunction() {
+			using FT = decltype(F);
+			if constexpr (std::same_as<FT, CFunction> && NumBindings == 0) {
+				return F;
+			}
+			else if constexpr (std::same_as<FT, CppFunction> && NumBindings == 0) {
+				return &CppToCFunction<F>;
+			}
+			else if constexpr (func::IsLuaMemberFunction<State, FT> && NumBindings == 1) {
+				using O = func::ObjectTypeOfMemberFunc<FT>;
+				return &CppToCFunction<MemberClosure<O, F>>;
+			}
+			else if constexpr (func::IsLuaMemberFunction<State, FT> && NumBindings == 0) {
+				using O = func::ObjectTypeOfMemberFunc<FT>;
+				return &CppToCFunction<userdata::MemberFuncAdaptor<State, O, F>>;
+			}
+			else if constexpr ((func::IsFunctionPointer<FT> || func::IsMemberFunctionPointer<FT>) && func::detail::AutoTranslateEnabled<State, FT, NumBindings, UC>) {
+				return CppToCFunction<AutoTranslateAPI<F, NumBindings, UC>>;
+			}
+			else {
+				throw std::logic_error("unreachable");
+			}
 		}
 
 		/// <summary>
@@ -163,7 +159,7 @@ namespace lua::decorator {
 
 			constexpr FuncReference(std::string_view name, CFunction f, void* upvalue = nullptr) : Name(name), Func(f), Upvalue(upvalue) {
 			}
-		    constexpr FuncReference(B::MetaEvent name, CFunction f, void* upvalue = nullptr) : Name(name), Func(f), Upvalue(upvalue) {
+			constexpr FuncReference(B::MetaEvent name, CFunction f, void* upvalue = nullptr) : Name(name), Func(f), Upvalue(upvalue) {
 			}
 
 			/// <summary>
@@ -173,37 +169,37 @@ namespace lua::decorator {
 			/// <param name="name"></param>
 			/// <returns></returns>
 			template<auto F, class N>
-		    requires func::AdaptableFunc<State, decltype(F), 0, void>
+			requires func::AdaptableFunc<State, decltype(F), 0, void>
 			constexpr static FuncReference GetRef(N name) {
-				return { name, AdaptFunction<F, 0>() };
+				return {name, AdaptFunction<F, 0>()};
 			}
-		    /// <summary>
-		    /// A Reference to an adaptable Function with 1 binding.
-		    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-		    /// <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
-		    /// </summary>
-		    /// <typeparam name="F"></typeparam>
+			/// <summary>
+			/// A Reference to an adaptable Function with 1 binding.
+			/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it
+			/// afterwards.</para> <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
+			/// </summary>
+			/// <typeparam name="F"></typeparam>
 			/// <param name="obj"></param>
-		    /// <param name="name"></param>
-		    /// <returns></returns>
-		    template<auto F, class N>
-		    requires func::IsMemberFunctionPointer<decltype(F)> && func::AdaptableFunc<State, decltype(F), 1, void>
-            constexpr static FuncReference GetRef(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, N name) {
-			    return { name, AdaptFunction<F, 1>(), &obj };
+			/// <param name="name"></param>
+			/// <returns></returns>
+			template<auto F, class N>
+			requires func::IsMemberFunctionPointer<decltype(F)> && func::AdaptableFunc<State, decltype(F), 1, void>
+			constexpr static FuncReference GetRef(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, N name) {
+				return {name, AdaptFunction<F, 1>(), &obj};
 			}
 
-		    /// <summary>
-		    /// A reference to an adaptable Function with no bindings.
-		    /// <para>checks its first parameter (and any other parameters of the same type) with CheckUserClass.</para>
-		    /// </summary>
-		    /// <typeparam name="F"></typeparam>
-		    /// <param name="name"></param>
-		    /// <returns></returns>
-		    template<auto F, class N>
-		    requires func::IsMemberFunctionPointer<decltype(F)> && func::AdaptableFunc<State, decltype(F), 0, func::ObjectTypeOfMemberFunc<decltype(F)>>
-            constexpr static FuncReference GetUCRef(N name) {
-			    using UC = func::ObjectTypeOfMemberFunc<decltype(F)>;
-			    return { name, AdaptFunction<F, 0, UC>() };
+			/// <summary>
+			/// A reference to an adaptable Function with no bindings.
+			/// <para>checks its first parameter (and any other parameters of the same type) with CheckUserClass.</para>
+			/// </summary>
+			/// <typeparam name="F"></typeparam>
+			/// <param name="name"></param>
+			/// <returns></returns>
+			template<auto F, class N>
+			requires func::IsMemberFunctionPointer<decltype(F)> && func::AdaptableFunc<State, decltype(F), 0, func::ObjectTypeOfMemberFunc<decltype(F)>>
+			constexpr static FuncReference GetUCRef(N name) {
+				using UC = func::ObjectTypeOfMemberFunc<decltype(F)>;
+				return {name, AdaptFunction<F, 0, UC>()};
 			}
 
 			auto operator<=>(const FuncReference&) const = default;
@@ -218,12 +214,10 @@ namespace lua::decorator {
 			int r;
 
 		public:
-			constexpr explicit Reference(int i) : r(i)
-			{
+			constexpr explicit Reference(int i) : r(i) {
 			}
-			// initialized with noref
-			constexpr Reference()
-			{
+			// initialized with NoRef
+			constexpr Reference() {
 				r = State::NoRef.r;
 			}
 
@@ -235,11 +229,11 @@ namespace lua::decorator {
 		};
 
 		/// <summary>
-		/// lua hook function (when registered, gets called durng lua code execution).
+		/// lua hook function (when registered, gets called during Lua code execution).
 		/// </summary>
 		/// <param name="L">lua state</param>
 		/// <param name="ar">activation record</param>
-		using CppHook = void(*) (State L, typename B::ActivationRecord ar);
+		using CppHook = void (*)(State L, typename B::ActivationRecord ar);
 
 		/// <summary>
 		/// adapts a CppHook to a CHook, doing all the type conversion and exception handling.
@@ -250,10 +244,10 @@ namespace lua::decorator {
 		static void CppToCHook(lua_State* l, lua_Debug* ar) {
 			if constexpr (CatchExceptions) {
 				bool err = false;
-				State L{ l }; // trivial, no destructor to call, so its save
+				State L{l}; // trivial, no destructor to call, so its save
 				{ // make sure all c++ objects gets their destructor called
 					try {
-						F(L, typename B::ActivationRecord{ ar });
+						F(L, typename B::ActivationRecord{ar});
 					}
 					catch (const std::exception& e) {
 						L.PushFString("%s: %s in %s", func::detail::try_get_dynamic_typename(e), e.what(), LUAPP_FUNCNAME);
@@ -267,7 +261,8 @@ namespace lua::decorator {
 								L.Push(s);
 								err = true;
 							}
-							catch (...) {}
+							catch (...) {
+							}
 						}
 						if (!err) {
 							L.PushFString("unknown exception caught in %s", LUAPP_FUNCNAME);
@@ -279,121 +274,118 @@ namespace lua::decorator {
 					L.Error();
 			}
 			else {
-                // ReSharper disable once CppDFAUnreachableCode
-                State L{ l };
-				F(L, typename B::ActivationRecord{ ar });
+				// ReSharper disable once CppDFAUnreachableCode
+				State L{l};
+				F(L, typename B::ActivationRecord{ar});
 			}
 		}
 
 
-
 		/// <summary>
-        /// creates a State from a lua_State* (usually from external APIs).
-        /// </summary>
-        /// <param name="L">state pointer</param>
-        explicit State(lua_State* L) : B(L) {}
+		/// creates a State from a lua_State* (usually from external APIs).
+		/// </summary>
+		/// <param name="L">state pointer</param>
+		explicit State(lua_State* L) : B(L) {
+		}
 		/// <summary>
 		/// opens a new lua state.
 		/// </summary>
 		/// <param name="io">open io and os libs</param>
 		/// <param name="debug">open debug lib</param>
-		explicit State(bool io = true, bool debug = false) : B(io, debug) {}
+		explicit State(bool io = true, bool debug = false) : B(io, debug) {
+		}
 		/// <summary>
 		/// opens a new lua state (for similarity with luas c api).
 		/// </summary>
 		/// <param name="io">open io and os libs</param>
 		/// <param name="debug">open debug lib</param>
 		/// <returns>new state</returns>
-		static State Create(bool io = true, bool debug = false) { return State(io, debug); }
+		static State Create(bool io = true, bool debug = false) {
+			return State(io, debug);
+		}
 
 		template<template<class> class... D>
-        explicit State(State<B, D...> s) : B(s.GetState()) {}
+		explicit State(State<B, D...> s) : B(s.GetState()) {
+		}
 
 		/// <summary>
 		/// Pushes an adaptable Function or Closure (function with upvalues) with no bindings onto the stack.
-		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
-		/// <para>[-nups,+1,m]</para>
+		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nUps.
+		/// <para>[-nUps,+1,m]</para>
 		/// </summary>
 		/// <typeparam name="F">function</typeparam>
-		/// <param name="nups">number of upvalues</param>
+		/// <param name="nUps">number of upvalues</param>
 		template<auto F>
-	    requires func::AdaptableFunc<State, decltype(F), 0, void>
-		void Push(int nups = 0)
-		{
-			B::Push(AdaptFunction<F, 0>(), nups);
+		requires func::AdaptableFunc<State, decltype(F), 0, void>
+		void Push(int nUps = 0) {
+			B::Push(AdaptFunction<F, 0>(), nUps);
 		}
-	    /// <summary>
-	    /// Pushes an adaptable Function or Closure (function with upvalues) with 1 binding onto the stack. the bound object takes up upvalue 1.
-	    /// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nups.
-	    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-	    /// <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
-	    /// <para>[-nups,+1,m]</para>
-	    /// </summary>
-	    /// <typeparam name="F">function</typeparam>
-	    /// <param name="obj">object</param>
-	    /// <param name="nups">number of upvalues (excluding bindings)</param>
-	    template<auto F>
-        requires func::IsMemberFunctionPointer<decltype(F)> && func::AdaptableFunc<State, decltype(F), 1, void>
-        void Push(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, int nups = 0)
-		{
+		/// <summary>
+		/// Pushes an adaptable Function or Closure (function with upvalues) with 1 binding onto the stack. the bound object takes up upvalue 1.
+		/// to create a CClosure, push the initial values for its upvalues onto the stack, and then call this function with the number of upvalues as nUps.
+		/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
+		/// <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
+		/// <para>[-nUps,+1,m]</para>
+		/// </summary>
+		/// <typeparam name="F">function</typeparam>
+		/// <param name="obj">object</param>
+		/// <param name="nUps">number of upvalues (excluding bindings)</param>
+		template<auto F>
+		requires func::IsMemberFunctionPointer<decltype(F)> && func::AdaptableFunc<State, decltype(F), 1, void>
+		void Push(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, int nUps = 0) {
 			B::PushLightUserdata(&obj);
-		    B::Insert(-nups - 1);
-		    B::Push(AdaptFunction<F, 1>(), nups + 1);
+			B::Insert(-nUps - 1);
+			B::Push(AdaptFunction<F, 1>(), nUps + 1);
 		}
-	    /// <summary>
-	    /// pushes an arbitrary UserClass member function onto the stack, automatically translating its parameters and return values.
-	    /// <para>[-0,+1,m]</para>
-	    /// </summary>
-	    /// <typeparam name="F">function</typeparam>
-	    template<auto F, class UC>
-	    requires func::AdaptableFunc<State, decltype(F), 0, UC>
-        void PushUC()
-		{
-		    B::Push(AdaptFunction<F, 0, UC>(), 0);
+		/// <summary>
+		/// pushes an arbitrary UserClass member function onto the stack, automatically translating its parameters and return values.
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <typeparam name="F">function</typeparam>
+		template<auto F, class UC>
+		requires func::AdaptableFunc<State, decltype(F), 0, UC>
+		void PushUC() {
+			B::Push(AdaptFunction<F, 0, UC>(), 0);
 		}
 		/// <summary>
 		/// pushes a std::string_view.
 		/// <para>[-0,+1,m]</para>
 		/// </summary>
 		/// <param name="s">string to push</param>
-		void Push(std::string_view s)
-		{
+		void Push(std::string_view s) {
 			B::Push(s.data(), s.size());
 		}
-	    /// <summary>
-	    /// pushes an external std::string_view.
-	    /// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
-	    /// <para>[-0,+1,m]</para>
-	    /// </summary>
-	    /// <param name="s">string to push</param>
-	    void PushExternalString(std::string_view s)
-		{
-		    if constexpr (B::Capabilities::ExternalString)
-		        B::PushExternalString(s.data(), s.size());
-		    else
-		        Push(s);
+		/// <summary>
+		/// pushes an external std::string_view.
+		/// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <param name="s">string to push</param>
+		void PushExternalString(std::string_view s) {
+			if constexpr (B::Capabilities::ExternalString)
+				B::PushExternalString(s.data(), s.size());
+			else
+				Push(s);
 		}
-	    /// <summary>
-	    /// pushes an external string.
-	    /// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
-	    /// <para>[-0,+1,m]</para>
-	    /// </summary>
-	    /// <param name="s">string to push</param>
-	    template<size_t N>
-	    void PushExternalString(const char (&s)[N])
-		{
-		    PushExternalString(std::string_view(s, N - 1));
+		/// <summary>
+		/// pushes an external string.
+		/// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <param name="s">string to push</param>
+		template<size_t N>
+		void PushExternalString(const char (&s)[N]) {
+			PushExternalString(std::string_view(s, N - 1));
 		}
-	    /// <summary>
-	    /// pushes an external string.
-	    /// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
-	    /// <para>[-0,+1,m]</para>
-	    /// </summary>
-	    /// <param name="s">string to push</param>
-	    /// <param name="l"></param>
-        void PushExternalString(const char* s, size_t l)
-		{
-		    PushExternalString(std::string_view(s, l));
+		/// <summary>
+		/// pushes an external string.
+		/// lua expects this string to remain unchanged in memory for the entire runtime of the program, no copy is made.
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <param name="s">string to push</param>
+		/// <param name="l"></param>
+		void PushExternalString(const char* s, size_t l) {
+			PushExternalString(std::string_view(s, l));
 		}
 		/// <summary>
 		/// pushes an integer onto the stack.
@@ -415,7 +407,7 @@ namespace lua::decorator {
 			PushExternalString(B::GetMetaEventName(ev));
 		}
 		using B::Push;
-	    using C<State<B, C...>>::Push...;
+		using C<State<B, C...>>::Push...;
 
 		/// <summary>
 		/// dumps a lua function at the top of the stack to binary, which can be loaded again via Load.
@@ -428,7 +420,7 @@ namespace lua::decorator {
 				auto* st = static_cast<std::stringstream*>(ud);
 				st->write(static_cast<const char*>(data), static_cast<std::streamsize>(s));
 				return 0;
-				}, &str);
+			}, &str);
 			return str.str();
 		}
 		using B::Dump;
@@ -440,14 +432,13 @@ namespace lua::decorator {
 		/// <param name="idx">valid index to convert.</param>
 		/// <returns>string</returns>
 		/// <exception cref="lua::LuaException">if not a string</exception>
-		std::string_view ToStringView(int idx)
-		{
+		std::string_view ToStringView(int idx) {
 			size_t l = 0;
 			const char* s = B::ToString(idx, &l);
 			if (!s)
 				throw LuaException("no string");
-            // ReSharper disable once CppDFALocalValueEscapesFunction
-            return { s, l };
+			// ReSharper disable once CppDFALocalValueEscapesFunction
+			return {s, l};
 		}
 		/// <summary>
 		/// converts to a std::string.
@@ -456,9 +447,8 @@ namespace lua::decorator {
 		/// <param name="idx">valid index to convert.</param>
 		/// <returns>string</returns>
 		/// <exception cref="lua::LuaException">if not a string</exception>
-		std::string ToStdString(int idx)
-		{
-			return std::string{ ToStringView(idx) };
+		std::string ToStdString(int idx) {
+			return std::string{ToStringView(idx)};
 		}
 		/// <summary>
 		/// pops a key from the stack, and pushes the associated value in the table at index onto the stack.
@@ -522,7 +512,7 @@ namespace lua::decorator {
 		/// </summary>
 		void SetGlobal() {
 			if constexpr (B::Capabilities::GlobalsIndex) {
-				B::SetTableRaw(B::GLOBALSINDEX);
+				B::SetTableRaw(B::GlobalsIndex);
 			}
 			else {
 				B::PushGlobalTable();
@@ -549,7 +539,7 @@ namespace lua::decorator {
 		/// </summary>
 		void GetGlobal() {
 			if constexpr (B::Capabilities::GlobalsIndex) {
-				B::GetTableRaw(B::GLOBALSINDEX);
+				B::GetTableRaw(B::GlobalsIndex);
 			}
 			else {
 				B::PushGlobalTable();
@@ -625,7 +615,9 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="index">index to query</param>
 		/// <exception cref="lua::LuaException">on lua error</exception>
-		void ObjLength(int index) requires (B::Capabilities::MetatableLengthModulo) {
+		void ObjLength(int index)
+		requires(B::Capabilities::MetatableLengthModulo)
+		{
 			index = B::ToAbsoluteIndex(index);
 			B::Push(&B::ObjLen_Unprotected);
 			B::PushValue(index);
@@ -644,28 +636,26 @@ namespace lua::decorator {
 			TCall(num + 1, 1);
 		}
 		/// <summary>
-		/// performs an arithmetic operation over the 2 values at the top of the stack (or one in case of unary negation and bitwise not), pops the values and pushes the result.
-		/// the top values is the second operand.
-		/// may call metamethods.
-		/// <para>[-2|1,+1,e]</para>
+		/// performs an arithmetic operation over the 2 values at the top of the stack (or one in case of unary negation and bitwise not), pops the values and pushes the
+		/// result. the top values is the second operand. may call metamethods. <para>[-2|1,+1,e]</para>
 		/// </summary>
 		/// <param name="op">operator</param>
 		/// <exception cref="lua::LuaException">on lua error</exception>
 		void Arithmetic(B::ArithmeticOperator op) {
-			bool hasoneparam;
-			if constexpr (B::Capabilities::NativeIntegers) 
-				hasoneparam = op == B::ArithmeticOperator::UnaryNegation || op == B::ArithmeticOperator::BitwiseNot;
+			bool hasOneParam;
+			if constexpr (B::Capabilities::NativeIntegers)
+				hasOneParam = op == B::ArithmeticOperator::UnaryNegation || op == B::ArithmeticOperator::BitwiseNot;
 			else
-				hasoneparam = op == B::ArithmeticOperator::UnaryNegation;
+				hasOneParam = op == B::ArithmeticOperator::UnaryNegation;
 			B::Push(&B::Arithmetic_Unprotected);
-			B::Insert(hasoneparam ? -2 : -3);
+			B::Insert(hasOneParam ? -2 : -3);
 			Push(static_cast<int>(op));
-			TCall(hasoneparam ? 2 : 3, 1);
+			TCall(hasOneParam ? 2 : 3, 1);
 		}
 		/// <summary>
 		/// traverses the table index by poping the previous key from the stack and pushing the next key and value to the stack.
 		/// if there are no more elements in the table, returns false and pushes nothing. otherwise returns true.
-		/// <para>do not call tostring onto a key, unless you know that it is acually a string</para>
+		/// <para>do not call tostring onto a key, unless you know that it is actually a string</para>
 		/// <para>[-1,+2|0,e]</para>
 		/// </summary>
 		/// <param name="index">valid index to traverse</param>
@@ -676,9 +666,9 @@ namespace lua::decorator {
 			B::Insert(-2);
 			B::PushLightUserdata(&r);
 			B::Insert(-3);
-			B::Push(&B::Next_Unproteced);
+			B::Push(&B::Next_Unprotected);
 			B::Insert(-4);
-			TCall(3, B::MULTIRET);
+			TCall(3, B::MultiRet);
 			return r;
 		}
 		class PairsHolder;
@@ -758,7 +748,7 @@ namespace lua::decorator {
 		/// <param name="i"></param>
 		/// <returns></returns>
 		LocalsHolder Debug_Locals(const B::DebugInfo& i) {
-			return LocalsHolder{ *this, i };
+			return LocalsHolder{*this, i};
 		}
 		/// <summary>
 		/// allows to iterate over the locals of level of the current call stack.
@@ -770,7 +760,7 @@ namespace lua::decorator {
 		LocalsHolder Debug_Locals(int lvl) {
 			typename B::DebugInfo i{};
 			if (!B::Debug_GetStack(lvl, i, B::DebugInfoOptions::None, false))
-				throw lua::LuaException{ "invalid stack level" };
+				throw lua::LuaException{"invalid stack level"};
 			return Debug_Locals(i);
 		}
 		class UpvaluesHolder;
@@ -782,7 +772,7 @@ namespace lua::decorator {
 		/// <param name="func"></param>
 		/// <returns></returns>
 		UpvaluesHolder Debug_Upvalues(int func) {
-			return UpvaluesHolder{ *this, func };
+			return UpvaluesHolder{*this, func};
 		}
 
 		/// <summary>
@@ -797,7 +787,8 @@ namespace lua::decorator {
 			/// <param name="d"></param>
 			/// <returns></returns>
 			static std::string CFuncSourceFormat(State L, int index, [[maybe_unused]] const B::DebugInfo& d) {
-				return std::format("C:{}", reinterpret_cast<void*>(L.ToCFunction(index)));;
+				return std::format("C:{}", reinterpret_cast<void*>(L.ToCFunction(index)));
+				;
 			}
 			/// <summary>
 			/// formats the source part of a lua func.
@@ -807,7 +798,8 @@ namespace lua::decorator {
 			/// <param name="d"></param>
 			/// <returns></returns>
 			static std::string LuaFuncSourceFormat([[maybe_unused]] State L, [[maybe_unused]] int index, const B::DebugInfo& d) {
-				return std::format("{}:{}", d.ShortSrc, d.LineDefined);;
+				return std::format("{}:{}", d.ShortSrc, d.LineDefined);
+				;
 			}
 			/// <summary>
 			/// formats a function.
@@ -820,7 +812,8 @@ namespace lua::decorator {
 			/// <param name="pre"></param>
 			/// <param name="post"></param>
 			/// <returns></returns>
-			static std::string FuncFormat([[maybe_unused]] State L, [[maybe_unused]] int index, const B::DebugInfo& d, std::string_view name, std::string_view src, std::string_view pre, std::string_view post) {
+			static std::string FuncFormat([[maybe_unused]] State L, [[maybe_unused]] int index, const B::DebugInfo& d, std::string_view name, std::string_view src,
+										  std::string_view pre, std::string_view post) {
 				return std::format("{}{} {} {} (defined in: {}){}", pre, d.What, d.NameWhat, name, src, post);
 			}
 			/// <summary>
@@ -839,6 +832,7 @@ namespace lua::decorator {
 				return r;
 			}
 		};
+
 	private:
 		bool IsIdentifier(std::string_view s) {
 			for (char c : s) {
@@ -848,84 +842,83 @@ namespace lua::decorator {
 			return !s.empty() && !(s[0] >= '0' && s[0] <= '9');
 		}
 		template<class Fmt>
-		std::string ToDebugString_Recursive(int index, int tableExpandLevels, size_t indent, std::set<const void*>& tablesDone)
-		{
-            switch (B::Type(index))
-			{
-			case LType::Nil:
-				return "nil";
-			case LType::Boolean:
-				return B::ToBoolean(index) ? "true" : "false";
-			case LType::LightUserdata:
-				return std::format("<LightUserdata {}>", B::ToUserdata(index));
-			case LType::Number:
-				if constexpr (B::Capabilities::NativeIntegers) {
-					if (B::IsInteger(index)) {
-						return std::format("{}",  *B::ToInteger(index));
+		std::string ToDebugString_Recursive(int index, int tableExpandLevels, size_t indent, std::set<const void*>& tablesDone) {
+			switch (B::Type(index)) {
+				case LType::Nil:
+					return "nil";
+				case LType::Boolean:
+					return B::ToBoolean(index) ? "true" : "false";
+				case LType::LightUserdata:
+					return std::format("<LightUserdata {}>", B::ToUserdata(index));
+				case LType::Number:
+					if constexpr (B::Capabilities::NativeIntegers) {
+						if (B::IsInteger(index)) {
+							return std::format("{}", *B::ToInteger(index));
+						}
 					}
-				}
-				return std::format("{}", *B::ToNumber(index));
-			case LType::String:
-				return Fmt::StringFormat(*this, index);
-			case LType::Table:
-			{
-				auto tp = B::ToPointer(index);
-				if (tablesDone.contains(tp)) {
-					return std::format("<table, recursion {}>", tp);
-				}
-				if (tableExpandLevels > 0 && B::CheckStack(3)) {
-					tablesDone.insert(tp);
-					std::map<std::tuple<int, lua::Number, std::string>, std::string> data{};
-					for (LType kty : Pairs(index)) {
-						lua::Number i = 0;
-						if (kty == LType::Number)
-							i = *B::ToNumber(-2);
-						data[std::tuple<int, lua::Number, std::string>(static_cast<int>(kty), i,
-							ToDebugString_Recursive<Fmt>(-2, tableExpandLevels - 1, indent + 1, tablesDone))]
-							= ToDebugString_Recursive<Fmt>(-1, tableExpandLevels - 1, indent + 1, tablesDone);
+					return std::format("{}", *B::ToNumber(index));
+				case LType::String:
+					return Fmt::StringFormat(*this, index);
+				case LType::Table:
+					{
+						auto tp = B::ToPointer(index);
+						if (tablesDone.contains(tp)) {
+							return std::format("<table, recursion {}>", tp);
+						}
+						if (tableExpandLevels > 0 && B::CheckStack(3)) {
+							tablesDone.insert(tp);
+							std::map<std::tuple<int, lua::Number, std::string>, std::string> data{};
+							for (LType kty : Pairs(index)) {
+								lua::Number i = 0;
+								if (kty == LType::Number)
+									i = *B::ToNumber(-2);
+								data[std::tuple<int, lua::Number, std::string>(static_cast<int>(kty), i,
+																			   ToDebugString_Recursive<Fmt>(-2, tableExpandLevels - 1, indent + 1, tablesDone))] =
+									ToDebugString_Recursive<Fmt>(-1, tableExpandLevels - 1, indent + 1, tablesDone);
+							}
+							std::stringstream str{};
+							str << "{\n";
+							for (const auto& [kd, v] : data) {
+								const auto& [kty, _, k] = kd;
+								str << std::string(indent + 1, '\t');
+								if (static_cast<LType>(kty) == LType::String && IsIdentifier(static_cast<std::string_view>(k).substr(1, k.length() - 2)))
+									str << static_cast<std::string_view>(k).substr(1, k.length() - 2) << " = ";
+								else
+									str << '[' << k << "] = ";
+								str << v << ",\n";
+							}
+							str << std::string(indent, '\t') << "}";
+							return str.str();
+						}
+						return std::format("<table {}>", tp);
 					}
-					std::stringstream str{};
-					str << "{\n";
-					for (const auto& [kd, v] : data) {
-						const auto& [kty, _, k] = kd;
-						str << std::string(indent + 1, '\t');
-						if (static_cast<LType>(kty) == LType::String && IsIdentifier(static_cast<std::string_view>(k).substr(1, k.length() - 2)))
-							str << static_cast<std::string_view>(k).substr(1, k.length() - 2) << " = ";
-						else
-							str << '[' << k << "] = ";
-						str << v << ",\n";
+				case LType::Function:
+					{
+						B::PushValue(index);
+						typename B::DebugInfo d = B::Debug_GetInfoForFunc(B::DebugInfoOptions::Name | B::DebugInfoOptions::Source | B::DebugInfoOptions::Line);
+						auto name = GetNameForFunc(d);
+						auto src = B::IsCFunction(index) ? Fmt::CFuncSourceFormat(*this, index, d) : Fmt::LuaFuncSourceFormat(*this, index, d);
+						return Fmt::FuncFormat(*this, index, d, name, src, "<function ", ">");
 					}
-					str << std::string(indent, '\t') << "}";
-					return str.str();
-				}
-				return std::format("<table {}>", tp);
-			}
-			case LType::Function:
-			{
-				B::PushValue(index);
-				typename B::DebugInfo d = B::Debug_GetInfoForFunc(B::DebugInfoOptions::Name | B::DebugInfoOptions::Source | B::DebugInfoOptions::Line);
-				auto name = GetNameForFunc(d);
-				auto src = B::IsCFunction(index) ? Fmt::CFuncSourceFormat(*this, index, d) : Fmt::LuaFuncSourceFormat(*this, index, d);
-				return Fmt::FuncFormat(*this, index, d, name, src, "<function ", ">");
-			}
-			case LType::Userdata:
-			{
-				std::string_view ud = "unknown type";
-				if (GetMetaField(index, B::MetaEvent::Name)) {
-					if (B::IsString(-1))
-						ud = ToStringView(-1);
-					B::Pop(1);
-				}
-				return std::format("<Userdata {} {}>", ud, static_cast<void*>(B::ToUserdata(index)));
-			}
-			case LType::Thread:
-				return std::format("<thread {}>", static_cast<void*>(B::ToThread(index).GetState()));
-			case LType::None:
-				return "<none>";
-			default:
-				return "<unknown>";
+				case LType::Userdata:
+					{
+						std::string_view ud = "unknown type";
+						if (GetMetaField(index, B::MetaEvent::Name)) {
+							if (B::IsString(-1))
+								ud = ToStringView(-1);
+							B::Pop(1);
+						}
+						return std::format("<Userdata {} {}>", ud, static_cast<void*>(B::ToUserdata(index)));
+					}
+				case LType::Thread:
+					return std::format("<thread {}>", static_cast<void*>(B::ToThread(index).GetState()));
+				case LType::None:
+					return "<none>";
+				default:
+					return "<unknown>";
 			}
 		}
+
 	public:
 		/// <summary>
 		/// turns the value at index to a debug string.
@@ -951,8 +944,7 @@ namespace lua::decorator {
 		/// <param name="locals">include a ToDebugString of locals</param>
 		/// <returns>stack trace</returns>
 		template<class Fmt = ToDebugString_Format>
-		std::string GenerateStackTrace(int levelStart = 0, int levelEnd = -1, bool upvalues = false, bool locals = false)
-		{
+		std::string GenerateStackTrace(int levelStart = 0, int levelEnd = -1, bool upvalues = false, bool locals = false) {
 			int lvl = levelStart;
 			typename B::DebugInfo ar{};
 			std::ostringstream trace{};
@@ -962,21 +954,21 @@ namespace lua::decorator {
 				trace << "\t";
 				trace << Fmt::FuncFormat(*this, -1, ar, name, src, "", "");
 				if (locals) {
-					const char* localname;
-					int lnum = 1;
-					while ((localname = B::Debug_GetLocal(lvl, lnum))) {
-						trace << "\r\n\t\tlocal " << localname << " = " << ToDebugString(-1);
+					const char* localName;
+					int localN = 1;
+					while ((localName = B::Debug_GetLocal(lvl, localN))) {
+						trace << "\r\n\t\tlocal " << localName << " = " << ToDebugString(-1);
 						B::Pop(1);
-						lnum++;
+						localN++;
 					}
 				}
 				if (upvalues) {
-					const char* upname;
-					int unum = 1;
-					while ((upname = B::Debug_GetUpvalue(-1, unum))) {
-						trace << "\r\n\t\tupvalue " << upname << " = " << ToDebugString(-1);
+					const char* upName;
+					int upN = 1;
+					while ((upName = B::Debug_GetUpvalue(-1, upN))) {
+						trace << "\r\n\t\tupvalue " << upName << " = " << ToDebugString(-1);
 						B::Pop(1);
-						unum++;
+						upN++;
 					}
 				}
 				B::Pop(1);
@@ -986,12 +978,11 @@ namespace lua::decorator {
 			return trace.str();
 		}
 		/// <summary>
-		/// intended to be used with Pcall. attaches a stack trace to its first parameter.
+		/// intended to be used with PCall. attaches a stack trace to its first parameter.
 		/// </summary>
 		/// <param name="L">lua state</param>
 		/// <returns>1</returns>
-		static int DefaultErrorDecorator(State L)
-		{
+		static int DefaultErrorDecorator(State L) {
 			std::ostringstream trace{};
 			trace << L.ToString(-1);
 			L.Pop(1);
@@ -1005,74 +996,69 @@ namespace lua::decorator {
 		/// first push the function, then the arguments in order, then call.
 		/// pops the function and its arguments, then pushes its results.
 		/// use MULTIRET to return all values.
-		/// if an error gets cought, attaches a stack trace and then throws a LuaException.
-		/// <para>[-nargs+1,+nresults|0,t]</para>
+		/// if an error gets caught, attaches a stack trace and then throws a LuaException.
+		/// <para>[-nArgs+1,+nResults|0,t]</para>
 		/// </summary>
-		/// <param name="nargs">number of parameters</param>
-		/// <param name="nresults">number of return values</param>
+		/// <param name="nArgs">number of parameters</param>
+		/// <param name="nResults">number of return values</param>
 		/// <returns>number of return values</returns>
 		/// <exception cref="lua::LuaException">on lua error</exception>
-		int TCall(int nargs, int nresults)
-		{
-			int t = B::GetTop() - nargs - 1;
+		int TCall(int nArgs, int nResults) {
+			int t = B::GetTop() - nArgs - 1;
 			Push<DefaultErrorDecorator>();
-			int ehsi = B::ToAbsoluteIndex(-nargs - 2); // just under the func to be called
-			B::Insert(ehsi);
-			auto c = B::PCall(nargs, nresults, ehsi);
+			int errorDecPos = B::ToAbsoluteIndex(-nArgs - 2); // just under the func to be called
+			B::Insert(errorDecPos);
+			auto c = B::PCall(nArgs, nResults, errorDecPos);
 			if (c != B::ErrorCode::Success) {
 				std::string msg = B::ErrorCodeFormat(c);
 				msg += ToStringView(-1);
 				B::Pop(1); // error msg
-				B::Remove(ehsi); // DefaultErrorDecorator
-				throw LuaException{ msg };
+				B::Remove(errorDecPos); // DefaultErrorDecorator
+				throw LuaException{msg};
 			}
-			B::Remove(ehsi); // DefaultErrorDecorator
+			B::Remove(errorDecPos); // DefaultErrorDecorator
 			return B::GetTop() - t;
 		}
-	    /// <summary>
-	    /// calls a function. does catch lua exceptions, and throws an LuaException.
-	    /// first push the function, then call.
-	    /// pops the function and its arguments, then pushes its results.
-	    /// automatically translates parameters and return values.
-	    /// <para>[-1,+sizeof...(R)|0,t]</para>
-	    /// </summary>
-	    /// <typeparam name="R...">result types</typeparam>
-	    /// <typeparam name="P...">parameter types</typeparam>
-	    /// <param name="arg">parameters</param>
-	    /// <returns>results (as std::tuple, if more than 1)</returns>
-	    /// <exception cref="lua::LuaException">on lua error</exception>
-	    template<class... R, class... P>
-	    auto TCall(P... arg)
-		{
-		    int t = B::GetTop();
-		    Push<DefaultErrorDecorator>();
-		    int ehsi = B::ToAbsoluteIndex(-2); // just under the func to be called
-		    B::Insert(ehsi);
-		    (this->Push(arg), ...);
-		    auto c = B::PCall(sizeof...(P), sizeof...(R), ehsi);
-		    if (c != B::ErrorCode::Success) {
-		        std::string msg = B::ErrorCodeFormat(c);
-		        msg += ToStringView(-1);
-		        B::Pop(1); // error msg
-		        B::Remove(ehsi); // DefaultErrorDecorator
-		        throw LuaException{ msg };
-		    }
-		    B::Remove(ehsi); // DefaultErrorDecorator
-		    if constexpr (sizeof...(R) == 0)
-		    {
-		        return;
-		    }
-		    else if constexpr (sizeof...(R) == 1)
-		    {
-		        return this->template Check<std::tuple_element_t<0, std::tuple<R...>>>(t);
-		    }
-		    else
-		    {
-		        auto f = [this, t]<int... I>(std::integer_sequence<int, I...>) {
-		            return std::tuple<R...>(this->template Check<R>(t + I)...);
-		        };
-		        return f(std::make_integer_sequence<int, sizeof...(R)>{});
-		    }
+		/// <summary>
+		/// calls a function. does catch lua exceptions, and throws an LuaException.
+		/// first push the function, then call.
+		/// pops the function and its arguments, then pushes its results.
+		/// automatically translates parameters and return values.
+		/// <para>[-1,+sizeof...(R)|0,t]</para>
+		/// </summary>
+		/// <typeparam name="R...">result types</typeparam>
+		/// <typeparam name="P...">parameter types</typeparam>
+		/// <param name="arg">parameters</param>
+		/// <returns>results (as std::tuple, if more than 1)</returns>
+		/// <exception cref="lua::LuaException">on lua error</exception>
+		template<class... R, class... P>
+		auto TCall(P... arg) {
+			int t = B::GetTop();
+			Push<DefaultErrorDecorator>();
+			int errorDecPos = B::ToAbsoluteIndex(-2); // just under the func to be called
+			B::Insert(errorDecPos);
+			(this->Push(arg), ...);
+			auto c = B::PCall(sizeof...(P), sizeof...(R), errorDecPos);
+			if (c != B::ErrorCode::Success) {
+				std::string msg = B::ErrorCodeFormat(c);
+				msg += ToStringView(-1);
+				B::Pop(1); // error msg
+				B::Remove(errorDecPos); // DefaultErrorDecorator
+				throw LuaException{msg};
+			}
+			B::Remove(errorDecPos); // DefaultErrorDecorator
+			if constexpr (sizeof...(R) == 0) {
+				return;
+			}
+			else if constexpr (sizeof...(R) == 1) {
+				return this->template Check<std::tuple_element_t<0, std::tuple<R...>>>(t);
+			}
+			else {
+				auto f = [this, t]<int... I>(std::integer_sequence<int, I...>) {
+					return std::tuple<R...>(this->template Check<R>(t + I)...);
+				};
+				return f(std::make_integer_sequence<int, sizeof...(R)>{});
+			}
 		}
 
 
@@ -1084,51 +1070,50 @@ namespace lua::decorator {
 		/// <param name="name">key to register</param>
 		/// <typeparam name="F">function to register</typeparam>
 		/// <param name="index">valid index where to register</param>
-	    template<auto F, class UC = void, class T>
-        requires lua::func::detail::Pushable<State, T> && func::AdaptableFunc<State, decltype(F), 0, UC>
+		template<auto F, class UC = void, class T>
+		requires lua::func::detail::Pushable<State, T> && func::AdaptableFunc<State, decltype(F), 0, UC>
 		void RegisterFunc(T name, int index) {
-		    Push(name);
-		    if constexpr (func::detail::FuncPushable<State, F>)
-			    Push<F>();
-		    else
-		        PushUC<F, UC>();
-		    B::SetTableRaw(index);
+			Push(name);
+			if constexpr (func::detail::FuncPushable<State, F>)
+				Push<F>();
+			else
+				PushUC<F, UC>();
+			B::SetTableRaw(index);
 		}
-	    /// <summary>
-	    /// registers the function f via the key name in the global environment.
-	    /// <para>[-0,+0,m]</para>
-	    /// </summary>
-	    /// <param name="name">key to register</param>
-	    /// <typeparam name="F">function to register</typeparam>
-	    template<auto F, class UC = void, class T>
-        requires lua::func::detail::Pushable<State, T> && func::AdaptableFunc<State, decltype(F), 0, UC>
-        void RegisterFunc(T name) {
-		    Push(name);
-		    if constexpr (func::detail::FuncPushable<State, F>)
-		        Push<F>();
-		    else
-		        PushUC<F, UC>();
-		    SetGlobal();
+		/// <summary>
+		/// registers the function f via the key name in the global environment.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="name">key to register</param>
+		/// <typeparam name="F">function to register</typeparam>
+		template<auto F, class UC = void, class T>
+		requires lua::func::detail::Pushable<State, T> && func::AdaptableFunc<State, decltype(F), 0, UC>
+		void RegisterFunc(T name) {
+			Push(name);
+			if constexpr (func::detail::FuncPushable<State, F>)
+				Push<F>();
+			else
+				PushUC<F, UC>();
+			SetGlobal();
 		}
-	    /// <summary>
-	    /// registers the member function F via the key name in index. The object will take up upvalue 1.
-	    /// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
-	    /// <para>needs a non const object, because lua does not have const userdata.</para>
-	    /// <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
-	    /// <para>[-0,+0,m]</para>
-	    /// </summary>
-	    /// <typeparam name="O">object type</typeparam>
-	    /// <typeparam name="F">member function to register</typeparam>
-	    /// <param name="obj">object</param>
-	    /// <param name="name">key to register</param>
-	    /// <param name="index"></param>
-	    template<auto F, class T>
-        requires func::detail::Pushable<State, T> && func::AdaptableFunc<State, decltype(F), 1, void>
-        void RegisterFunc(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, T name, int index)
-		{
-		    Push(name);
-		    Push<F>(obj);
-		    B::SetTableRaw(index);
+		/// <summary>
+		/// registers the member function F via the key name in index. The object will take up upvalue 1.
+		/// <para>does NOT take ownership of the object, you have to keep it alive for as long as the pushed function might be called and dispose of it afterwards.</para>
+		/// <para>needs a non const object, because lua does not have const userdata.</para>
+		/// <para>if you need GC on an object, a userdata type with call operator might be more appropriate.</para>
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <typeparam name="O">object type</typeparam>
+		/// <typeparam name="F">member function to register</typeparam>
+		/// <param name="obj">object</param>
+		/// <param name="name">key to register</param>
+		/// <param name="index"></param>
+		template<auto F, class T>
+		requires func::detail::Pushable<State, T> && func::AdaptableFunc<State, decltype(F), 1, void>
+		void RegisterFunc(func::ObjectTypeOfMemberFunc<decltype(F)>& obj, T name, int index) {
+			Push(name);
+			Push<F>(obj);
+			B::SetTableRaw(index);
 		}
 		/// <summary>
 		/// registers all functions in funcs into index.
@@ -1139,14 +1124,14 @@ namespace lua::decorator {
 		/// <param name="index">valid index where to register</param>
 		template<class T>
 		void RegisterFuncs(const T& funcs, int index) {
-		    for (const FuncReference& f : funcs) {
-		        std::visit([&]<class N>(N n) {
-                    Push(n);
-                }, f.Name);
-			    if (f.Upvalue != nullptr)
-			        B::PushLightUserdata(f.Upvalue);
-			    B::Push(f.Func, f.Upvalue == nullptr ? 0 : 1);
-			    B::SetTableRaw(index);
+			for (const FuncReference& f : funcs) {
+				std::visit([&]<class N>(N n) {
+					Push(n);
+				}, f.Name);
+				if (f.Upvalue != nullptr)
+					B::PushLightUserdata(f.Upvalue);
+				B::Push(f.Func, f.Upvalue == nullptr ? 0 : 1);
+				B::SetTableRaw(index);
 			}
 		}
 		/// <summary>
@@ -1156,14 +1141,14 @@ namespace lua::decorator {
 		/// <param name="funcs">iterable containing FuncReference to register</param>
 		template<class T>
 		void RegisterFuncs(const T& funcs) {
-		    for (const FuncReference& f : funcs) {
-		        std::visit([&]<class N>(N n) {
-                    Push(n);
-                }, f.Name);
-			    if (f.Upvalue != nullptr)
-			        B::PushLightUserdata(f.Upvalue);
-			    B::Push(f.Func, f.Upvalue == nullptr ? 0 : 1);
-			    SetGlobal();
+			for (const FuncReference& f : funcs) {
+				std::visit([&]<class N>(N n) {
+					Push(n);
+				}, f.Name);
+				if (f.Upvalue != nullptr)
+					B::PushLightUserdata(f.Upvalue);
+				B::Push(f.Func, f.Upvalue == nullptr ? 0 : 1);
+				SetGlobal();
 			}
 		}
 		/// <summary>
@@ -1195,11 +1180,11 @@ namespace lua::decorator {
 		/// <exception cref="lua::LuaException">always</exception>
 		[[noreturn]] void ErrorOrThrow(std::string_view msg) {
 			if constexpr (CatchExceptions) {
-				throw lua::LuaException{ std::string{msg} };
+				throw lua::LuaException{std::string{msg}};
 			}
 			else {
-                // ReSharper disable once CppDFAUnreachableCode
-                Push(msg);
+				// ReSharper disable once CppDFAUnreachableCode
+				Push(msg);
 				B::Error();
 			}
 		}
@@ -1241,7 +1226,7 @@ namespace lua::decorator {
 		std::string GetNameForFunc() {
 			int i = B::GetTop();
 			if constexpr (B::Capabilities::LoadedTable)
-				GetTableRaw(B::REGISTRYINDEX, B::REGISTRY_LOADED_TABLE);
+				GetTableRaw(B::RegistryIndex, B::REGISTRY_LOADED_TABLE);
 			else
 				B::PushGlobalTable();
 			std::set<const void*> searched{};
@@ -1296,7 +1281,7 @@ namespace lua::decorator {
 
 		/// <summary>
 		/// generates an error message of the form
-		/// 'bad argument #&lt;arg&gt; to &lt;func&gt; (&lt;extramsg&gt;)'
+		/// 'bad argument #&lt;arg&gt; to &lt;func&gt; (&lt;msg&gt;)'
 		/// throws c++ or lua error depending on CatchExceptions.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
@@ -1307,7 +1292,7 @@ namespace lua::decorator {
 			typename B::DebugInfo i{};
 			if (!B::Debug_GetStack(0, i, B::DebugInfoOptions::Name, false))
 				ErrorOrThrow(std::format("bad argument #{} ({})", arg, msg));
-			if (i.NameWhat != nullptr && i.NameWhat == std::string_view{ "method" }) {
+			if (i.NameWhat != nullptr && i.NameWhat == std::string_view{"method"}) {
 				--arg;
 				if (arg == 0)
 					ErrorOrThrow(std::format("calling `{}' on bad self ({})", i.Name, msg));
@@ -1347,26 +1332,26 @@ namespace lua::decorator {
 		[[noreturn]] void TypeError(int idx, LType t) {
 			TypeError(idx, B::TypeName(t));
 		}
-	    /// <summary>
-	    /// throws an error with the message: "location: bad argument narg to 'func' (tname expected, got rt)"
-	    /// <para>[-0,+0,v]</para>
-	    /// </summary>
-	    /// <param name="idx">index</param>
-	    /// <typeparam name="T">expected type</typeparam>
-	    /// <exception cref="lua::LuaException">always</exception>
-	    template<class T>
-	    [[noreturn]] void CastError(int idx) {
-		    ArgError(idx, std::format("{} expected, value out of range", typename_details::type_name<T>()));
-		}
 		/// <summary>
-		/// throws an error if a is not met.
+		/// throws an error with the message: "location: bad argument narg to 'func' (tname expected, got rt)"
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
-		/// <param name="a">condition</param>
+		/// <param name="idx">index</param>
+		/// <typeparam name="T">expected type</typeparam>
+		/// <exception cref="lua::LuaException">always</exception>
+		template<class T>
+		[[noreturn]] void CastError(int idx) {
+			ArgError(idx, std::format("{} expected, value out of range", typename_details::type_name<T>()));
+		}
+		/// <summary>
+		/// throws an error if cond is not met.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="cond">condition</param>
 		/// <param name="msg">message</param>
 		/// <exception cref="lua::LuaException">if !a</exception>
-		void Assert(bool a, std::string_view msg) {
-			if (!a)
+		void Assert(bool cond, std::string_view msg) {
+			if (!cond)
 				ErrorOrThrow(msg);
 		}
 		/// <summary>
@@ -1423,7 +1408,7 @@ namespace lua::decorator {
 		/// returns if it found a method to call.
 		/// <para>[-0,+0|1,e]</para>
 		/// </summary>
-		/// <param name="obj">valid index to call methamethod of</param>
+		/// <param name="obj">valid index to call MetaMethod of</param>
 		/// <param name="ev">event string</param>
 		/// <returns>found method</returns>
 		bool CallMeta(int obj, std::string_view ev) {
@@ -1454,7 +1439,7 @@ namespace lua::decorator {
 		/// <param name="tname">metatable name</param>
 		void GetMetaTableFromRegistry(std::string_view tname) {
 			Push(tname);
-			GetTable(B::REGISTRYINDEX);
+			GetTable(B::RegistryIndex);
 		}
 		/// <summary>
 		/// if the registry already has a value associated with name, returns 0. otherwise creates a new table, adds it and returns 1.
@@ -1475,11 +1460,11 @@ namespace lua::decorator {
 			B::SetTableRaw(-3);
 			Push(tname);
 			B::PushValue(-2);
-			B::SetTableRaw(B::REGISTRYINDEX);
+			B::SetTableRaw(B::RegistryIndex);
 			return true;
 		}
 		/// <summary>
-		/// checks for an userdata type. (via its metatable).
+		/// checks for a userdata type. (via its metatable).
 		/// returns nullptr on fail.
 		/// <para>[-0,+0,-]</para>
 		/// </summary>
@@ -1517,7 +1502,7 @@ namespace lua::decorator {
 		}
 		using B::CheckStack;
 		/// <summary>
-		/// checks if the stack contains at least n enements.
+		/// checks if the stack contains at least n elements.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
 		/// <param name="n">n</param>
@@ -1561,17 +1546,17 @@ namespace lua::decorator {
 				return *n;
 			TypeError(idx, LType::Number);
 		}
-	    /// <summary>
-	    /// checks if there is a number and returns it.
-	    /// <para>[-0,+0,v]</para>
-	    /// </summary>
-	    /// <param name="idx">acceptable index to check</param>
-	    /// <returns>number</returns>
-	    /// <exception cref="lua::LuaException">if not number</exception>
-	    template<class T>
-	    requires std::same_as<T, Number>
-	    Number Check(int idx) {
-		    return CheckNumber(idx);
+		/// <summary>
+		/// checks if there is a number and returns it.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="idx">acceptable index to check</param>
+		/// <returns>number</returns>
+		/// <exception cref="lua::LuaException">if not number</exception>
+		template<class T>
+		requires std::same_as<T, Number>
+		Number Check(int idx) {
+			return CheckNumber(idx);
 		}
 		/// <summary>
 		/// checks if there is a number and returns it cast to a float.
@@ -1583,23 +1568,23 @@ namespace lua::decorator {
 		float CheckFloat(int idx) {
 			return static_cast<float>(CheckNumber(idx));
 		}
-	    /// <summary>
-	    /// checks if there is a number and returns it cast to a float.
-	    /// <para>[-0,+0,v]</para>
-	    /// </summary>
-	    /// <param name="idx">acceptable index to check</param>
-	    /// <returns>float</returns>
-	    /// <exception cref="lua::LuaException">if not number or if out of range</exception>
-	    template<class T>
-	    requires std::same_as<T, float>
-	    float Check(int idx) {
-		    auto r = cast_detail::TryCast<float>(CheckNumber(idx));
-		    if (r.has_value())
-		        return *r;
-		    CastError<T>(idx);
+		/// <summary>
+		/// checks if there is a number and returns it cast to a float.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="idx">acceptable index to check</param>
+		/// <returns>float</returns>
+		/// <exception cref="lua::LuaException">if not number or if out of range</exception>
+		template<class T>
+		requires std::same_as<T, float>
+		float Check(int idx) {
+			auto r = cast_detail::TryCast<float>(CheckNumber(idx));
+			if (r.has_value())
+				return *r;
+			CastError<T>(idx);
 		}
 		/// <summary>
-		/// checks if there is a integer and returns it.
+		/// checks if there is an integer and returns it.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
 		/// <param name="idx">acceptable index to check</param>
@@ -1620,7 +1605,7 @@ namespace lua::decorator {
 			}
 		}
 		/// <summary>
-		/// checks if there is a integer and returns it.
+		/// checks if there is an integer and returns it.
 		/// <para>[-0,+0,v]</para>
 		/// </summary>
 		/// <param name="idx">acceptable index to check</param>
@@ -1629,24 +1614,24 @@ namespace lua::decorator {
 		int CheckInt(int idx) {
 			return static_cast<int>(CheckInteger(idx));
 		}
-	    /// <summary>
-	    /// checks if there is a integer and returns it.
-	    /// <para>[-0,+0,v]</para>
-	    /// </summary>
-	    /// <param name="idx">acceptable index to check</param>
-	    /// <returns>int</returns>
-	    /// <exception cref="lua::LuaException">if not number</exception>
-	    template<class T>
-        requires (std::integral<T> && !std::same_as<T, bool>)
-	    T Check(int idx) {
-		    std::optional<T> r;
-		    if constexpr (B::Capabilities::NativeIntegers)
-		        r = cast_detail::TryCast<T>(CheckInteger(idx));
-		    else
-		        r = cast_detail::TryCast<T>(CheckNumber(idx));
-		    if (r.has_value())
-		        return *r;
-		    CastError<T>(idx);
+		/// <summary>
+		/// checks if there is an integer and returns it.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="idx">acceptable index to check</param>
+		/// <returns>int</returns>
+		/// <exception cref="lua::LuaException">if not number</exception>
+		template<class T>
+		requires(std::integral<T> && !std::same_as<T, bool>)
+		T Check(int idx) {
+			std::optional<T> r;
+			if constexpr (B::Capabilities::NativeIntegers)
+				r = cast_detail::TryCast<T>(CheckInteger(idx));
+			else
+				r = cast_detail::TryCast<T>(CheckNumber(idx));
+			if (r.has_value())
+				return *r;
+			CastError<T>(idx);
 		}
 		/// <summary>
 		/// checks if there is a string and returns it.
@@ -1674,17 +1659,17 @@ namespace lua::decorator {
 			CheckType(idx, LType::Boolean);
 			return B::ToBoolean(idx);
 		}
-	    /// <summary>
-	    /// checks if there is a bool and returns it.
-	    /// <para>[-0,+0,v]</para>
-	    /// </summary>
-	    /// <param name="idx">acceptable index to check</param>
-	    /// <returns>bool</returns>
-	    /// <exception cref="lua::LuaException">if not bool</exception>
-	    template<class T>
-        requires std::same_as<T, bool>
-	    bool Check(int idx) {
-		    return CheckBool(idx);
+		/// <summary>
+		/// checks if there is a bool and returns it.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="idx">acceptable index to check</param>
+		/// <returns>bool</returns>
+		/// <exception cref="lua::LuaException">if not bool</exception>
+		template<class T>
+		requires std::same_as<T, bool>
+		bool Check(int idx) {
+			return CheckBool(idx);
 		}
 		/// <summary>
 		/// checks for a userdata type. (via its metatable).
@@ -1703,11 +1688,11 @@ namespace lua::decorator {
 		}
 
 		/// <summary>
-		/// loads a string as lua code and executes it. throws on errors.
+		/// loads a string as Lua code and executes it. throws on errors.
 		/// <para>[-0,+?,m]</para>
 		/// </summary>
 		/// <param name="code">code</param>
-		/// <param name="name">code name</param>
+		/// <param name="name">name</param>
 		/// <returns>number of return values</returns>
 		/// <exception cref="lua::LuaException">on lua exceptions</exception>
 		int DoStringT(std::string_view code, const char* name = nullptr) {
@@ -1718,9 +1703,9 @@ namespace lua::decorator {
 				std::string msg = B::ErrorCodeFormat(e);
 				msg += B::ToString(-1);
 				B::Pop(1); // error msg
-				throw LuaException{ msg };
+				throw LuaException{msg};
 			}
-			return TCall(0, B::MULTIRET);
+			return TCall(0, B::MultiRet);
 		}
 
 		/// <summary>
@@ -1765,12 +1750,12 @@ namespace lua::decorator {
 			}
 			return true;
 		}
-	    /// <summary>
-	    /// pushes the serialized registry table.
-	    /// <para>[-0,+1,-]</para>
-	    /// </summary>
-	    void PushSerializedRegistry() {
-		    GetSubTable(RegistrySerializeKey, B::REGISTRYINDEX);
+		/// <summary>
+		/// pushes the serialized registry table.
+		/// <para>[-0,+1,-]</para>
+		/// </summary>
+		void PushSerializedRegistry() {
+			GetSubTable(RegistrySerializeKey, B::RegistryIndex);
 		}
 
 		/// <summary>
@@ -1872,8 +1857,8 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="t">table to reference in</param>
 		/// <returns>reference</returns>
-		Reference Ref(int t = B::REGISTRYINDEX) {
-			return Reference{ B::RefI(t) };
+		Reference Ref(int t = B::RegistryIndex) {
+			return Reference{B::RefI(t)};
 		}
 		/// <summary>
 		/// frees the reference r.
@@ -1881,7 +1866,7 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="r">reference</param>
 		/// <param name="t">table to reference in</param>
-		void UnRef(Reference r, int t = B::REGISTRYINDEX) {
+		void UnRef(Reference r, int t = B::RegistryIndex) {
 			B::UnRefI(r.r, t);
 		}
 		/// <summary>
@@ -1890,7 +1875,7 @@ namespace lua::decorator {
 		/// </summary>
 		/// <param name="r">reference</param>
 		/// <param name="t">table to reference in</param>
-		void Push(Reference r, int t = B::REGISTRYINDEX) {
+		void Push(Reference r, int t = B::RegistryIndex) {
 			B::GetTableRaw(t, r.r);
 		}
 
@@ -1898,12 +1883,11 @@ namespace lua::decorator {
 		/// no valid reference, guaranteed to be different from all valid references.
 		/// if pushed, pushes nil.
 		/// </summary>
-		constexpr static Reference NoRef{ B::NOREFI };
+		constexpr static Reference NoRef{B::NoRefI};
 		/// <summary>
 		/// reference to nil.
 		/// </summary>
-		constexpr static Reference RefNil{ B::REFNILI };
-
+		constexpr static Reference RefNil{B::RefNilI};
 
 
 		/// <summary>
@@ -1913,40 +1897,11 @@ namespace lua::decorator {
 		/// <param name="idx">acceptable index to check</param>
 		/// <returns>string</returns>
 		/// <exception cref="lua::LuaException">if not a string</exception>
-		std::string_view CheckStringView(int idx)
-		{
+		std::string_view CheckStringView(int idx) {
 			size_t l;
 			const char* s = CheckString(idx, &l);
-            // ReSharper disable once CppDFALocalValueEscapesFunction
-            return { s, l };
-		}
-	    /// <summary>
-	    /// checks if idx is a string and returns it.
-	    /// <para>[-0,+0,v]</para>
-	    /// </summary>
-	    /// <param name="idx">acceptable index to check</param>
-	    /// <returns>string</returns>
-	    /// <exception cref="lua::LuaException">if not a string</exception>
-	    template<class T>
-        requires std::same_as<T, std::string_view>
-	    std::string_view Check(int idx)
-		{
-		    return CheckStringView(idx);
-		}
-		/// <summary>
-		/// if idx is a string, returns it. if it is nil or none, returns a copy of def. otherwise throws.
-		/// <para>[-0,+0,v]</para>
-		/// </summary>
-		/// <param name="idx">acceptable index to check</param>
-		/// <param name="def">default value</param>
-		/// <returns>string</returns>
-		/// <exception cref="lua::LuaException">if invalid</exception>
-		std::string_view OptStringView(int idx, std::string_view def)
-		{
-			size_t l;
-			const char* s = OptString(idx, def.data(), &l);
-            // ReSharper disable once CppDFALocalValueEscapesFunction
-			return { s, l };
+			// ReSharper disable once CppDFALocalValueEscapesFunction
+			return {s, l};
 		}
 		/// <summary>
 		/// checks if idx is a string and returns it.
@@ -1955,22 +1910,10 @@ namespace lua::decorator {
 		/// <param name="idx">acceptable index to check</param>
 		/// <returns>string</returns>
 		/// <exception cref="lua::LuaException">if not a string</exception>
-		std::string CheckStdString(int idx)
-		{
-			return std::string{ CheckStringView(idx) };
-		}
-	    /// <summary>
-	    /// checks if idx is a string and returns it.
-	    /// <para>[-0,+0,v]</para>
-	    /// </summary>
-	    /// <param name="idx">acceptable index to check</param>
-	    /// <returns>string</returns>
-	    /// <exception cref="lua::LuaException">if not a string</exception>
-	    template<class T>
-        requires std::same_as<T, std::string>
-        std::string Check(int idx)
-		{
-		    return CheckStdString(idx);
+		template<class T>
+		requires std::same_as<T, std::string_view>
+		std::string_view Check(int idx) {
+			return CheckStringView(idx);
 		}
 		/// <summary>
 		/// if idx is a string, returns it. if it is nil or none, returns a copy of def. otherwise throws.
@@ -1980,42 +1923,75 @@ namespace lua::decorator {
 		/// <param name="def">default value</param>
 		/// <returns>string</returns>
 		/// <exception cref="lua::LuaException">if invalid</exception>
-		std::string OptStdString(int idx, const std::string& def)
-		{
-			return std::string{ OptStringView(idx, def) };
+		std::string_view OptStringView(int idx, std::string_view def) {
+			size_t l;
+			const char* s = OptString(idx, def.data(), &l);
+			// ReSharper disable once CppDFALocalValueEscapesFunction
+			return {s, l};
+		}
+		/// <summary>
+		/// checks if idx is a string and returns it.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="idx">acceptable index to check</param>
+		/// <returns>string</returns>
+		/// <exception cref="lua::LuaException">if not a string</exception>
+		std::string CheckStdString(int idx) {
+			return std::string{CheckStringView(idx)};
+		}
+		/// <summary>
+		/// checks if idx is a string and returns it.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="idx">acceptable index to check</param>
+		/// <returns>string</returns>
+		/// <exception cref="lua::LuaException">if not a string</exception>
+		template<class T>
+		requires std::same_as<T, std::string>
+		std::string Check(int idx) {
+			return CheckStdString(idx);
+		}
+		/// <summary>
+		/// if idx is a string, returns it. if it is nil or none, returns a copy of def. otherwise throws.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="idx">acceptable index to check</param>
+		/// <param name="def">default value</param>
+		/// <returns>string</returns>
+		/// <exception cref="lua::LuaException">if invalid</exception>
+		std::string OptStdString(int idx, const std::string& def) {
+			return std::string{OptStringView(idx, def)};
 		}
 
-	    using C<State<B, C...>>::Check...;
+		using C<State<B, C...>>::Check...;
 
-	    /// <summary>
-	    /// if idx is none or nil, returns std::nullopt. otherwise checks for T.
-	    /// <para>[-0,+0,v]</para>
-	    /// </summary>
-	    /// <param name="idx">acceptable index to check</param>
-	    /// <returns>optional</returns>
-	    /// <exception cref="lua::LuaException">if invalid</exception>
-	    template<class T>
-        requires std::same_as<T, std::optional<typename T::value_type>> && func::detail::Checkable<State, typename T::value_type>
-        T Check(int idx)
-	    {
-	        if (B::IsNoneOrNil(idx))
-	            return std::nullopt;
-	        return Check<typename T::value_type>(idx);
-	    }
-	    /// <summary>
-	    /// pushes nil, if v is std::nullopt, and *v otherwise.
-	    /// <para>[-0,+0,m]</para>
-	    /// </summary>
-	    /// <param name="v">value to push</param>
-	    template<class T>
-	    requires func::detail::Pushable<State, T>
-	    void Push(std::optional<T> v)
-	    {
-	        if (v.has_value())
-	            Push(*v);
-	        else
-	            Push();
-	    }
+		/// <summary>
+		/// if idx is none or nil, returns std::nullopt. otherwise checks for T.
+		/// <para>[-0,+0,v]</para>
+		/// </summary>
+		/// <param name="idx">acceptable index to check</param>
+		/// <returns>optional</returns>
+		/// <exception cref="lua::LuaException">if invalid</exception>
+		template<class T>
+		requires std::same_as<T, std::optional<typename T::value_type>> && func::detail::Checkable<State, typename T::value_type>
+		T Check(int idx) {
+			if (B::IsNoneOrNil(idx))
+				return std::nullopt;
+			return Check<typename T::value_type>(idx);
+		}
+		/// <summary>
+		/// pushes nil, if v is std::nullopt, and *v otherwise.
+		/// <para>[-0,+0,m]</para>
+		/// </summary>
+		/// <param name="v">value to push</param>
+		template<class T>
+		requires func::detail::Pushable<State, T>
+		void Push(std::optional<T> v) {
+			if (v.has_value())
+				Push(*v);
+			else
+				Push();
+		}
 
 		/// <summary>
 		/// converts idx to a string, pushes it and returns it.
@@ -2026,44 +2002,46 @@ namespace lua::decorator {
 		/// <returns></returns>
 		std::string_view ConvertToString(int idx) {
 			idx = B::ToAbsoluteIndex(idx);
-			if (CallMeta(idx, B::MetaEvent::ToString)) {  /* metafield? */
+			if (CallMeta(idx, B::MetaEvent::ToString)) { /* metafield? */
 				if (!B::IsString(-1))
-					throw LuaException{ "'__tostring' must return a string" };
+					throw LuaException{"'__tostring' must return a string"};
 			}
 			else {
 				switch (B::Type(idx)) {
-				case LType::Number: {
-					if constexpr (B::Capabilities::NativeIntegers) {
-						if (B::IsInteger(idx)) {
-							Push(std::format("{}", *B::ToInteger(idx)));
+					case LType::Number:
+						{
+							if constexpr (B::Capabilities::NativeIntegers) {
+								if (B::IsInteger(idx)) {
+									Push(std::format("{}", *B::ToInteger(idx)));
+									break;
+								}
+							}
+							Push(std::format("{}", *B::ToNumber(idx)));
 							break;
 						}
-					}
-					Push(std::format("{}", *B::ToNumber(idx)));
-					break;
-				}
-				case LType::String:
-					B::PushValue(idx);
-					break;
-				case LType::Boolean:
-					B::Push((B::ToBoolean(idx) ? "true" : "false"));
-					break;
-				case LType::Nil:
-					B::Push("nil");
-					break;
-				default: {
-					if (GetMetaField(idx, B::MetaEvent::Name))  /* try name */
-					{
-						if (B::IsString(-1)) {
-							Push(std::format("{}: {}", B::ToString(-1), B::ToPointer(idx)));
-							B::Remove(-2);
+					case LType::String:
+						B::PushValue(idx);
+						break;
+					case LType::Boolean:
+						B::Push((B::ToBoolean(idx) ? "true" : "false"));
+						break;
+					case LType::Nil:
+						B::Push("nil");
+						break;
+					default:
+						{
+							if (GetMetaField(idx, B::MetaEvent::Name)) /* try name */
+							{
+								if (B::IsString(-1)) {
+									Push(std::format("{}: {}", B::ToString(-1), B::ToPointer(idx)));
+									B::Remove(-2);
+									break;
+								}
+								B::Remove(-2);
+							}
+							Push(std::format("{}: {}", B::TypeName(B::Type(idx)), B::ToPointer(idx)));
 							break;
 						}
-						B::Remove(-2);
-					}
-					Push(std::format("{}: {}", B::TypeName(B::Type(idx)), B::ToPointer(idx)));
-					break;
-				}
 				}
 			}
 			return ToStringView(-1);
@@ -2078,7 +2056,9 @@ namespace lua::decorator {
 			int Index;
 			bool HasNext = false;
 
-			PairsIter(State l, int i) : L(l), Index(i) {}
+			PairsIter(State l, int i) : L(l), Index(i) {
+			}
+
 		public:
 			friend class State;
 			friend class PairsHolder;
@@ -2112,7 +2092,7 @@ namespace lua::decorator {
 			/// <summary>
 			/// gets the type of the key
 			/// </summary>
-			/// <returns>key type</returns>
+			/// <returns>type</returns>
 			LType operator*() {
 				return L.Type(-2);
 			}
@@ -2124,7 +2104,9 @@ namespace lua::decorator {
 			friend class State;
 			State L;
 			int Index;
-			PairsHolder(State l, int i) : L(l), Index(L.ToAbsoluteIndex(i)) {}
+			PairsHolder(State l, int i) : L(l), Index(L.ToAbsoluteIndex(i)) {
+			}
+
 		public:
 			/// <summary>
 			/// begins a new iteration. pushes the first key/value pair onto the stack.
@@ -2133,15 +2115,15 @@ namespace lua::decorator {
 			/// <exception cref="lua::LuaException">on lua error</exception>
 			PairsIter begin() {
 				L.Push();
-				PairsIter i{ L, Index };
+				PairsIter i{L, Index};
 				i.HasNext = L.Next(Index);
 				return i;
 			}
 			/// <summary>
-            /// marks the end of a table iteration.
-            /// </summary>
-            /// <returns>iterator sentinel</returns>
-            static std::default_sentinel_t end() {
+			/// marks the end of a table iteration.
+			/// </summary>
+			/// <returns>iterator sentinel</returns>
+			static std::default_sentinel_t end() {
 				return std::default_sentinel;
 			}
 		};
@@ -2154,7 +2136,9 @@ namespace lua::decorator {
 			int Key = 1;
 			bool HasNext = false;
 
-			IPairsIter(State l, int i) : L(l), Index(i) {}
+			IPairsIter(State l, int i) : L(l), Index(i) {
+			}
+
 		public:
 			friend class State;
 			friend class IPairsHolder;
@@ -2206,14 +2190,16 @@ namespace lua::decorator {
 			friend class State;
 			State L;
 			int Index;
-			IPairsHolder(State l, int i) : L(l), Index(L.ToAbsoluteIndex(i)) {}
+			IPairsHolder(State l, int i) : L(l), Index(L.ToAbsoluteIndex(i)) {
+			}
+
 		public:
 			/// <summary>
 			/// begins a new iteration. pushes the first value onto the stack and provides the first key (1).
 			/// </summary>
 			/// <returns>iterator</returns>
 			IPairsIter begin() {
-				IPairsIter i{ L, Index };
+				IPairsIter i{L, Index};
 				L.GetTableRaw(Index, i.Key);
 				if (L.Type(-1) == LType::Nil) {
 					i.HasNext = false;
@@ -2225,10 +2211,10 @@ namespace lua::decorator {
 				return i;
 			}
 			/// <summary>
-            /// marks the end of table.
-            /// </summary>
-            /// <returns>iterator sentinel</returns>
-            static std::default_sentinel_t end() {
+			/// marks the end of table.
+			/// </summary>
+			/// <returns>iterator sentinel</returns>
+			static std::default_sentinel_t end() {
 				return std::default_sentinel;
 			}
 		};
@@ -2248,10 +2234,12 @@ namespace lua::decorator {
 				int LocalNum;
 				const char* Name;
 			};
+
 		private:
 			Local Loc;
 			LocalsIter(State l, const B::DebugInfo& i, int n) : L(l), Inf(i), Loc(n, nullptr) {
 			}
+
 		public:
 			inline friend bool operator==(const LocalsIter& i, std::default_sentinel_t) {
 				return i.Loc.Name == nullptr;
@@ -2281,13 +2269,15 @@ namespace lua::decorator {
 			State L;
 			B::DebugInfo Inf;
 
-			LocalsHolder(State l, B::DebugInfo i) : L(l), Inf(i) {}
+			LocalsHolder(State l, B::DebugInfo i) : L(l), Inf(i) {
+			}
+
 		public:
 			LocalsIter begin() {
-				LocalsIter r{ L, Inf, 0 };
+				LocalsIter r{L, Inf, 0};
 				return ++r;
 			}
-            static std::default_sentinel_t end() {
+			static std::default_sentinel_t end() {
 				return std::default_sentinel;
 			}
 		};
@@ -2303,14 +2293,16 @@ namespace lua::decorator {
 			/// <summary>
 			/// local name and number.
 			/// </summary>
-			struct Upval {
-				int UpvalNum;
+			struct UpVal {
+				int UpValNum;
 				const char* Name;
 			};
+
 		private:
-			Upval Upv;
+			UpVal Upv;
 			UpvaluesIter(State l, int f, int n) : L(l), Func(f), Upv(n, nullptr) {
 			}
+
 		public:
 			inline friend bool operator==(const UpvaluesIter& i, std::default_sentinel_t) {
 				return i.Upv.Name == nullptr;
@@ -2320,7 +2312,7 @@ namespace lua::decorator {
 			}
 
 			UpvaluesIter& operator++() {
-				Upv.Name = L.Debug_GetUpvalue(Func, ++Upv.UpvalNum);
+				Upv.Name = L.Debug_GetUpvalue(Func, ++Upv.UpValNum);
 				return *this;
 			}
 			UpvaluesIter operator++(int) {
@@ -2328,7 +2320,7 @@ namespace lua::decorator {
 				++(*this);
 				return r;
 			}
-			const Upval& operator*() {
+			const UpVal& operator*() {
 				return Upv;
 			}
 		};
@@ -2340,92 +2332,88 @@ namespace lua::decorator {
 			State L;
 			int Func;
 
-			UpvaluesHolder(State l, int f) : L(l), Func(l.ToAbsoluteIndex(f)) {}
+			UpvaluesHolder(State l, int f) : L(l), Func(l.ToAbsoluteIndex(f)) {
+			}
+
 		public:
 			UpvaluesIter begin() {
-				UpvaluesIter r{ L, Func, 0 };
+				UpvaluesIter r{L, Func, 0};
 				return ++r;
 			}
-            static std::default_sentinel_t end() {
+			static std::default_sentinel_t end() {
 				return std::default_sentinel;
 			}
 		};
 
 		/// <summary>
-		/// checks if i is a UserClass of type T (or able to be cast to T) and returns it. returns nullptr if not.
+		/// checks if idx is a UserClass of type T (or able to be cast to T) and returns it. returns nullptr if not.
 		/// </summary>
 		/// <typeparam name="T">class type</typeparam>
-		/// <param name="i">acceptable index to check</param>
+		/// <param name="idx">acceptable index to check</param>
 		/// <returns>obj</returns>
 		template<class T>
-		T* OptionalUserClass(int i) {
-			void* ud = B::ToUserdata(i);
+		T* OptionalUserClass(int idx) {
+			void* ud = B::ToUserdata(idx);
 			if (ud != nullptr) {
-			    if (!B::GetMetatable(i)) {
-			        return nullptr;
-			    }
-			    PushExternalString(GetUserClassCastName<T>());
-			    B::GetTableRaw(-2);
-			    if (B::IsNil(-1)) {
-			        B::Pop(2);
-			        return nullptr;
-			    }
-			    auto* cast = reinterpret_cast<T*(*)(void*)>(B::ToUserdata(-1));
-			    B::Pop(2);
-			    if (cast != nullptr)
-			    {
-			        return cast(ud);
-			    }
+				if (!B::GetMetatable(idx)) {
+					return nullptr;
+				}
+				PushExternalString(GetUserClassCastName<T>());
+				B::GetTableRaw(-2);
+				if (B::IsNil(-1)) {
+					B::Pop(2);
+					return nullptr;
+				}
+				auto* cast = reinterpret_cast<T* (*)(void*)>(B::ToUserdata(-1));
+				B::Pop(2);
+				if (cast != nullptr) {
+					return cast(ud);
+				}
 			}
 			return nullptr;
 		}
 		/// <summary>
-		/// checks if i is a UserClass of type T (or able to be cast to T) and returns it. throws if not.
+		/// checks if idx is a UserClass of type T (or able to be cast to T) and returns it. throws if not.
 		/// </summary>
 		/// <typeparam name="T">class type</typeparam>
-		/// <param name="i">acceptable index to check</param>
+		/// <param name="idx">acceptable index to check</param>
 		/// <returns>obj</returns>
 		/// <exception cref="lua::LuaException">if type does not match</exception>
 		template<class T>
-		T* CheckUserClass(int i) {
-			T* t = OptionalUserClass<T>(i);
+		T* CheckUserClass(int idx) {
+			T* t = OptionalUserClass<T>(idx);
 			if (t == nullptr)
-				ErrorOrThrow(std::format("no {} at argument {}", typename_details::type_name<T>(), i));
+				ErrorOrThrow(std::format("no {} at argument {}", typename_details::type_name<T>(), idx));
 			return t;
 		}
 
 	private:
-	    template<class T>
-	    static consteval std::string_view GetUserClassCastName()
-	    {
-	        return typename_details::type_name<userdata::UserClassCast<T>>();
-	    }
-	    template<class T, class Actual>
-	    void WriteUserClassBaseRecursive()
-	    {
-	        if constexpr (userdata::InheritsDefined<T>)
-	        {
-	            auto f = [&]<std::size_t... Idx>(std::index_sequence<Idx...>) {
-	                (WriteUserClassBaseRecursive<std::tuple_element_t<Idx, typename T::InheritsFrom>, Actual>(), ...);
-	            };
-	            f(std::make_index_sequence<std::tuple_size_v<typename T::InheritsFrom>>());
-	        }
-	        PushExternalString(GetUserClassCastName<T>());
-	        B::PushLightUserdata(reinterpret_cast<void*>(&userdata::UserClassCast<T>::template Cast<Actual>));
-	        B::SetTableRaw(-3);
-	    }
-	    template<class T>
-	    void RegisterUserClassMethodsRecursive()
-	    {
-	        if constexpr (userdata::InheritsDefined<T>)
-	        {
-	            auto f = [&]<std::size_t... Idx>(std::index_sequence<Idx...>) {
-	                (RegisterUserClassMethodsRecursive<std::tuple_element_t<Idx, typename T::InheritsFrom>>(), ...);
-	            };
-	            f(std::make_index_sequence<std::tuple_size_v<typename T::InheritsFrom>>());
-	        }
-	        RegisterFuncs(T::LuaMethods, -3);
-	    }
+		template<class T>
+		static consteval std::string_view GetUserClassCastName() {
+			return typename_details::type_name<userdata::UserClassCast<T>>();
+		}
+		template<class T, class Actual>
+		void WriteUserClassBaseRecursive() {
+			if constexpr (userdata::InheritsDefined<T>) {
+				auto f = [&]<std::size_t... Idx>(std::index_sequence<Idx...>) {
+					(WriteUserClassBaseRecursive<std::tuple_element_t<Idx, typename T::InheritsFrom>, Actual>(), ...);
+				};
+				f(std::make_index_sequence<std::tuple_size_v<typename T::InheritsFrom>>());
+			}
+			PushExternalString(GetUserClassCastName<T>());
+			B::PushLightUserdata(reinterpret_cast<void*>(&userdata::UserClassCast<T>::template Cast<Actual>));
+			B::SetTableRaw(-3);
+		}
+		template<class T>
+		void RegisterUserClassMethodsRecursive() {
+			if constexpr (userdata::InheritsDefined<T>) {
+				auto f = [&]<std::size_t... Idx>(std::index_sequence<Idx...>) {
+					(RegisterUserClassMethodsRecursive<std::tuple_element_t<Idx, typename T::InheritsFrom>>(), ...);
+				};
+				f(std::make_index_sequence<std::tuple_size_v<typename T::InheritsFrom>>());
+			}
+			RegisterFuncs(T::LuaMethods, -3);
+		}
 
 	public:
 		/// <summary>
@@ -2435,14 +2423,14 @@ namespace lua::decorator {
 		template<class T>
 		void GetUserClassMetatable() {
 			if (NewMetaTable(typename_details::type_name<T>())) {
-			    WriteUserClassBaseRecursive<T, T>();
+				WriteUserClassBaseRecursive<T, T>();
 
 				if constexpr (userdata::IndexCpp<State, T>) {
 					RegisterFunc<userdata::IndexOperator<State, T>>(B::MetaEvent::Index, -3);
 					if constexpr (userdata::HasLuaMethods<T>) {
 						PushExternalString(MethodsName);
 						B::NewTable();
-					    RegisterUserClassMethodsRecursive<T>();
+						RegisterUserClassMethodsRecursive<T>();
 						B::SetTableRaw(-3);
 					}
 				}
@@ -2558,14 +2546,14 @@ namespace lua::decorator {
 				if constexpr (userdata::ToStringCpp<State, T>)
 					RegisterFunc<&T::ToString, T>(B::MetaEvent::ToString, -3);
 
-			    if constexpr (userdata::SerializeCpp<State, T>)
-			        RegisterFunc<&T::Serialize, T>(B::MetaEvent::Serialize, -3);
+				if constexpr (userdata::SerializeCpp<State, T>)
+					RegisterFunc<&T::Serialize, T>(B::MetaEvent::Serialize, -3);
 
-			    if constexpr (userdata::DeserializeCpp<State, T>)
-			        RegisterFunc<&T::Deserialize, T>(B::MetaEvent::Deserialize, -3);
+				if constexpr (userdata::DeserializeCpp<State, T>)
+					RegisterFunc<&T::Deserialize, T>(B::MetaEvent::Deserialize, -3);
 
-			    if constexpr (userdata::HasLuaMetaMethods<T>)
-				    RegisterFuncs(T::LuaMetaMethods, -3);
+				if constexpr (userdata::HasLuaMetaMethods<T>)
+					RegisterFuncs(T::LuaMetaMethods, -3);
 
 				Push(B::MetaEvent::Name);
 				PushExternalString(typename_details::type_name<T>());
@@ -2577,27 +2565,29 @@ namespace lua::decorator {
 			GetUserClassMetatable<T>();
 			B::Pop(1);
 		}
+
 	private:
 		template<class T>
 		void* UserClassAlloc(int uvs) {
-			if constexpr (B::Capabilities::ArbitraryUservalues) {
+			if constexpr (B::Capabilities::ArbitraryUserValues) {
 				return B::NewUserdata(sizeof(T), uvs);
 			}
 			else {
 				return B::NewUserdata(sizeof(T));
 			}
 		}
-		template<class T, class ... Args>
-		T* UserClassNew(int uvs, Args&& ... args) {
+		template<class T, class... Args>
+		T* UserClassNew(int uvs, Args&&... args) {
 			return new (UserClassAlloc<T>(uvs)) T(std::forward<Args>(args)...);
 		}
-		template<class T, class ... Args>
-		T* NewUserClassUnchecked(int uvs, Args&& ... args) {
+		template<class T, class... Args>
+		T* NewUserClassUnchecked(int uvs, Args&&... args) {
 			T* r = UserClassNew<T>(uvs, std::forward<Args>(args)...);
 			GetUserClassMetatable<T>();
 			B::SetMetatable(-2);
 			return r;
 		}
+
 	public:
 		/// <summary>
 		/// <para>creates a new UserClass of type T by calling its constructor inside a full userdata.</para>
@@ -2609,213 +2599,196 @@ namespace lua::decorator {
 		/// <typeparam name="...Args">parameters for constructor</typeparam>
 		/// <param name="args">parameters for constructor</param>
 		/// <returns>obj</returns>
-		template<class T, class ... Args>
+		template<class T, class... Args>
 		requires userdata::UserClassUserValuesValid<State, T>
-		T* NewUserClass(Args&& ... args) {
+		T* NewUserClass(Args&&... args) {
 			return NewUserClassUnchecked<T>(userdata::UserClassUserValues<T>(), std::forward<Args>(args)...);
 		}
-	    /// <summary>
-	    /// <para>creates a new UserClass of type T by calling its constructor inside a full userdata.</para>
-	    /// <para>a class (metatable) for a UserClass type is only generated once, and then reused for all objects of the same type.</para>
+		/// <summary>
+		/// <para>creates a new UserClass of type T by calling its constructor inside a full userdata.</para>
+		/// <para>a class (metatable) for a UserClass type is only generated once, and then reused for all objects of the same type.</para>
 		/// <para></para>
 		/// </summary>
 		/// <typeparam name="T">type to create</typeparam>
 		/// <typeparam name="...Args">parameters for constructor</typeparam>
-		/// <param name="nuvalues">number of user values</param>
+		/// <param name="nUValues">number of user values</param>
 		/// <param name="args">parameters for constructor</param>
 		/// <returns>obj</returns>
-		template<class T, class ... Args>
+		template<class T, class... Args>
 		requires B::Capabilities::ArbitraryUservalues
-		T* NewUserClassWithUserValues(int nuvalues, Args&& ... args) {
-			if (nuvalues > userdata::StateMaxUservalues<State>())
-				throw lua::LuaException{ std::format("this lua state only supports {} uservalues, instead of the requested {}", userdata::StateMaxUservalues<State>(), nuvalues) };
-			return NewUserClassUnchecked<T>(nuvalues, std::forward<Args>(args)...);
+		T* NewUserClassWithUserValues(int nUValues, Args&&... args) {
+			if (nUValues > userdata::StateMaxUserValues<State>())
+				throw lua::LuaException{
+					std::format("this lua state only supports {} uservalues, instead of the requested {}", userdata::StateMaxUserValues<State>(), nUValues)};
+			return NewUserClassUnchecked<T>(nUValues, std::forward<Args>(args)...);
 		}
 
 	private:
-	    template<class T, size_t NumBindings, class UC>
-        T CheckAll()
-	    {
-	        [[maybe_unused]] static constexpr auto off = []<size_t... I>(std::index_sequence<I...>) {
-	            return ((I >= NumBindings && std::same_as<std::tuple_element_t<I, T>, State> ? 1 : 0) + ... + 0);
-	        };
-	        auto s = [&]<size_t I>() -> std::tuple_element_t<I, T>
-	        {
-	            using E = std::tuple_element_t<I, T>;
-	            [[maybe_unused]] static constexpr auto i = static_cast<int>(I - NumBindings - off(std::make_index_sequence<I>{})) + 1;
-	            if constexpr (I < NumBindings)
-	                return static_cast<E>(this->ToUserdata(B::Upvalueindex(1)));
-	            else if constexpr (std::same_as<E, State>)
-	                return *this;
-	            else if constexpr (func::detail::IsUserClass<E, UC> && std::is_pointer_v<E>)
-	                return this->CheckUserClass<std::remove_cvref_t<std::remove_pointer_t<E>>>(i);
-	            else if constexpr (func::detail::IsUserClass<E, UC>)
-	                return *this->CheckUserClass<std::remove_cvref_t<std::remove_pointer_t<E>>>(i);
-	            else
-	                return this->template Check<E>(i);
-	        };
-	        auto f = [&]<size_t... I>(std::index_sequence<I...>) {
-	            return T{s.template operator()<I>() ...};
-	        };
-	        return f(std::make_index_sequence<std::tuple_size_v<T>>{});
-	    }
-	    template<class R>
-	    int PushAll(R r)
-	    {
-	        if constexpr (func::detail::IsTuple<R>)
-	        {
-	            auto p = [this, r]<size_t... I>(std::index_sequence<I...>) {
-	                (this->Push(std::get<I>(r)), ...);
-	            };
-	            p(std::make_index_sequence<std::tuple_size_v<R>>{});
-	            return static_cast<int>(std::tuple_size_v<R>);
-	        }
-	        else
-	        {
-	            this->Push(r);
-	            return 1;
-	        }
-	    }
-	    struct StackCleanup
-	    {
-            State L;
-	        int Top = 0;
+		template<class T, size_t NumBindings, class UC>
+		T CheckAll() {
+			[[maybe_unused]] static constexpr auto off = []<size_t... I>(std::index_sequence<I...>) {
+				return ((I >= NumBindings && std::same_as<std::tuple_element_t<I, T>, State> ? 1 : 0) + ... + 0);
+			};
+			auto s = [&]<size_t I>() -> std::tuple_element_t<I, T> {
+				using E = std::tuple_element_t<I, T>;
+				[[maybe_unused]] static constexpr auto i = static_cast<int>(I - NumBindings - off(std::make_index_sequence<I>{})) + 1;
+				if constexpr (I < NumBindings)
+					return static_cast<E>(this->ToUserdata(B::UpvalueIndex(1)));
+				else if constexpr (std::same_as<E, State>)
+					return *this;
+				else if constexpr (func::detail::IsUserClass<E, UC> && std::is_pointer_v<E>)
+					return this->CheckUserClass<std::remove_cvref_t<std::remove_pointer_t<E>>>(i);
+				else if constexpr (func::detail::IsUserClass<E, UC>)
+					return *this->CheckUserClass<std::remove_cvref_t<std::remove_pointer_t<E>>>(i);
+				else
+					return this->template Check<E>(i);
+			};
+			auto f = [&]<size_t... I>(std::index_sequence<I...>) {
+				return T{s.template operator()<I>()...};
+			};
+			return f(std::make_index_sequence<std::tuple_size_v<T>>{});
+		}
+		template<class R>
+		int PushAll(R r) {
+			if constexpr (func::detail::IsTuple<R>) {
+				auto p = [this, r]<size_t... I>(std::index_sequence<I...>) {
+					(this->Push(std::get<I>(r)), ...);
+				};
+				p(std::make_index_sequence<std::tuple_size_v<R>>{});
+				return static_cast<int>(std::tuple_size_v<R>);
+			}
+			else {
+				this->Push(r);
+				return 1;
+			}
+		}
+		struct StackCleanup {
+			State L;
+			int Top = 0;
 
-	        StackCleanup(State l, int t) : L(l), Top(t) {}
+			StackCleanup(State l, int t) : L(l), Top(t) {
+			}
 
-	        ~StackCleanup()
-	        {
-	            if (L.GetState() == nullptr)
-	                return;
-	            L.SetTop(Top);
-	        }
-	        StackCleanup(const StackCleanup&)=delete;
-	        StackCleanup(StackCleanup&& c) noexcept
-	        {
-	            L = c.L;
-	            c.L = State{nullptr};
-	            Top = c.Top;
-	        }
-	        StackCleanup& operator=(const StackCleanup&) = delete;
-	        StackCleanup& operator=(StackCleanup&& c) noexcept
-	        {
-	            if (this == &c)
-	                return *this;
-	            if (L.GetState() != nullptr)
-	                L.SetTop(Top);
-	            L = c.L;
-	            c.L = State{nullptr};
-	            Top = c.Top;
-	            return *this;
-	        }
-	    };
+			~StackCleanup() {
+				if (L.GetState() == nullptr)
+					return;
+				L.SetTop(Top);
+			}
+			StackCleanup(const StackCleanup&) = delete;
+			StackCleanup(StackCleanup&& c) noexcept {
+				L = c.L;
+				c.L = State{nullptr};
+				Top = c.Top;
+			}
+			StackCleanup& operator=(const StackCleanup&) = delete;
+			StackCleanup& operator=(StackCleanup&& c) noexcept {
+				if (this == &c)
+					return *this;
+				if (L.GetState() != nullptr)
+					L.SetTop(Top);
+				L = c.L;
+				c.L = State{nullptr};
+				Top = c.Top;
+				return *this;
+			}
+		};
 
 	public:
-	    /// <summary>
-	    /// adapts an arbitrary function to a CppFunction by Check<T> ing for parameters and Push ing the result(s).
-	    /// binds the first NumBindings parameters to light userdata upvalues.
-	    /// </summary>
-	    /// <param name="L">lua state</param>
-	    /// <typeparam name="F">function to translate</typeparam>
-	    /// <typeparam name="NumBindings">upvalue bindings</typeparam>
-	    /// <returns>number of return values on the stack</returns>
-        template<auto F, size_t NumBindings = 0, class UC = void>
-	    requires func::detail::AutoTranslateEnabled<State, decltype(F), NumBindings, UC>
-	    static int AutoTranslateAPI(State L)
-		{
-	        using R = func::FunctionTraits<decltype(F)>::ReturnType;
-	        using P = func::FunctionTraits<decltype(F)>::ArgumentTypes;
-	        if constexpr (std::same_as<R, void>)
-	        {
-	            std::apply(F, L.CheckAll<P, NumBindings, UC>());
-	            return 0;
-	        }
-	        else
-	        {
-	            return L.PushAll(std::apply(F, L.CheckAll<P, NumBindings, UC>()));
-	        }
+		/// <summary>
+		/// adapts an arbitrary function to a CppFunction by Check<T> ing for parameters and Push ing the result(s).
+		/// binds the first NumBindings parameters to light userdata upvalues.
+		/// </summary>
+		/// <param name="L">lua state</param>
+		/// <typeparam name="F">function to translate</typeparam>
+		/// <typeparam name="NumBindings">upvalue bindings</typeparam>
+		/// <returns>number of return values on the stack</returns>
+		template<auto F, size_t NumBindings = 0, class UC = void>
+		requires func::detail::AutoTranslateEnabled<State, decltype(F), NumBindings, UC>
+		static int AutoTranslateAPI(State L) {
+			using R = func::FunctionTraits<decltype(F)>::ReturnType;
+			using P = func::FunctionTraits<decltype(F)>::ArgumentTypes;
+			if constexpr (std::same_as<R, void>) {
+				std::apply(F, L.CheckAll<P, NumBindings, UC>());
+				return 0;
+			}
+			else {
+				return L.PushAll(std::apply(F, L.CheckAll<P, NumBindings, UC>()));
+			}
 		}
 
-	    /// <summary>
-	    /// automatically stores the current top and resets it, if the return value goes out of scope.
-	    /// </summary>
-	    StackCleanup AutoCleanStack()
-        {
-            return {*this, B::GetTop()};
-        }
+		/// <summary>
+		/// automatically stores the current top and resets it, if the return value goes out of scope.
+		/// </summary>
+		StackCleanup AutoCleanStack() {
+			return {*this, B::GetTop()};
+		}
 
-	    /// <summary>
-	    /// <para>creates a new UserClass of type T by calling its constructor inside a full userdata.</para>
-	    /// <para>a class (metatable) for a UserClass type is only generated once, and then reused for all objects of the same type.</para>
-	    /// <para></para>
-	    /// <para>[-0,+1,m]</para>
-	    /// </summary>
-	    /// <typeparam name="UC">type to create</typeparam>
-	    /// <typeparam name="...Arg">parameters for constructor</typeparam>
-	    /// <param name="uc">stored parameters for constructor</param>
-	    template<class UC, class... Arg>
-	    void Push(userdata::PushNewUserClass<UC, Arg...>& uc)
-        {
-            uc.Push(*this);
-        }
-	    /// <summary>
-	    /// checks if i is a UserClass of type T (or able to be cast to T) and returns it. throws if not.
-	    /// </summary>
-	    /// <typeparam name="T">class type</typeparam>
-	    /// <param name="i">acceptable index to check</param>
-	    /// <returns>obj</returns>
-	    /// <exception cref="lua::LuaException">if type does not match</exception>
-	    template<class UC>
-	    requires std::same_as<userdata::UserClassChecked<typename UC::UserClass>, UC>
-	    UC Check(int i)
-        {
-            return UC{CheckUserClass<typename UC::UserClass>(i)};
-        }
+		/// <summary>
+		/// <para>creates a new UserClass of type T by calling its constructor inside a full userdata.</para>
+		/// <para>a class (metatable) for a UserClass type is only generated once, and then reused for all objects of the same type.</para>
+		/// <para></para>
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <typeparam name="UC">type to create</typeparam>
+		/// <typeparam name="...Arg">parameters for constructor</typeparam>
+		/// <param name="uc">stored parameters for constructor</param>
+		template<class UC, class... Arg>
+		void Push(userdata::PushNewUserClass<UC, Arg...>& uc) {
+			uc.Push(*this);
+		}
+		/// <summary>
+		/// checks if idx is a UserClass of type T (or able to be cast to T) and returns it. throws if not.
+		/// </summary>
+		/// <typeparam name="T">class type</typeparam>
+		/// <param name="idx">acceptable index to check</param>
+		/// <returns>obj</returns>
+		/// <exception cref="lua::LuaException">if type does not match</exception>
+		template<class UC>
+		requires std::same_as<userdata::UserClassChecked<typename UC::UserClass>, UC>
+		UC Check(int idx) {
+			return UC{CheckUserClass<typename UC::UserClass>(idx)};
+		}
 
-	    /// <summary>
-	    /// pushes a lambda onto the stack. (by pushing a function calling its call operator with the lambda itself stored in upvalue 1).
-	    /// The object gets inserted as upvalue 1, and all others shifted up by 1.
-	    /// <para>does take ownership of the lambda, and stores it in a full userdata (with finalizer, if required).</para>
-	    /// <para>the lambda may either directly be a CppMemberFunction or translatable with AutoTranslateAPI.</para>
-	    /// <para>note: any valid object + member function combination is accepted, not just lambdas.</para>
-	    /// <para>[-0,+1,m]</para>
-	    /// </summary>
-	    /// <typeparam name="OL">member function</typeparam>
-	    /// <typeparam name="F">object type</typeparam>
-	    /// <param name="f">object</param>
-	    /// <param name="nups">number of upvalues (excluding the lambda itself)</param>
-	    template<class F, auto OL = &F::operator()>
-	    requires (func::IsLuaMemberFunction<State, decltype(OL)> || func::detail::AutoTranslateEnabled<State, decltype(OL), 1>)
-	        && std::same_as<F, func::ObjectTypeOfMemberFunc<decltype(OL)>>
-	    void PushLambda(F f, int nups = 0)
-        {
-            if constexpr (func::detail::IsLambdaFuncPointer<F, decltype(OL)>)
-            {
-                using P = func::detail::LambdaAsFuncPointer<decltype(OL)>::type;
-                if constexpr (std::same_as<P, CppFunction>)
-                    Push<static_cast<P>(f)>(nups);
-                else
-                    Push<AutoTranslateAPI<static_cast<P>(f), 0>>(nups);
-            }
-            else
-            {
-                new (B::NewUserdata(sizeof(F))) F(std::move(f));
+		/// <summary>
+		/// pushes a lambda onto the stack. (by pushing a function calling its call operator with the lambda itself stored in upvalue 1).
+		/// The object gets inserted as upvalue 1, and all others shifted up by 1.
+		/// <para>does take ownership of the lambda, and stores it in a full userdata (with finalizer, if required).</para>
+		/// <para>the lambda may either directly be a CppMemberFunction or translatable with AutoTranslateAPI.</para>
+		/// <para>note: any valid object + member function combination is accepted, not just lambdas.</para>
+		/// <para>[-nUps,+1,m]</para>
+		/// </summary>
+		/// <typeparam name="OL">member function</typeparam>
+		/// <typeparam name="F">object type</typeparam>
+		/// <param name="f">object</param>
+		/// <param name="nUps">number of upvalues (excluding the lambda itself)</param>
+		template<class F, auto OL = &F::operator()>
+		requires(func::IsLuaMemberFunction<State, decltype(OL)> || func::detail::AutoTranslateEnabled<State, decltype(OL), 1>) &&
+			std::same_as<F, func::ObjectTypeOfMemberFunc<decltype(OL)>>
+		void PushLambda(F f, int nUps = 0) {
+			if constexpr (func::detail::IsLambdaFuncPointer<F, decltype(OL)>) {
+				using P = func::detail::LambdaAsFuncPointer<decltype(OL)>::type;
+				if constexpr (std::same_as<P, CppFunction>)
+					Push<static_cast<P>(f)>(nUps);
+				else
+					Push<AutoTranslateAPI<static_cast<P>(f), 0>>(nUps);
+			}
+			else {
+				new (B::NewUserdata(sizeof(F))) F(std::move(f));
 
-                if constexpr (!std::is_trivially_destructible_v<F>)
-                {
-                    B::NewTable();
-                    RegisterFunc<func::detail::LambdaFinalizer<State, F>>(B::MetaEvent::Finalizer, -3);
-                    B::SetMetatable(-2);
-                }
+				if constexpr (!std::is_trivially_destructible_v<F>) {
+					B::NewTable();
+					RegisterFunc<func::detail::LambdaFinalizer<State, F>>(B::MetaEvent::Finalizer, -3);
+					B::SetMetatable(-2);
+				}
 
-                B::Insert(-nups - 1);
+				B::Insert(-nUps - 1);
 
-                if constexpr (func::IsLuaMemberFunction<State, decltype(OL)>)
-                    Push<MemberClosure<F, OL>>(1 + nups);
-                else
-                    Push<AutoTranslateAPI<OL, 1>>(1 + nups);
-            }
-        }
+				if constexpr (func::IsLuaMemberFunction<State, decltype(OL)>)
+					Push<MemberClosure<F, OL>>(1 + nUps);
+				else
+					Push<AutoTranslateAPI<OL, 1>>(1 + nUps);
+			}
+		}
 	};
 
 	/// <summary>
@@ -2825,27 +2798,33 @@ namespace lua::decorator {
 	template<class B, template<class> class... C>
 	class UniqueState : public State<B, C...> {
 	public:
-	    template<template<class> class... D>
-	    using BindExtensions = UniqueState<B, D...>;
+		template<template<class> class... D>
+		using BindExtensions = UniqueState<B, D...>;
 
-	    using Base = State<B, C...>;
+		using Base = State<B, C...>;
 
 		/// <summary>
-        /// creates a State from a lua_State* (usually from external APIs).
-        /// </summary>
-        /// <param name="L">state pointer</param>
-        explicit UniqueState(lua_State* L) : Base(L) {}
+		/// creates a State from a lua_State* (usually from external APIs).
+		/// </summary>
+		/// <param name="L">state pointer</param>
+		explicit UniqueState(lua_State* L) : Base(L) {
+		}
 		/// <summary>
-        /// opens a new lua state.
-        /// </summary>
-        /// <param name="io">open io and os libs</param>
-        /// <param name="debug">open debug lib</param>
-        explicit UniqueState(bool io = true, bool debug = false) : Base(io, debug) {}
+		/// opens a new lua state.
+		/// </summary>
+		/// <param name="io">open io and os libs</param>
+		/// <param name="debug">open debug lib</param>
+		explicit UniqueState(bool io = true, bool debug = false) : Base(io, debug) {
+		}
 
 		UniqueState(const UniqueState&) = delete;
-		UniqueState(UniqueState&& s) noexcept : Base(s.GetState()) { s.L = nullptr; }
-        explicit UniqueState(const Base& s) noexcept : Base(s) {}
-        explicit UniqueState(Base&& s) noexcept : Base(s) {}
+		UniqueState(UniqueState&& s) noexcept : Base(s.GetState()) {
+			s.L = nullptr;
+		}
+		explicit UniqueState(const Base& s) noexcept : Base(s) {
+		}
+		explicit UniqueState(Base&& s) noexcept : Base(s) {
+		}
 
 		UniqueState& operator=(const UniqueState&) = delete;
 		UniqueState& operator=(UniqueState&& s) noexcept {
@@ -2875,4 +2854,4 @@ namespace lua::decorator {
 			Base::Close();
 		}
 	};
-}
+} // namespace lua::decorator
