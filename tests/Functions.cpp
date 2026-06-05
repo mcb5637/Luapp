@@ -365,18 +365,20 @@ namespace LuappDev {
 			bool closed = false;
 			{
 				struct Dtor {
-					bool& closed;
-					bool done = false;
+					bool* closed;
 
-					explicit Dtor(bool& b) : closed(b) {
+					explicit Dtor(bool& b) : closed(&b) {
 					}
 					Dtor(Dtor&& o) noexcept : closed(o.closed) {
-						o.done = true;
+						o.closed = nullptr;
 					}
+					Dtor(const Dtor&) = delete;
+					Dtor& operator=(const Dtor&) = delete;
+					Dtor& operator=(Dtor&&) = delete;
 
 					~Dtor() {
-						if (!done)
-							closed = true;
+						if (closed != nullptr)
+							*closed = true;
 					}
 				};
 
@@ -385,6 +387,7 @@ namespace LuappDev {
 				L2.PushLambda([x = std::move(dtor)](S) mutable {
 					return 0;
 				});
+				CHECK(dtor.closed == nullptr);
 			}
 			CHECK(closed);
 		}
