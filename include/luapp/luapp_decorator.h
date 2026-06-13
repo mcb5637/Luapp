@@ -2789,6 +2789,42 @@ namespace lua::decorator {
 					Push<AutoTranslateAPI<OL, 1>>(1 + nUps);
 			}
 		}
+
+		template<class S, class Iter, class Sent>
+		friend struct func::detail::IteratorMapper;
+		template<class S, class R>
+		requires std::ranges::range<R>
+		friend struct func::detail::RangeMapper;
+
+		/// <summary>
+		/// pushes an iterator pair as lua iterator function onto the stack.
+		/// <para>does take ownership of the iterator pair, and stores it in a full userdata (with finalizer, if required).</para>
+		/// <para>the iterated values must be auto-Pushable</para>
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <typeparam name="Iter">iterator type</typeparam>
+		/// <typeparam name="Sent">sentinel type (end iterator)</typeparam>
+		/// <param name="i">begin iterator</param>
+		/// <param name="s">end iterator or sentinel</param>
+		/// <param name="nUps">number of upvalues (excluding the iterator pair itself)</param>
+		template<class Iter, class Sent>
+		void PushIterator(Iter i, Sent s, int nUps = 0) {
+			PushLambda(func::detail::IteratorMapper<State, Iter, Sent>{std::move(i), std::move(s)}, nUps);
+		}
+
+		/// <summary>
+		/// pushes a range as lua iterator function onto the stack.
+		/// <para>does take ownership of the range, and stores it with an iterator in a full userdata (with finalizer, if required).</para>
+		/// <para>the iterated values must be auto-Pushable</para>
+		/// <para>[-0,+1,m]</para>
+		/// </summary>
+		/// <typeparam name="Range">range type</typeparam>
+		/// <param name="r">range</param>
+		/// <param name="nUps">number of upvalues (excluding the range itself)</param>
+		template<class Range>
+		void PushRange(Range r, int nUps = 0) {
+			PushLambda(func::detail::RangeMapper<State, Range>{std::move(r)}, nUps);
+		}
 	};
 
 	/// <summary>

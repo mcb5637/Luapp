@@ -434,5 +434,29 @@ end)");
 			L.TCall(1, 0);
 			CHECK(closed == true);
 		}
+
+		{
+			L.SetTop(0);
+			std::array test{1,2,3,4,5};
+
+			L.DoStringT(R"(return function(it)
+	local i = 0
+	for j in it do
+		i = i + 1
+		assert(j == i)
+	end
+	assert(i == 5)
+end
+)");
+
+			L.PushValue(1);
+			L.PushIterator(test.begin(), test.end());
+			CHECK_NOTHROW(L.TCall(1, 0));
+
+
+			L.PushValue(1);
+			L.PushRange(std::span{test});
+			CHECK_NOTHROW(L.TCall(1, 0));
+		}
 	}
 } // namespace LuappDev

@@ -139,6 +139,39 @@ namespace lua::func {
 #endif
 #undef LUAPP_RTTI
 		}
+
+		template<class S, class Iter, class Sent>
+		struct IteratorMapper {
+			Iter Current;
+			Sent Sentinel;
+
+			int operator()(S L) {
+				if (Current == Sentinel)
+					return 0;
+				auto& e = *Current;
+				int r = L.PushAll(e);
+				++Current;
+				return r;
+			}
+		};
+
+		template<class S, class R>
+		requires std::ranges::range<R>
+		struct RangeMapper {
+			R Range;
+			std::ranges::iterator_t<R> Current;
+
+			explicit RangeMapper(R r) : Range(r), Current(Range.begin()) {}
+
+			int operator()(S L) {
+				if (Current == Range.end())
+					return 0;
+				auto& e = *Current;
+				int r = L.PushAll(e);
+				++Current;
+				return r;
+			}
+		};
 	} // namespace detail
 
 	template<class State, class FT, size_t NumBindings, class UC>
