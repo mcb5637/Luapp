@@ -455,7 +455,7 @@ end
 
 
 			L.PushValue(1);
-			L.PushRange(std::span{test});
+			L.PushRange(std::span(test));
 			CHECK_NOTHROW(L.TCall(1, 0));
 		}
 	}
