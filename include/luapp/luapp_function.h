@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tuple>
+#include <ranges>
 
 namespace lua::func {
 	// as seen on http://functionalcpp.wordpress.com/2013/08/05/function-traits/
@@ -141,6 +142,7 @@ namespace lua::func {
 		}
 
 		template<class S, class Iter, class Sent>
+		requires std::ranges::input_range<std::ranges::subrange<Iter, Sent>>
 		struct IteratorMapper {
 			Iter Current;
 			Sent Sentinel;
@@ -156,7 +158,7 @@ namespace lua::func {
 		};
 
 		template<class S, class R>
-		requires std::ranges::range<R>
+		requires std::ranges::input_range<R>
 		struct RangeMapper {
 			R Range;
 			std::ranges::iterator_t<R> Current;

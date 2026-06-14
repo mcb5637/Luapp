@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 
+#include <span>
+
 #include <luaver.h>
 
 namespace LuappDev {
@@ -437,7 +439,7 @@ end)");
 
 		{
 			L.SetTop(0);
-			std::array test{1,2,3,4,5};
+			static constexpr const std::array test{1,2,3,4,5};
 
 			L.DoStringT(R"(return function(it)
 	local i = 0

@@ -2791,9 +2791,10 @@ namespace lua::decorator {
 		}
 
 		template<class S, class Iter, class Sent>
+		requires std::ranges::input_range<std::ranges::subrange<Iter, Sent>>
 		friend struct func::detail::IteratorMapper;
 		template<class S, class R>
-		requires std::ranges::range<R>
+		requires std::ranges::input_range<R>
 		friend struct func::detail::RangeMapper;
 
 		/// <summary>
