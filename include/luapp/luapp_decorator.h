@@ -2708,11 +2708,11 @@ namespace lua::decorator {
 			using R = func::FunctionTraits<decltype(F)>::ReturnType;
 			using P = func::FunctionTraits<decltype(F)>::ArgumentTypes;
 			if constexpr (std::same_as<R, void>) {
-				std::apply(F, L.CheckAll<P, NumBindings, UC>());
+				std::apply(F, L.template CheckAll<P, NumBindings, UC>());
 				return 0;
 			}
 			else {
-				return L.PushAll(std::apply(F, L.CheckAll<P, NumBindings, UC>()));
+				return L.PushAll(std::apply(F, L.template CheckAll<P, NumBindings, UC>()));
 			}
 		}
 
